@@ -7,4 +7,3 @@
 11_arm64-cache-flush.patch
 13_fix-path-to-vgdb.patch
 armv7-illegal-opcode.patch
-0001-Implement-linux-rseq-syscall-as-ENOSYS.patch
