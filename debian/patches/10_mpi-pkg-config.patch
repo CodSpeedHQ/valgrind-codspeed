@@ -1,0 +1,91 @@
+Description: Use pkg-config to detect MPI
+Origin: vendor
+Bug-Debian: http://bugs.debian.org/902297
+Author: Helmut Grohne <helmut@subdivi.de>
+Last-Update: 2018-11-14
+
+--- a/configure.ac
++++ b/configure.ac
+@@ -4506,6 +4506,14 @@
+            [CFLAGS_MPI="-g -O -fno-omit-frame-pointer -Wall -fpic"
+             LDFLAGS_MPI="-fpic -shared"])
+ 
++PKG_CHECK_MODULES([MPI_C],[mpi-c],[
++	CFLAGS_MPI="$CFLAGS_MPI $MPI_C_CFLAGS"
++	LDFLAGS_MPI="$LDFLAGS_MPI $MPI_C_LIBS"
++],[
++   	CFLAGS_MPI="$CFLAGS_MPI `$MPI_CC -showme:compile`"
++	LDFLAGS_MPI="$LDFLAGS_MPI `$MPI_CC -showme:link`"
++])
++
+ AC_SUBST([CFLAGS_MPI])
+ AC_SUBST([LDFLAGS_MPI])
+ 
+@@ -4513,9 +4521,7 @@
+ ## See if MPI_CC works for the primary target
+ ##
+ AC_MSG_CHECKING([primary target for usable MPI2-compliant C compiler and mpi.h])
+-saved_CC=$CC
+ saved_CFLAGS=$CFLAGS
+-CC=$MPI_CC
+ CFLAGS="$CFLAGS_MPI $mflag_primary"
+ saved_LDFLAGS="$LDFLAGS"
+ LDFLAGS="$LDFLAGS_MPI $mflag_primary"
+@@ -4535,27 +4541,23 @@
+ ac_have_mpi2_pri=no
+ AC_MSG_RESULT([no])
+ ])
+-CC=$saved_CC
+ CFLAGS=$saved_CFLAGS
+ LDFLAGS="$saved_LDFLAGS"
+ AM_CONDITIONAL(BUILD_MPIWRAP_PRI, test x$ac_have_mpi2_pri = xyes)
+ 
+ ## See if MPI_CC works for the secondary target.  Complication: what if
+ ## there is no secondary target?  We need this to then fail.
+-## Kludge this by making MPI_CC something which will surely fail in
++## Kludge this by making CFLAGS something which will surely fail in
+ ## such a case.
+ ##
+ AC_MSG_CHECKING([secondary target for usable MPI2-compliant C compiler and mpi.h])
+-saved_CC=$CC
+ saved_CFLAGS=$CFLAGS
+ saved_LDFLAGS="$LDFLAGS"
+ LDFLAGS="$LDFLAGS_MPI $mflag_secondary"
++CFLAGS="$CFLAGS_MPI $mflag_secondary"
+ if test x$VGCONF_PLATFORM_SEC_CAPS = x ; then
+-  CC="$MPI_CC this will surely fail"
+-else
+-  CC=$MPI_CC
++  CFLAGS="this will surely fail"
+ fi
+-CFLAGS="$CFLAGS_MPI $mflag_secondary"
+ AC_LINK_IFELSE([AC_LANG_PROGRAM([[
+ #include <mpi.h>
+ #include <stdio.h>
+@@ -4572,7 +4574,6 @@
+ ac_have_mpi2_sec=no
+ AC_MSG_RESULT([no])
+ ])
+-CC=$saved_CC
+ CFLAGS=$saved_CFLAGS
+ LDFLAGS="$saved_LDFLAGS"
+ AM_CONDITIONAL(BUILD_MPIWRAP_SEC, test x$ac_have_mpi2_sec = xyes)
+--- a/mpi/Makefile.am
++++ b/mpi/Makefile.am
+@@ -1,16 +1,5 @@
+ include $(top_srcdir)/Makefile.all.am
+ 
+-# HACK WARNING: automake isn't good at supporting non-$(CC) compilers.
+-# But we need to use $(MPI_CC) for the MPI stuff.  So we have this mpi stuff
+-# in its own directory so we can use the following blunt instruments, which
+-# override the C compiler and all the default flags.
+-CC = $(MPI_CC)
+-DEFS =
+-DEFAULT_INCLUDES =
+-CPPFLAGS =
+-CFLAGS =
+-LDFLAGS =
+-
+ EXTRA_DIST = \
+ 	mpiwrap_type_test.c
+ 

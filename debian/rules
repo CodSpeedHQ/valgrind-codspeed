@@ -1,0 +1,64 @@
+#!/usr/bin/make -f
+
+# LTO triggers undefined symbols in valgrind.  Valgrind has a --enable-lto
+# configure time option, but that doesn't seem to help.
+# Disable LTO for now.
+
+# valgrind uses -fno-stack-protector
+export DEB_BUILD_MAINT_OPTIONS := hardening=-stackprotector,-stackprotectorstrong optimize=-lto
+
+include /usr/share/dpkg/architecture.mk
+
+CFLAGS   = $(shell dpkg-buildflags --get CFLAGS)
+CFLAGS  += $(shell dpkg-buildflags --get CPPFLAGS)
+CFLAGS  += "-I/usr/include/$(DEB_HOST_MULTIARCH)"   # fixes #676029
+LDFLAGS  = $(shell dpkg-buildflags --get LDFLAGS)
+
+ifeq ($(DEB_HOST_ARCH_CPU),arm)
+	DH_STRIP_OPTS := -X vgpreload
+else
+	DH_STRIP_OPTS :=
+endif
+
+CONFARGS = --enable-tls
+ifeq ($(DEB_HOST_ARCH_CPU),arm64)
+  CONFARGS += --enable-only64bit
+endif
+
+%:
+	dh $@ --parallel --with=autoreconf
+
+override_dh_auto_configure:
+	dh_auto_configure -- $(CONFARGS) CFLAGS="$(CFLAGS)" LDFLAGS="$(LDFLAGS)"
+
+override_dh_auto_test:
+	: # do nothing for now
+
+override_dh_auto_build:
+	dh_auto_build --parallel
+	$(MAKE) -C docs FAQ.txt
+	$(MAKE) -C docs html-docs
+	$(MAKE) -C docs man-pages
+
+override_dh_shlibdeps:
+	dh_shlibdeps -Xdebian/valgrind/usr/lib/$(DEB_HOST_MULTIARCH)/valgrind/getoff-x86-linux # fixes #762386
+
+override_dh_strip:
+	dh_strip --dbg-package=valgrind-dbg $(DH_STRIP_OPTS)
+
+override_dh_dwz:
+	: # do nothing for now
+
+target=$(CURDIR)/debian/valgrind
+override_dh_install:
+	dh_install -pvalgrind -Xlibmpiwrap
+	dh_install --remaining-packages
+	# valgrind script
+	mv -f $(target)/usr/bin/valgrind $(target)/usr/bin/valgrind.bin
+	mv -f ${target}/usr/bin/valgrind.sh $(target)/usr/bin/valgrind
+
+override_dh_installchangelogs:
+	dh_installchangelogs NEWS
+	
+override_dh_missing:
+	dh_missing --fail-missing

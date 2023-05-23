@@ -1,0 +1,28 @@
+Description: Fix path to vgdb executable in output message
+Origin: vendor
+Bug-Debian: http://bugs.debian.org/942532
+Author: Alessandro Ghedini <ghedo@debian.org>
+
+--- a/coregrind/m_gdbserver/remote-utils.c
++++ b/coregrind/m_gdbserver/remote-utils.c
+@@ -360,8 +360,7 @@
+       VG_(umsg)("TO CONTROL THIS PROCESS USING vgdb (which you probably\n"
+                 "don't want to do, unless you know exactly what you're doing,\n"
+                 "or are doing some strange experiment):\n"
+-                "  %s/../../bin/vgdb%s%s --pid=%d ...command...\n",
+-                VG_(libdir),
++                "  /usr/bin/vgdb%s%s --pid=%d ...command...\n",
+                 (VG_(arg_vgdb_prefix) ? " " : ""),
+                 (VG_(arg_vgdb_prefix) ? VG_(arg_vgdb_prefix) : ""),
+                 pid);
+@@ -374,9 +373,8 @@
+          "TO DEBUG THIS PROCESS USING GDB: start GDB like this\n"
+          "  /path/to/gdb %s\n"
+          "and then give GDB the following command\n"
+-         "  target remote | %s/../../bin/vgdb%s%s --pid=%d\n",
++         "  target remote | /usr/bin/vgdb%s%s --pid=%d\n",
+          VG_(args_the_exename),
+-         VG_(libdir),
+          (VG_(arg_vgdb_prefix) ? " " : ""),
+          (VG_(arg_vgdb_prefix) ? VG_(arg_vgdb_prefix) : ""),
+          pid

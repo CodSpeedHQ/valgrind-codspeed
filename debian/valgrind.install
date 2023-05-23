@@ -1,0 +1,7 @@
+usr/bin/*
+usr/include/*
+usr/share/*
+usr/lib/*
+usr/libexec/valgrind/*
+debian/valgrind.sh	usr/bin
+debian/supp/*		usr/lib/valgrind

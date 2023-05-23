@@ -1,0 +1,10 @@
+03_allow-or-quoting-of-strings-in-.valgrindrc.patch
+04_workaround-SIGSEGV-on-PPC.patch
+05_fix-callgrind_control.patch
+08_fix-spelling-in-manpage.patch
+09_fix-armhf-detect.patch
+10_mpi-pkg-config.patch
+11_arm64-cache-flush.patch
+13_fix-path-to-vgdb.patch
+armv7-illegal-opcode.patch
+0001-Implement-linux-rseq-syscall-as-ENOSYS.patch

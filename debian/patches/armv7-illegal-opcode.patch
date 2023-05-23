@@ -1,0 +1,32 @@
+From 1dbb2bc02eb157c4d561bb36236bfc7006d59f0b Mon Sep 17 00:00:00 2001
+From: Philippe De Muyter <phdm@macqel.be>
+Date: Sat, 30 Sep 2017 10:23:35 +0200
+Subject: [PATCH] VEX/priv/guest_arm_toIR.c: fix 0xEBAD 0x1CCA (sub.w r12, sp,
+ r10, lsl #7)
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/1837068
+Origin: https://bugs.kde.org/show_bug.cgi?id=385262
+
+disInstr(thumb): unhandled instruction: 0xEBAD 0x1CCA
+==10358==  Illegal opcode at address 0x5900DA3
+==10358==    at 0x5900DA2: bsaes_cbc_encrypt (bsaes-armv7.S:1084)
+(gdb) x /i $pc
+=> 0x5900da2 <bsaes_cbc_encrypt+34>:    sub.w   r12, sp, r10, lsl #7
+---
+ VEX/priv/guest_arm_toIR.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+--- a/VEX/priv/guest_arm_toIR.c
++++ b/VEX/priv/guest_arm_toIR.c
+@@ -21114,10 +21114,10 @@
+           && rD != 15 && rN == 13 && imm5 <= 31 && how == 0) {
+          valid = True;
+       }
+-      /* also allow "sub.w reg, sp, reg   lsl #N for N=0 .. 5
++      /* also allow "sub.w reg, sp, reg   lsl #N for N=0 .. 7
+          (T1) "SUB (SP minus register) */
+       if (!valid && INSN0(8,5) == BITS4(1,1,0,1) // sub
+-          && rD != 15 && rN == 13 && imm5 <= 5 && how == 0) {
++          && rD != 15 && rN == 13 && imm5 <= 7 && how == 0) {
+          valid = True;
+       }
+       if (valid) {

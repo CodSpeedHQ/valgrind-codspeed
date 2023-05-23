@@ -1,0 +1,17 @@
+Description: Fix spelling-error-in-manpage found by lintian
+Origin: vendor
+Author: Alessandro Ghedini <ghedo@debian.org>
+Reviewed-by: Alessandro Ghedini <ghedo@debian.org>
+Last-Update: 2016-11-03
+
+--- a/docs/xml/manual-core-adv.xml
++++ b/docs/xml/manual-core-adv.xml
+@@ -1227,7 +1227,7 @@
+     <term><option>--port=&lt;portnr&gt;</option></term>
+     <listitem><para>Instructs vgdb to
+     use tcp/ip and listen for GDB on the specified port nr rather than
+-    to use a pipe to communicate with GDB. Using tcp/ip allows to have
++    to use a pipe to communicate with GDB. Using tcp/ip allows one to have
+     GDB running on one computer and debugging a Valgrind process
+     running on another target computer.
+     Example: 
