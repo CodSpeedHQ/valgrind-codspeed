@@ -17,7 +17,7 @@
 m4_define([v_major_ver], [3])
 m4_define([v_minor_ver], [21])
 m4_define([v_micro_ver], [0])
-m4_define([v_suffix_ver], [])
+m4_define([v_suffix_ver], [codspeed])
 m4_define([v_rel_date], ["28 Apr 2023"])
 m4_define([v_version],
 	  m4_if(v_suffix_ver, [],
