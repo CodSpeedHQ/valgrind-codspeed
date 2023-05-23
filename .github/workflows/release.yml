@@ -1,0 +1,38 @@
+name: Release
+
+on:
+  release:
+    types: created
+  workflow_dispatch:
+
+jobs:
+  build-package:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+      - name: Update apt-get cache
+        run: sudo apt-get update
+      - name: Install packaging deps
+        run: sudo apt-get install -y build-essential devscripts debhelper dh-make
+      - name: Install build deps
+        run: sudo apt-get install -y debhelper-compat gdb gcc-multilib libc6-dev-i386 mpi-default-dev pkg-config docbook docbook-xsl docbook-xml xsltproc
+      - name: Configure GPG Key
+        run: echo -n "$GPG_SIGNING_KEY" | base64 --decode | gpg --import
+        env:
+          GPG_SIGNING_KEY: ${{ secrets.GPG_SIGNING_KEY }}
+      - name: Build the deb package
+        id: build_deb
+        run: |
+          debuild --no-tgz-check -nc
+          echo "asset-path=$(find .. -name 'valgrind_*.deb')" >> "$GITHUB_OUTPUT"
+        env:
+          DEBEMAIL: ${{ vars.MAINTAINER_EMAIL }}
+      - name: Upload release artifact
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_content_type: application/vnd.debian.binary-package
+          asset_path: ${{ steps.build_deb.outputs.asset-path }}
+          asset_name: valgrind_${{ github.event.release.name }}_amd64.deb
