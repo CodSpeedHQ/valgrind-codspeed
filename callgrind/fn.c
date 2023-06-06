@@ -452,6 +452,7 @@ fn_node* new_fn_node(const HChar *fnname,
     fn->zero_before  = False;
     fn->toggle_collect = False;
     fn->skip         = False;
+    fn->obj_skip_checked = False;
     fn->pop_on_jump  = CLG_(clo).pop_on_jump;
     fn->is_malloc    = False;
     fn->is_realloc   = False;

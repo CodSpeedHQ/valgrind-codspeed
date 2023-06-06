@@ -119,6 +119,8 @@ struct _CommandLineOptions {
 
   /* Call graph generation */
   Bool pop_on_jump;       /* Handle a jump between functions as ret+call */
+  Int objs_to_skip_count; /* Number of objects to skip */
+  HChar** objs_to_skip;  /* List of objects to skip */
 
 #if CLG_ENABLE_DEBUG
   Int   verbose;
@@ -407,6 +409,7 @@ struct _fn_node {
   Bool zero_before :1;
   Bool toggle_collect :1;
   Bool skip :1;
+  Bool obj_skip_checked : 1;
   Bool pop_on_jump : 1;
 
   Bool is_malloc :1;

@@ -430,6 +430,14 @@ Bool CLG_(process_cmd_line_option)(const HChar* arg)
        fn_config* fnc = get_fnc(tmp_str);
        fnc->skip = CONFIG_TRUE;
    }
+   else if VG_STR_CLO(arg, "--obj-skip", tmp_str) {
+       HChar *obj_name = VG_(strdup)("cl.clo.pclo.1", tmp_str);
+       CLG_(clo).objs_to_skip_count++;
+       CLG_(clo).objs_to_skip = VG_(realloc)("cl.clo.pclo.2",
+                                             CLG_(clo).objs_to_skip,
+                                             CLG_(clo).objs_to_skip_count*sizeof(HChar*));
+       CLG_(clo).objs_to_skip[CLG_(clo).objs_to_skip_count-1] = obj_name;
+   }
 
    else if VG_STR_CLO(arg, "--dump-before", tmp_str) {
        fn_config* fnc = get_fnc(tmp_str);
@@ -611,6 +619,7 @@ void CLG_(print_usage)(void)
 "    --skip-plt=no|yes         Ignore calls to/from PLT sections? [yes]\n"
 "    --skip-direct-rec=no|yes  Ignore direct recursions? [yes]\n"
 "    --fn-skip=<function>      Ignore calls to/from function?\n"
+"    --obj-skip=<object>       Ignore calls to/from object?\n"
 #if CLG_EXPERIMENTAL
 "    --fn-group<no>=<func>     Put function into separation group <no>\n"
 #endif
@@ -681,6 +690,8 @@ void CLG_(set_clo_defaults)(void)
 
   /* Call graph */
   CLG_(clo).pop_on_jump = False;
+  CLG_(clo).objs_to_skip_count = 0;
+  CLG_(clo).objs_to_skip = 0;
 
 #if CLG_ENABLE_DEBUG
   CLG_(clo).verbose = 0;

@@ -725,8 +725,23 @@ void CLG_(setup_bbcc)(BB* bb)
     }
   }
 
-  if (jmpkind == jk_Call)
-    skip = CLG_(get_fn_node)(bb)->skip;
+  if (jmpkind == jk_Call) {
+    fn_node* node = CLG_(get_fn_node)(bb);
+    skip = node->skip;
+    if (!skip && !node->obj_skip_checked){
+      HChar* obj_name = node->file->obj->name;
+      // VG_(printf)("  %s\n", obj_name);
+      for (int i=0; i<CLG_(clo).objs_to_skip_count; i++) {
+        // VG_(printf)("     %s\n", CLG_(clo).objs_to_skip[i]);
+        if (VG_(strcmp)(obj_name, CLG_(clo).objs_to_skip[i]) == 0) {
+          node->skip = True;
+          skip = True;
+          break;
+        }
+      }
+      node->obj_skip_checked = True;
+    }
+  }
 
   CLG_DEBUGIF(1) {
     if (isConditionalJump)
