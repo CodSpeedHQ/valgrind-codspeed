@@ -3,7 +3,7 @@ Section: devel
 Priority: optional
 Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
 XSBC-Original-Maintainer: Alessandro Ghedini <ghedo@debian.org>
-Build-Depends: debhelper-compat (= 13),
+Build-Depends: debhelper-compat(= 12),
  gdb,
  gcc-multilib [amd64],
  libc6-dev-i386 [amd64],
