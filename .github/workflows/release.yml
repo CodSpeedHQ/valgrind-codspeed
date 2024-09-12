@@ -18,7 +18,7 @@ jobs:
             platform: ubuntu-22.04
             ubuntu-version: 22.04
             additional-deps: gcc-multilib libc6-dev-i386
-          - architechure: arm64
+          - architecture: arm64
             platform: buildjet-2vcpu-ubuntu-2204-arm
             ubuntu-version: 22.04
 
@@ -52,4 +52,4 @@ jobs:
           upload_url: ${{ github.event.release.upload_url }}
           asset_content_type: application/vnd.debian.binary-package
           asset_path: ${{ steps.build_deb.outputs.asset-path }}
-          asset_name: valgrind_${{ github.event.release.name }}_ubuntu-${{ matrix.runner.ubuntu-version }}_${{ matrix.runner.architechure }}.deb
+          asset_name: valgrind_${{ github.event.release.name }}_ubuntu-${{ matrix.runner.ubuntu-version }}_${{ matrix.runner.architecture }}.deb
