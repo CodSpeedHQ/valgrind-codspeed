@@ -20,13 +20,16 @@ else
 	DH_STRIP_OPTS :=
 endif
 
-CONFARGS = --enable-tls
+CONFARGS = \
+	--enable-tls \
+	--with-gdbscripts-dir=/usr/share/gdb/auto-load
+
 ifeq ($(DEB_HOST_ARCH_CPU),arm64)
   CONFARGS += --enable-only64bit
 endif
 
 %:
-	dh $@ --parallel --with=autoreconf
+	dh $@
 
 override_dh_auto_configure:
 	dh_auto_configure -- $(CONFARGS) CFLAGS="$(CFLAGS)" LDFLAGS="$(LDFLAGS)"
@@ -35,16 +38,16 @@ override_dh_auto_test:
 	: # do nothing for now
 
 override_dh_auto_build:
-	dh_auto_build --parallel
+	dh_auto_build
 	$(MAKE) -C docs FAQ.txt
 	$(MAKE) -C docs html-docs
 	$(MAKE) -C docs man-pages
 
 override_dh_shlibdeps:
-	dh_shlibdeps -Xdebian/valgrind/usr/lib/$(DEB_HOST_MULTIARCH)/valgrind/getoff-x86-linux # fixes #762386
+	dh_shlibdeps -Xdebian/valgrind/usr/libexec/valgrind/getoff-x86-linux # fixes #762386
 
 override_dh_strip:
-	dh_strip --dbg-package=valgrind-dbg $(DH_STRIP_OPTS)
+	dh_strip --dbgsym-migration='valgrind-dbg (<< 1:3.19.0-2~)' $(DH_STRIP_OPTS)
 
 override_dh_dwz:
 	: # do nothing for now
@@ -57,8 +60,11 @@ override_dh_install:
 	mv -f $(target)/usr/bin/valgrind $(target)/usr/bin/valgrind.bin
 	mv -f ${target}/usr/bin/valgrind.sh $(target)/usr/bin/valgrind
 
+#override_dh_fixperms:
+#	dh_fixperms -X.css -X.html -X.js -X.so -X.supp -X.xml
+
 override_dh_installchangelogs:
 	dh_installchangelogs NEWS
-	
+
 override_dh_missing:
 	dh_missing --fail-missing

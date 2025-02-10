@@ -1,3 +1,135 @@
+valgrind (1:3.24.0-0ubuntu1) plucky; urgency=medium
+
+  * New upstream release. (LP: #2095363)
+  * Remove d/p/11_arm64-cache-flush.patch since it's no longer needed.
+    Now handled by upstream commit 40505e5056a7.
+  * Remove a superfluous entry in d/copyright, reported by lintian.
+  * Replace outdated pkg-config in d/control Build-Depends by pkgconf.
+
+ -- Frank Heimes <frank.heimes@canonical.com>  Wed, 29 Jan 2025 11:18:43 +0100
+
+valgrind (1:3.23.0-0ubuntu2) oracular; urgency=medium
+
+  * d/patches: add patch to attempt configuring mpich if
+    openmpi/mpi-c is not availble (LP: #2078264)
+
+ -- Pushkar Kulkarni <pushkar.kulkarni@canonical.com>  Thu, 29 Aug 2024 01:12:52 +0530
+
+valgrind (1:3.23.0-0ubuntu1) oracular; urgency=medium
+
+  * New upstream release. (LP: #1982335)
+    - Includes support for IBM z13 (`NNPA' instruction).
+    - Remove d/p/09_fix-armhf-detect.patch and d/p/armhf_neon.patch, since
+      the arm architecture is upstream now handled in a more fine grained and
+      proper way, that make the quilt patches obsolete.
+    - Remove d/p/binutils-2.42.diff since all modifications are now upstream.
+    - Remove d/p/armhf_neon.patch since code changed significantly, instead:
+    - Add d/p/adjust_armhf_cases.patch to focus on armhf options in
+      configure.ac that are supported by Ubuntu (armv7t2+) and get rid of the
+      armv6 case, that is causing build issues (due to fp).
+
+ -- Frank Heimes <frank.heimes@canonical.com>  Tue, 09 Jul 2024 14:54:18 +0200
+
+valgrind (1:3.22.0-0ubuntu3) noble; urgency=high
+
+  * No change rebuild for 64-bit time_t and frame pointers.
+
+ -- Julian Andres Klode <juliank@ubuntu.com>  Mon, 08 Apr 2024 18:21:40 +0200
+
+valgrind (1:3.22.0-0ubuntu2) noble; urgency=medium
+
+  * Fix #478624 - Valgrind incompatibility with binutils-2.42 on x86 with
+    new nop patterns (unhandled instruction bytes: 0x2E 0x8D 0xB4 0x26)
+
+ -- Matthias Klose <doko@ubuntu.com>  Mon, 18 Dec 2023 13:50:42 +0100
+
+valgrind (1:3.22.0-0ubuntu1) noble; urgency=medium
+
+  * New upstream release.
+  * Configure --with-gdbscripts-dir=/usr/share/gdb/auto-load.
+
+ -- Matthias Klose <doko@ubuntu.com>  Fri, 08 Dec 2023 14:01:19 +0100
+
+valgrind (1:3.21.0-0ubuntu1) mantic; urgency=medium
+
+  * New upstream release.
+  * Merge with Debian unstable. Remaining changes:
+    - Lower over-inflated valgrind-dbg Recommends to Suggests instead.
+    - Don't strip vgpreload* on ARM; this results in unusable stack traces
+      without valgrind-dbg.
+    - Configure with --enable-only64bit on AArch64.
+    - debian/patches/armv7-illegal-opcode.patch: fix a crash due to an
+      unhandled thumb instruction on armhf.
+    - debian/rules: use dh_missing --fail-missing to we don't overlook not
+      install files
+    - LTO triggers undefined symbols in valgrind.  Valgrind has a --enable-lto
+      configure time option, but that doesn't seem to help.
+      Disable LTO for now.
+
+ -- Matthias Klose <doko@ubuntu.com>  Fri, 25 Aug 2023 12:50:25 +0200
+
+valgrind (1:3.20.0-1) experimental; urgency=medium
+
+  * New upstream release.
+  * Add myself to uploaders.
+
+  [Jelmer Vernooĳ]
+  * Fix day-of-week for changelog entry 1.9.5-2.
+  * Drop unnecessary dependency on dh-autoreconf.
+  * Use secure URI in Homepage field.
+  * Transition to automatic debug package (from: valgrind-dbg).
+
+ -- Adam Borowski <kilobyte@angband.pl>  Tue, 10 Jan 2023 16:51:40 +0100
+
+valgrind (1:3.19.0-1ubuntu2) lunar; urgency=medium
+
+  * d/p/lp2015216.patch: Cherry-picked from upstream to silence errors caused
+    by asm-optimised strncmp in ld.so from recent glibc (LP: #2015216)
+
+ -- Simon Chopin <schopin@ubuntu.com>  Tue, 04 Apr 2023 20:25:00 +0200
+
+valgrind (1:3.19.0-1ubuntu1) lunar; urgency=medium
+
+  * Merge with Debian unstable. Remaining changes:
+    - Lower over-inflated valgrind-dbg Recommends to Suggests instead.
+    - Don't strip vgpreload* on ARM; this results in unusable stack traces
+      without valgrind-dbg.
+    - Configure with --enable-only64bit on AArch64.
+    - debian/patches/armv7-illegal-opcode.patch: fix a crash due to an
+      unhandled thumb instruction on armhf.
+    - debian/rules: use dh_missing --fail-missing to we don't overlook not
+      install files
+    - LTO triggers undefined symbols in valgrind.  Valgrind has a --enable-lto
+      configure time option, but that doesn't seem to help.
+      Disable LTO for now.
+  * Dropped changes:
+    - d/patches/0001-Implement-linux-rseq-syscall-as-ENOSYS.patch: backport from
+      upstream to handle new syscall now used by glibc 2.35. (now included
+      from upstream)
+    - Enable parallel builds. (not needed with debhelper 10 and later)
+    - Add powerpc fixes. (apparently dropped some time ago)
+    - Also some undocumented delta around files moving from
+      usr/lib/$multiarch/valgrind to usr/lib/libexec/valgrind which happened
+      at some point in the Ubuntu 21.10 development cycle.
+
+ -- Michael Hudson-Doyle <michael.hudson@ubuntu.com>  Mon, 28 Nov 2022 14:55:17 +1300
+
+valgrind (1:3.19.0-1) unstable; urgency=medium
+
+  * New upstream release (Closes: #1017791)
+  * Remove x32 from architectures list (Closes: #997015)
+  * Update lintian overrides
+  * Bump Standards-Version to 4.6.1 (no changes needed)
+
+ -- Alessandro Ghedini <ghedo@debian.org>  Sun, 28 Aug 2022 11:40:16 +0100
+
+valgrind (1:3.18.1-1.1) unstable; urgency=medium
+
+  * Non-maintainer upload.
+  * Fix remove neon requirement from armhf binaries. Closes: #928224
+
+ -- Mathieu Malaterre <malat@debian.org>  Fri, 01 Jul 2022 13:58:19 +0200
+
 valgrind (1:3.21.0-0codspeed3) UNRELEASED; urgency=medium
 
   * Ship prebuilt binaries for ubuntu 24.04 amd64

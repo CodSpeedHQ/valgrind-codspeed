@@ -1,0 +1,32 @@
+Description: Adjust armhf cases in configure.ac
+ The configure.ac file handles 3 different armhf cases, armv8, armv7 and
+ anything else as armv6. But the package build fails for armv6 due to fp
+ issues. But since Ubuntu cares about armv7t2+ (and newer) only, this patch
+ adjusts the different armhf cases and now only handled armv8 separately,
+ and anything else as armv7 ('generic-armv7-a').
+Author: Frank Heimes <frank.heimes@canonical.com>
+Bug: https://bugs.launchpad.net/bugs/1982335 
+Forwarded: not-needed
+Reviewed-by: Frank Heimes <frank.heimes@canonical.com>
+Last-Update: 2024-07-10
+---
+This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
+--- a/configure.ac
++++ b/configure.ac
+@@ -279,15 +279,9 @@
+         ARCH_MAX="arm"
+         ;;
+ 
+-     armv7*)
+-        AC_MSG_RESULT([ok (${host_cpu})])
+-        VGCONF_PLATFORM_ARM_ARCH="-marm -mcpu=cortex-a8"
+-        ARCH_MAX="arm"
+-        ;;
+-
+      arm*)
+         AC_MSG_RESULT([ok (${host_cpu})])
+-        VGCONF_PLATFORM_ARM_ARCH="-march=armv6"
++        VGCONF_PLATFORM_ARM_ARCH="-marm -mcpu=generic-armv7-a"
+         ARCH_MAX="arm"
+         ;;
+ 

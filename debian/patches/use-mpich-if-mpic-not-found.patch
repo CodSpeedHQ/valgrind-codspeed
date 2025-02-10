@@ -1,0 +1,33 @@
+Description: configure mpich on 32-bit archs
+  Package mpi-defaults has been altered to depend on
+  mpich on 32-bit architectures, while continuing with
+  mpi-c on 64-bit. Alter the configure script to attempt
+  configuring mpi-c first and mpich if the former isn't
+  available.
+Forwarded: not-needed
+Bug-Ubuntu: https://bugs.launchpad.net/ubuntu/+source/valgrind/+bug/2078264
+Bug-Debian: https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1079874
+Author: Pushkar Kulkarni <pushkar.kulkarni@canonical.com>
+--- a/configure.ac
++++ b/configure.ac
+@@ -5112,12 +5112,18 @@
+            [CFLAGS_MPI="-g -O -fno-omit-frame-pointer -Wall -fpic"
+             LDFLAGS_MPI="-fpic -shared"])
+ 
++# configure openmpi/mpi-c if available, fallback to mpich if not
+ PKG_CHECK_MODULES([MPI_C],[mpi-c],[
+ 	CFLAGS_MPI="$CFLAGS_MPI $MPI_C_CFLAGS"
+ 	LDFLAGS_MPI="$LDFLAGS_MPI $MPI_C_LIBS"
+ ],[
+-   	CFLAGS_MPI="$CFLAGS_MPI `$MPI_CC -showme:compile`"
+-	LDFLAGS_MPI="$LDFLAGS_MPI `$MPI_CC -showme:link`"
++	PKG_CHECK_MODULES([MPI_C], [mpich], [
++		CFLAGS_MPI="$CFLAGS_MPI $MPI_C_CFLAGS"
++		LDFLAGS_MPI="$LDFLAGS_MPI $MPI_C_LIBS"
++	],[
++   		CFLAGS_MPI="$CFLAGS_MPI `$MPI_CC -showme:compile`"
++		LDFLAGS_MPI="$LDFLAGS_MPI `$MPI_CC -showme:link`"
++	])
+ ])
+ 
+ AC_SUBST([CFLAGS_MPI])
