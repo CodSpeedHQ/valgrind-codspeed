@@ -34,7 +34,7 @@ jobs:
       - name: Install packaging deps
         run: sudo apt-get install -y build-essential devscripts debhelper dh-make
       - name: Install build deps
-        run: sudo apt-get install -y debhelper-compat gdb mpi-default-dev pkg-config docbook docbook-xsl docbook-xml xsltproc ${{ matrix.runner.additional-deps }}
+        run: sudo apt-get install -y debhelper-compat gdb mpi-default-dev pkgconf docbook docbook-xsl docbook-xml xsltproc ${{ matrix.runner.additional-deps }}
       - name: Configure GPG Key
         run: echo -n "$GPG_SIGNING_KEY" | base64 --decode | gpg --import
         env:
