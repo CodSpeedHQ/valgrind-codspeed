@@ -13,6 +13,7 @@ noinst_HEADERS = scalar.h
 
 EXTRA_DIST = \
 	aligned_alloc.stderr.exp aligned_alloc.vgtest \
+	aligned_alloc.stderr.exp-solaris \
 	brk.stderr.exp brk.stdout.exp brk.vgtest \
 	context_stack_die.stderr.exp context_stack_die.stdout.exp context_stack_die.vgtest \
 	door_data.stderr.exp door_data.stdout.exp door_data.vgtest \
@@ -168,9 +169,18 @@ AM_CFLAGS   += $(AM_FLAG_M3264_PRI)
 AM_CXXFLAGS += $(AM_FLAG_M3264_PRI)
 
 door_kill_LDADD = -lpthread
+name_service_door_CFLAGS = ${AM_CFLAGS} @FLAG_W_NO_UNINITIALIZED@
 ioctl_LDADD = -lsocket
+ldynsym_CFLAGS = ${AM_CFLAGS} @FLAG_W_NO_UNUSED_RESULT@
 ldynsym_LDFLAGS = -Wl,--strip-all
 pkcs11_LDADD = -lpkcs11
+scalar_CFLAGS = ${AM_CFLAGS} @FLAG_W_NO_UNINITIALIZED@ @FLAG_W_NO_UNUSED_FUNCTION@
+scalar_ioctl_CFLAGS = ${AM_CFLAGS} @FLAG_W_NO_UNINITIALIZED@
+scalar_obsolete_CFLAGS = ${AM_CFLAGS} @FLAG_W_NO_UNINITIALIZED@
+scalar_auditon_stat_CFLAGS = ${AM_CFLAGS} @FLAG_W_NO_UNINITIALIZED@
+scalar_getrandom_CFLAGS = ${AM_CFLAGS} @FLAG_W_NO_UNINITIALIZED@
+scalar_lwp_kill_CFLAGS = ${AM_CFLAGS} @FLAG_W_NO_UNINITIALIZED@
+scalar_utimesys_CFLAGS = ${AM_CFLAGS} @FLAG_W_NO_UNINITIALIZED@
 sendfilev_LDADD = -lsendfile
 
 inlinfo_SOURCES = inlinfo.c

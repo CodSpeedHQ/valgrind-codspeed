@@ -272,7 +272,7 @@ SysRes VG_(mknod) ( const HChar* pathname, Int mode, UWord dev )
    SysRes res = VG_(do_syscall3)(__NR_mknod,
                                  (UWord)pathname, mode, dev);
 #  elif defined(VGO_freebsd)
-#if (FREEBSD_VERS < FREEBSD_12)
+#if (__FreeBSD_version < 1200031)
    SysRes res = VG_(do_syscall3)(__NR_freebsd11_mknod,
                                  (UWord)pathname, mode, dev);
 #else
@@ -428,7 +428,7 @@ Int VG_(pipe) ( Int fd[2] )
 
 Off64T VG_(lseek) ( Int fd, Off64T offset, Int whence )
 {
-#  if defined(VGO_linux) || defined(VGP_amd64_darwin) || defined(VGP_amd64_freebsd)
+#  if defined(VGO_linux) || defined(VGP_amd64_darwin) || defined(VGP_amd64_freebsd) || defined(VGP_arm64_freebsd)
 #  if defined(__NR__llseek)
    Off64T result;
    SysRes res = VG_(do_syscall5)(__NR__llseek, fd,
@@ -573,7 +573,7 @@ SysRes VG_(stat) ( const HChar* file_name, struct vg_stat* vgbuf )
    }
 #  elif defined(VGO_freebsd)
    {
-#if (FREEBSD_VERS < FREEBSD_12)
+#if (__FreeBSD_version < 1200031)
       struct vki_freebsd11_stat buf;
       res = VG_(do_syscall2)(__NR_stat, (UWord)file_name, (UWord)&buf);
 #else
@@ -650,7 +650,7 @@ Int VG_(fstat) ( Int fd, struct vg_stat* vgbuf )
    }
 #  elif defined(VGO_freebsd)
    {
-#if (FREEBSD_VERS < FREEBSD_12)
+#if (__FreeBSD_version < 1200031)
      struct vki_freebsd11_stat buf;
      res = VG_(do_syscall2)(__NR_fstat, (RegWord)fd, (RegWord)(Addr)&buf);
 #else
@@ -674,7 +674,7 @@ SysRes VG_(lstat) ( const HChar* file_name, struct vg_stat* vgbuf )
    SysRes res;
    VG_(memset)(vgbuf, 0, sizeof(*vgbuf));
 
-#if (FREEBSD_VERS < FREEBSD_12)
+#if (__FreeBSD_version < 1200031)
    struct vki_freebsd11_stat buf;
    res = VG_(do_syscall2)(__NR_lstat, (UWord)file_name, (UWord)&buf);
 #else
@@ -1143,7 +1143,7 @@ SysRes VG_(pread) ( Int fd, void* buf, Int count, OffT offset )
       || defined(VGP_mips64_linux) || defined(VGP_arm64_linux)
    res = VG_(do_syscall4)(__NR_pread64, fd, (UWord)buf, count, offset);
    return res;
-#  elif defined(VGP_amd64_freebsd)
+#  elif defined(VGP_amd64_freebsd) || defined(VGP_arm64_freebsd)
    vg_assert(sizeof(OffT) == 8);
    res = VG_(do_syscall4)(__NR_pread, fd, (UWord)buf, count, offset);
    return res;
@@ -1333,6 +1333,7 @@ Int VG_(connect_via_socket)( const HChar* str )
    res = my_connect(sd, &servAddr, sizeof(servAddr));
    if (res < 0) {
       /* connection failed */
+      VG_(close)(sd);
       return -2;
    }
 
@@ -1800,7 +1801,7 @@ Bool VG_(realpath)(const HChar *path, HChar *resolved)
 {
    vg_assert(path);
    vg_assert(resolved);
-#if (FREEBSD_VERS >= FREEBSD_13_0)
+#if (__FreeBSD_version >= 1300080)
    return !sr_isError(VG_(do_syscall5)(__NR___realpathat, VKI_AT_FDCWD, (RegWord)path, (RegWord)resolved, VKI_PATH_MAX, 0));
 #else
    // poor man's realpath

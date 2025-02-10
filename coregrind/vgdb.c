@@ -49,6 +49,8 @@
 #include <sys/time.h>
 #include <sys/wait.h>
 
+#include "m_gdbserver/remote-utils-shared.h"
+
 /* vgdb has three usages:
    1. relay application between gdb and the gdbserver embedded in valgrind.
    2. standalone to send monitor commands to a running valgrind-ified process
@@ -82,7 +84,7 @@ char timestamp_out[20];
 static char *vgdb_prefix = NULL;
 static char *valgrind_path = NULL;
 static char **vargs;
-static char cvargs = 0;
+static int cvargs = 0;
 
 char *timestamp_str (Bool produce)
 {
@@ -95,7 +97,7 @@ char *timestamp_str (Bool produce)
       gettimeofday(&dbgtv, NULL);
       ts_tm = localtime(&dbgtv.tv_sec);
       ptr = out + strftime(out, sizeof(out), "%H:%M:%S", ts_tm);
-      sprintf(ptr, ".%6.6ld ", dbgtv.tv_usec);
+      sprintf(ptr, ".%6.6ld ", (long)dbgtv.tv_usec);
    } else {
       out[0] = 0;
    }
@@ -186,7 +188,7 @@ void map_vgdbshared(char* shared_mem, int check_trials)
    int err;
 
    /* valgrind might still be starting up, give it 5 seconds by
-    * default, or check_trails seconds if it is set by --wait
+    * default, or check_trials seconds if it is set by --wait
     * to more than a second.  */
    if (check_trials > 1) {
      DEBUG(1, "check_trials %d\n", check_trials);
@@ -407,9 +409,9 @@ void acquire_lock(int fd, int valgrind_pid)
    Returns the nr of characters read, -1 if error.
    desc is a string used in tracing */
 static
-int read_buf(int fd, char* buf, const char* desc)
+size_t read_buf(int fd, char* buf, const char* desc)
 {
-   int nrread;
+   ssize_t nrread;
    DEBUG(2, "reading %s\n", desc);
    /* The file descriptor is on non-blocking mode and read_buf should only
       be called when poll gave us an POLLIN event signaling the file
@@ -418,8 +420,8 @@ int read_buf(int fd, char* buf, const char* desc)
       again.  */
    do {
       nrread = read(fd, buf, PBUFSIZ);
-   } while (nrread == -1 && errno == EAGAIN);
-   if (nrread == -1) {
+   } while (nrread == -1 && (errno == EINTR || errno == EAGAIN));
+   if (nrread < 0) {
       ERROR(errno, "error reading %s\n", desc);
       return -1;
    }
@@ -434,16 +436,20 @@ int read_buf(int fd, char* buf, const char* desc)
    valgrind process that there is new data.
    Returns True if write is ok, False if there was a problem. */
 static
-Bool write_buf(int fd, const char* buf, int size, const char* desc, Bool notify)
+Bool write_buf(int fd, const char* buf, size_t size, const char* desc,
+               Bool notify)
 {
-   int nrwritten;
-   int nrw;
-   DEBUG(2, "writing %s len %d %.*s notify: %d\n", desc, size,
-         size, buf, notify);
+   size_t nrwritten;
+   ssize_t nrw;
+   DEBUG(2, "writing %s len %zu %.*s notify: %d\n", desc, size,
+         (int)size, buf, notify);
    nrwritten = 0;
    while (nrwritten < size) {
       nrw = write(fd, buf+nrwritten, size - nrwritten);
-      if (nrw == -1) {
+      if (nrw < 0) {
+         if (errno == EINTR || errno == EAGAIN)
+           continue;
+
          ERROR(errno, "error write %s\n", desc);
          return False;
       }
@@ -487,7 +493,7 @@ static
 Bool read_from_gdb_write_to_pid(int to_pid)
 {
    char buf[PBUFSIZ+1]; // +1 for trailing \0
-   int nrread;
+   ssize_t nrread;
    Bool ret;
 
    nrread = read_buf(from_gdb, buf, "from gdb on stdin");
@@ -727,7 +733,13 @@ getpkt(char *buf, int fromfd, int ackfd)
 
      TSFPRINTF(stderr, "Bad checksum, sentsum=0x%x, csum=0x%x, buf=%s\n",
                (c1 << 4) + c2, csum, buf);
-     if (write(ackfd, "-", 1) != 1)
+     ssize_t res = 0;
+     while (res == 0) {
+        res = write(ackfd, "-", 1);
+        if (res == -1 && (errno == EINTR || errno == EAGAIN))
+          res = 0;
+     }
+     if (res < 0)
         ERROR(errno, "error when writing - (nack)\n");
      else
         add_written(1);
@@ -904,15 +916,6 @@ void close_connection(int to_pid, int from_pid)
 #endif
 }
 
-static
-int tohex (int nib)
-{
-   if (nib < 10)
-      return '0' + nib;
-   else
-      return 'a' + nib - 10;
-}
-
 /* Returns an allocated hex-decoded string from the buf. Stops decoding
    at end of buf (zero) or when seeing the delim char.  */
 static
@@ -938,12 +941,15 @@ char *decode_hexstring (const char *buf, size_t prefixlen, size_t len)
 }
 
 static Bool
-write_to_gdb (const char *m, int cnt)
+write_to_gdb (const char *m, size_t cnt)
 {
-   int written = 0;
+   size_t written = 0;
    while (written < cnt) {
-      int res = write (to_gdb, m + written, cnt - written);
+      ssize_t res = write (to_gdb, m + written, cnt - written);
       if (res < 0) {
+         if (errno == EINTR || errno == EAGAIN)
+            continue;
+
          perror ("write_to_gdb");
          return False;
       }
@@ -994,12 +1000,12 @@ create_packet(const char *msg)
    return p;
 }
 
-static int read_one_char (char *c)
+static ssize_t read_one_char (char *c)
 {
-   int i;
+   ssize_t i;
    do
        i = read (from_gdb, c, 1);
-   while (i == -1 && errno == EINTR);
+   while (i < 0 && (errno == EINTR || errno == EAGAIN));
 
    return i;
 }
@@ -1007,7 +1013,7 @@ static int read_one_char (char *c)
 static Bool
 send_packet(const char *reply, int noackmode)
 {
-   int ret;
+   ssize_t ret;
    char c;
 
 send_packet_start:
@@ -1033,10 +1039,13 @@ send_packet_start:
 // Skipping any other characters.
 // Returns the size of the packet, 0 for end of input,
 // or -1 if no packet could be read.
-static int receive_packet(char *buf, int noackmode)
+static ssize_t receive_packet(char *buf, int noackmode)
 {
-   int bufcnt = 0, ret;
-   char c, c1, c2;
+   size_t bufcnt = 0;
+   ssize_t ret;
+   char c;
+   char c1 = '\0';
+   char c2 = '\0';
    unsigned char csum = 0;
 
    // Look for first '$' (start of packet) or error.
@@ -1152,6 +1161,50 @@ static void count_len(char delim, char *buf, size_t *len)
    }
 }
 
+/* early_exit guesses if vgdb speaks with GDB by checking from_gdb is a FIFO
+   (as GDB is likely the only program that would write data to vgdb stdin).
+   If not speaking with GDB, early_exit will just call exit(exit_code).
+   If speaking with GDB, early_exit will ensure the GDB user sees
+   the error messages produced by vgdb:
+   early_exit should be used when vgdb exits due to an early error i.e.
+   error during arg processing, before it could succesfully process the
+   first packet from GDB.
+   early_exit will then read the first packet send by GDB (i.e.
+   the qSupported packet) and will reply to it with an error and then exit.
+   This should ensure the vgdb error messages are made visible to the user. */
+static void early_exit (int exit_code, const char* exit_info)
+{
+   char buf[PBUFSIZ+1];
+   ssize_t pkt_size;
+   struct stat fdstat;
+
+   if (fstat(from_gdb, &fdstat) != 0)
+      XERROR(errno, "fstat\n");
+
+   DEBUG(1, "early_exit %s ISFIFO  %d\n", exit_info, S_ISFIFO(fdstat.st_mode));
+
+   if (S_ISFIFO(fdstat.st_mode)) {
+      /* We assume that we speak with GDB when stdin is a FIFO, so we expect
+         to get a first packet from GDB. This should ensure the vgdb messages
+         are made visible.  In case the whole stuff is blocked for any reason or
+         GDB does not send a package or ..., schedule an alarm to exit in max 5
+         seconds anyway. */
+      alarm(5);
+      pkt_size = receive_packet(buf, 0);
+      if (pkt_size <= 0)
+         DEBUG(1, "early_exit receive_packet: %zd\n", pkt_size);
+      else {
+         DEBUG(1, "packet received: '%s'\n", buf);
+         sprintf(buf, "E.%s", exit_info);
+         send_packet(buf, 0);
+      }
+   }
+   fflush(stdout);
+   fflush(stderr);
+   DEBUG(1, "early_exit exiting %d\n", exit_code);
+   exit(exit_code);
+}
+
 /* Declare here, will be used early, implementation follows later. */
 static void gdb_relay(int pid, int send_noack_mode, char *q_buf);
 
@@ -1159,7 +1212,7 @@ static void gdb_relay(int pid, int send_noack_mode, char *q_buf);
    or the errno from the child on failure.  */
 static
 int fork_and_exec_valgrind (int argc, char **argv, const char *working_dir,
-                            pid_t *pid)
+                            int in_port, pid_t *pid)
 {
    int err = 0;
    // We will use a pipe to track what the child does,
@@ -1201,12 +1254,14 @@ int fork_and_exec_valgrind (int argc, char **argv, const char *working_dir,
       // Otherwise the child sent us an errno code about what went wrong.
       close (pipefd[1]);
 
+      size_t nr_read = 0;
       while (err == 0) {
-         int r = read (pipefd[0], &err, sizeof (int));
+         ssize_t r = read (pipefd[0], ((char *)&err) + nr_read,
+                           sizeof (int) - nr_read);
          if (r == 0) // end of file, good pipe closed after execve
             break;
          if (r == -1) {
-            if (errno == EINTR)
+            if (errno == EINTR || errno == EAGAIN)
                continue;
             else {
                err = errno;
@@ -1232,15 +1287,32 @@ int fork_and_exec_valgrind (int argc, char **argv, const char *working_dir,
             err = errno;
             perror("chdir");
             // We try to write the result to the parent, but always exit.
-            int written = 0;
+            size_t written = 0;
             while (written < sizeof (int)) {
-               int nrw = write (pipefd[1], &err, sizeof (int) - written);
-               if (nrw == -1)
+               int nrw = write (pipefd[1], ((char *)&err) + 1,
+                                sizeof (int) - written);
+               if (nrw == -1) {
+                  if (errno == EINTR || errno == EAGAIN)
+                     continue;
                   break;
+               }
                written += nrw;
             }
             _exit (-1);
          }
+      }
+
+      /* When in stdio mode (talking to gdb through stdin/stdout, not
+         through a socket), redirect stdout to stderr and close stdin
+         for the inferior. That way at least some output can be seen,
+         but there will be no input.  */
+      if (in_port <= 0) {
+         /* close stdin */
+         close (0);
+         /* open /dev/null as new stdin */
+         (void)open ("/dev/null", O_RDONLY);
+         /* redirect stdout as stderr */
+         dup2 (2, 1);
       }
 
       /* Try to launch valgrind. Add --vgdb-error=0 to stop immediately so we
@@ -1294,11 +1366,15 @@ int fork_and_exec_valgrind (int argc, char **argv, const char *working_dir,
       // perror ("execvp valgrind");
       // printf ("execve returned??? confusing: %d\n", res);
       // We try to write the result to the parent, but always exit.
-      int written = 0;
+      size_t written = 0;
       while (written < sizeof (int)) {
-         int nrw = write (pipefd[1], &err, sizeof (int) - written);
-         if (nrw == -1)
+         ssize_t nrw = write (pipefd[1], ((char *) &err) + 1,
+                              sizeof (int) - written);
+         if (nrw == -1) {
+            if (errno == EINTR || errno == EAGAIN)
+              continue;
             break;
+         }
          written += nrw;
       }
       _exit (-1);
@@ -1309,13 +1385,14 @@ int fork_and_exec_valgrind (int argc, char **argv, const char *working_dir,
 
 /* Do multi stuff.  */
 static
-void do_multi_mode(int check_trials)
+void do_multi_mode(int check_trials, int in_port)
 {
    char *buf = vmalloc(PBUFSIZ+1);
    char *q_buf = vmalloc(PBUFSIZ+1); //save the qSupported packet sent by gdb
                                      //to send it to the valgrind gdbserver later
    q_buf[0] = '\0';
-   int noackmode = 0, pkt_size = 0, bad_unknown_packets = 0;
+   int noackmode = 0, bad_unknown_packets = 0;
+   ssize_t pkt_size = 0;
    char *string = NULL;
    char *working_dir = NULL;
    DEBUG(1, "doing multi stuff...\n");
@@ -1324,10 +1401,10 @@ void do_multi_mode(int check_trials)
          the pipe to gdb. */
        pkt_size = receive_packet(buf, noackmode);
        if (pkt_size <= 0) {
-          DEBUG(1, "receive_packet: %d\n", pkt_size);
+          DEBUG(1, "receive_packet: %zd\n", pkt_size);
           break;
        }
-       
+
        DEBUG(1, "packet received: '%s'\n", buf);
 
 #define QSUPPORTED "qSupported:"
@@ -1341,7 +1418,7 @@ void do_multi_mode(int check_trials)
 #define QENVIRONMENTUNSET "QEnvironmentUnset"
 #define QSETWORKINGDIR "QSetWorkingDir"
 #define QTSTATUS "qTStatus"
-       
+
        if (strncmp(QSUPPORTED, buf, strlen(QSUPPORTED)) == 0) {
           DEBUG(1, "CASE %s\n", QSUPPORTED);
           // And here is our reply.
@@ -1390,7 +1467,12 @@ void do_multi_mode(int check_trials)
           send_packet ("", noackmode);
        }
        else if (strncmp(QRCMD, buf, strlen(QRCMD)) == 0) {
-          send_packet ("No running target, monitor commands not available yet.", noackmode);
+           static const char *no_running_str =
+              "No running target, monitor commands not available yet.\n";
+           int str_count = strlen (no_running_str);
+           char hex[2 * str_count + 1];
+           hexify(hex, no_running_str, str_count);
+           send_packet(hex, noackmode);
 
           char *decoded_string = decode_hexstring (buf, strlen (QRCMD) + 1, 0);
           DEBUG(1, "qRcmd decoded: %s\n", decoded_string);
@@ -1415,12 +1497,12 @@ void do_multi_mode(int check_trials)
 
           // Count the lenghts of each substring, init to -1 to compensate for
           // each substring starting with a delim char.
-          for (int i = 0; i < count; i++)
+          for (size_t i = 0; i < count; i++)
              len[i] = -1;
           count_len(';', buf, len);
           if (next_str) {
              DEBUG(1, "vRun: next_str %s\n", next_str);
-             for (int i = 0; i < count; i++) {
+             for (size_t i = 0; i < count; i++) {
                 /* Handle the case when the arguments
                  * was specified to gdb's run command
                  * but no remote exec-file was set,
@@ -1436,16 +1518,16 @@ void do_multi_mode(int check_trials)
                    if (i < count - 1)
                       next_str = next_delim_string(next_str, *delim);
                 }
-                DEBUG(1, "vRun decoded: %s, next_str %s, len[%d] %d\n",
+                DEBUG(1, "vRun decoded: %s, next_str %s, len[%zu] %zu\n",
                       decoded_string[i], next_str, i, len[i]);
              }
 
              /* If we didn't get any arguments or the filename is an empty
                 string, valgrind won't know which program to run.  */
-             DEBUG (1, "count: %d, len[0]: %d\n", count, len[0]);
+             DEBUG (1, "count: %zu, len[0]: %zu\n", count, len[0]);
              if (! count || len[0] == 0) {
                 free(len);
-                for (int i = 0; i < count; i++)
+                for (size_t i = 0; i < count; i++)
                    free (decoded_string[i]);
                 free (decoded_string);
                 send_packet ("E01", noackmode);
@@ -1456,9 +1538,10 @@ void do_multi_mode(int check_trials)
                 launch valgrind with the correct arguments... We then use the
                 valgrind pid to start relaying packets.  */
              pid_t valgrind_pid = -1;
-             int res = fork_and_exec_valgrind (count,
+             int res = fork_and_exec_valgrind ((int)count,
                                                decoded_string,
                                                working_dir,
+                                               in_port,
                                                &valgrind_pid);
 
              if (res == 0) {
@@ -1495,7 +1578,7 @@ void do_multi_mode(int check_trials)
              }
 
              free(len);
-             for (int i = 0; i < count; i++)
+             for (size_t i = 0; i < count; i++)
 		free (decoded_string[i]);
              free (decoded_string);
 	  } else {
@@ -1692,7 +1775,7 @@ void gdb_relay(int pid, int send_noack_mode, char *q_buf)
                   buflen = getpkt(buf, from_pid, to_pid);
                   if (buflen != 2 || strcmp(buf, "OK") != 0) {
                      if (buflen != 2)
-                        ERROR(0, "no ack mode: unexpected buflen %d, buf %s\n",
+                        ERROR(0, "no ack mode: unexpected buflen %zu, buf %s\n",
                               buflen, buf);
                      else
                         ERROR(0, "no ack mode: unexpected packet %s\n", buf);
@@ -1715,7 +1798,7 @@ void gdb_relay(int pid, int send_noack_mode, char *q_buf)
                   if (buflen > 0) {
                      waiting_for_qsupported = False;
                   } else {
-                     ERROR(0, "Unexpected getpkt for qSupported reply: %d\n",
+                     ERROR(0, "Unexpected getpkt for qSupported reply: %zu\n",
                            buflen);
                   }
                } else if (!read_from_pid_write_to_gdb(from_pid))
@@ -1777,7 +1860,7 @@ void standalone_send_commands(int pid,
    int to_pid = -1; /* fd to write to pid */
 
    int i;
-   int hi;
+   size_t hi;
    char hex[3];
    unsigned char cksum;
    char *hexcommand;
@@ -1830,8 +1913,8 @@ void standalone_send_commands(int pid,
       hexcommand = vmalloc(packet_len_for_command(commands[nc]));
       hexcommand[0] = 0;
       strcat(hexcommand, "$qRcmd,");
-      for (i = 0; i < strlen(commands[nc]); i++) {
-         sprintf(hex, "%02x", (unsigned char) commands[nc][i]);
+      for (size_t nci = 0; nci < strlen(commands[nc]); nci++) {
+         sprintf(hex, "%02x", (unsigned char) commands[nc][nci]);
          // Need to use unsigned char, to avoid sign extension.
          strcat(hexcommand, hex);
       }
@@ -1911,7 +1994,8 @@ static
 void report_pid(int pid, Bool on_stdout)
 {
    char cmdline_file[50];   // large enough
-   int fd, i;
+   int fd;
+   size_t i;
    FILE *out = on_stdout ? stdout : stderr;
 
    TSFPRINTF(out, "use --pid=%d for ", pid);
@@ -1923,20 +2007,33 @@ void report_pid(int pid, Bool on_stdout)
             cmdline_file, strerror(errno));
       fprintf(out, "(could not open process command line)\n");
    } else {
-      char cmdline[100];
-      ssize_t sz;
-      while ((sz = read(fd, cmdline, sizeof cmdline - 1)) > 0) {
-         for (i = 0; i < sz; i++)
-            if (cmdline[i] == 0)
-               cmdline[i] = ' ';
-         cmdline[sz] = 0;
-         fprintf(out, "%s", cmdline);
+      #define MAX_CMDLINE 4096
+      char cmdline[MAX_CMDLINE];
+      size_t nr_read = 0;
+      while (nr_read < MAX_CMDLINE - 1) {
+	 ssize_t sz = read(fd, cmdline, MAX_CMDLINE - nr_read - 1);
+         if (sz == 0)
+	    break;
+	 if (sz < 0) {
+            if (errno == EINTR || errno == EAGAIN)
+               continue;
+            else {
+               DEBUG(1, "error reading cmdline file %s %s\n",
+                     cmdline_file, strerror(errno));
+               fprintf(out, "(error reading process command line)\n");
+               close (fd);
+               return;
+            }
+         }
+         nr_read += sz;
       }
-      if (sz == -1) {
-         DEBUG(1, "error reading cmdline file %s %s\n",
-               cmdline_file, strerror(errno));
-         fprintf(out, "(error reading process command line)");
-      }
+
+      for (i = 0; i < nr_read; i++)
+         if (cmdline[i] == 0)
+            cmdline[i] = ' ';
+      cmdline[nr_read] = 0;
+
+      fprintf(out, "%s", cmdline);
       fprintf(out, "\n");
       close(fd);
    }
@@ -1982,10 +2079,15 @@ void usage(void)
 "  -d  arg tells to show debug info. Multiple -d args for more debug info\n"
 "\n"
 "  -h --help shows this message\n"
+#ifdef VG_GDBSCRIPTS_DIR
 "  The GDB python code defining GDB front end valgrind commands is:\n       %s\n"
+#endif
 "  To get help from the Valgrind gdbserver, use vgdb help\n"
-"\n", vgdb_prefix_default(), VG_LIBDIR "/valgrind-monitor.py"
-           );
+"\n", vgdb_prefix_default()
+#ifdef VG_GDBSCRIPTS_DIR
+    , VG_GDBSCRIPTS_DIR "/valgrind-monitor.py"
+#endif
+   );
    invoker_restrictions_msg();
 }
 
@@ -2009,7 +2111,7 @@ int search_arg_pid(int arg_pid, int check_trials, Bool show_list)
 
    if (arg_pid == 0 || arg_pid < -1) {
       TSFPRINTF(stderr, "vgdb error: invalid pid %d given\n", arg_pid);
-      exit(1);
+      early_exit(1, "vgdb error: invalid pid given");
    } else {
       /* search for a matching named fifo.
          If we have been given a pid, we will check that the matching FIFO is
@@ -2110,9 +2212,11 @@ int search_arg_pid(int arg_pid, int check_trials, Bool show_list)
             }
             errno = 0; /* avoid complain if at the end of vgdb_dir */
          }
-         if (f == NULL && errno != 0)
-            XERROR(errno, "vgdb error: reading directory %s for vgdb fifo\n",
-                   vgdb_dir_name);
+         if (f == NULL && errno != 0) {
+            ERROR(errno, "vgdb error: reading directory %s for vgdb fifo\n",
+                  vgdb_dir_name);
+            early_exit(1, "vgdb error reading vgdb fifo directory");
+         }
 
          closedir(vgdb_dir);
          if (pid != -1)
@@ -2126,20 +2230,23 @@ int search_arg_pid(int arg_pid, int check_trials, Bool show_list)
    if (show_list) {
       exit(1);
    } else if (pid == -1) {
-      if (arg_pid == -1)
+      if (arg_pid == -1) {
          TSFPRINTF(stderr, "vgdb error: no FIFO found and no pid given\n");
-      else
+         early_exit(1, "vgdb error: no FIFO found and no pid given");
+      } else {
          TSFPRINTF(stderr, "vgdb error: no FIFO found matching pid %d\n",
                    arg_pid);
-      exit(1);
+         early_exit(1, "vgdb error: no FIFO found matching the give pid");
+      }
    }
    else if (pid == -2) {
-      /* no arg_pid given, multiple FIFOs found */
-      exit(1);
+      early_exit(1, "no --pid= arg_pid given and multiple valgrind pids found.");
    }
    else {
       return pid;
    }
+
+   abort (); // Impossible
 }
 
 /* return true if the numeric value of an option of the
@@ -2207,7 +2314,7 @@ void parse_options(int argc, char** argv,
    for (i = 1; i < argc; i++) {
       if (is_opt(argv[i], "--help") || is_opt(argv[i], "-h")) {
          usage();
-         exit(0);
+         early_exit(0, "--help requested");
       } else if (is_opt(argv[i], "-d")) {
          debuglevel++;
       } else if (is_opt(argv[i], "-D")) {
@@ -2250,6 +2357,11 @@ void parse_options(int argc, char** argv,
             arg_errors++;
          }
       } else if (is_opt(argv[i], "--vgdb-prefix=")) {
+         if (vgdb_prefix) {
+            // was specified more than once on the command line
+            // ignore earlier uses
+            free(vgdb_prefix);
+         }
          vgdb_prefix = strdup (argv[i] + 14);
       } else if (is_opt(argv[i], "--valgrind=")) {
           char *path = argv[i] + 11;
@@ -2258,7 +2370,7 @@ void parse_options(int argc, char** argv,
           if (!valgrind_path) {
               TSFPRINTF(stderr, "%s is not a correct path. %s, exiting.\n",
 			path, strerror (errno));
-              exit(1);
+              early_exit(1, "incorrect valgrind path");
           }
           DEBUG(2, "valgrind's real path: %s\n", valgrind_path);
       } else if (is_opt(argv[i], "--vargs")) {
@@ -2267,7 +2379,7 @@ void parse_options(int argc, char** argv,
          // argc - i is the number of left over arguments
          // allocate enough space, put all args in it.
          cvargs = argc - i - 1;
-         vargs = vmalloc (cvargs * sizeof(vargs));
+         vargs = vmalloc (cvargs * sizeof(*vargs));
          i++;
          for (int j = 0; i < argc; i++) {
             vargs[j] = argv[i];
@@ -2314,7 +2426,7 @@ void parse_options(int argc, char** argv,
 		"Cannot use -D, -l or COMMANDs when using --multi mode\n");
    }
 
-   if (isatty(0)
+   if (isatty(from_gdb)
        && !show_shared_mem
        && !show_list
        && int_port == 0
@@ -2352,7 +2464,7 @@ void parse_options(int argc, char** argv,
 
    if (arg_errors > 0) {
       TSFPRINTF(stderr, "args error. Try `vgdb --help` for more information\n");
-      exit(1);
+      early_exit(1, "invalid args given to vgdb");
    }
 
    *p_show_shared_mem = show_shared_mem;
@@ -2398,7 +2510,7 @@ int main(int argc, char** argv)
    if (!multi_mode) {
       pid = search_arg_pid(arg_pid, check_trials, show_list);
 
-      /* We pass 1 for check_trails here, because search_arg_pid already waited.  */
+      /* We pass 1 for check_trials here, because search_arg_pid already waited.  */
       prepare_fifos_and_shared_mem(pid, 1);
    } else {
       pid = 0;
@@ -2416,13 +2528,13 @@ int main(int argc, char** argv)
                 VS_written_by_vgdb,
                 VS_seen_by_valgrind);
       TSFPRINTF(stderr, "vgdb pid %d\n", VS_vgdb_pid);
-      exit(0);
+      early_exit(0, "-D arg to show shared memory and exit given.");
    }
 
    if (multi_mode) {
-      /* check_trails is the --wait argument in seconds, defaulting to 1
+      /* check_trials is the --wait argument in seconds, defaulting to 1
        * if not given.  */
-      do_multi_mode (check_trials);
+      do_multi_mode (check_trials, in_port);
    } else if (last_command >= 0) {
       standalone_send_commands(pid, last_command, commands);
    } else {

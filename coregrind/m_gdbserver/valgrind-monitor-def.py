@@ -211,7 +211,7 @@ class Valgrind_ADDR_LEN_opt(Valgrind_Command):
 For compatibility reason with the Valgrind gdbserver monitor command,
 we detect and accept usages such as 0x1234ABCD[10]."""
     def invoke(self, arg_str : str, from_tty : bool) -> None:
-        if re.fullmatch("^0x[0123456789ABCDEFabcdef]+\[[^\[\]]+\]$", arg_str):
+        if re.fullmatch(r"^0x[0123456789ABCDEFabcdef]+\[[^\[\]]+\]$", arg_str):
             arg_str = arg_str.replace("[", " ")
             arg_str = arg_str.replace("]", " ")
         eval_execute_2(self, arg_str,
@@ -287,10 +287,16 @@ WHAT is the v.info subcommand, specifying the type of information requested.
 ARG are optional arguments, depending on the WHAT subcommand.
 """
 
-@Vinit("valgrind", "v.info all_errors", gdb.COMMAND_STATUS, gdb.COMPLETE_NONE, False)
+@Vinit("valgrind", "v.info all_errors", gdb.COMMAND_STATUS, gdb.COMPLETE_NONE, True)
 class Valgrind_Info_All_Errors_Command(Valgrind_Command):
     """Show all errors found so far by Valgrind.
 Usage: valgrind v.info all_errors
+"""
+
+@Vinit("valgrind", "v.info all_errors also_suppressed", gdb.COMMAND_STATUS, gdb.COMPLETE_NONE, False)
+class Valgrind_Info_All_Errors_Also_Suppressed_Command(Valgrind_Command):
+    """Show all errors found so far by Valgrind, including the suppressed errors.
+Usage: valgrind v.info all_errors also_suppressed
 """
 
 @Vinit("valgrind", "v.info last_error", gdb.COMMAND_STATUS, gdb.COMPLETE_NONE, False)

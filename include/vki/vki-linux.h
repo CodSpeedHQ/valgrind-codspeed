@@ -1472,7 +1472,12 @@ struct vki_statx {
         __vki_u32   stx_dev_major;  /* ID of device containing file [uncond] */
         __vki_u32   stx_dev_minor;
         /* 0x90 */
-        __vki_u64   __spare2[14];   /* Spare space for future expansion */
+        __vki_u64   stx_mnt_id;
+        __vki_u32   stx_dio_mem_align;      /* Memory buffer alignment for direct I/O */
+        __vki_u32   stx_dio_offset_align;   /* File offset alignment for direct I/O */
+        /* 0xa0 */
+
+        __vki_u64   __spare2[12];   /* Spare space for future expansion */
         /* 0x100 */
 };
 
@@ -3854,29 +3859,37 @@ struct vki_ion_custom_data {
    _VKI_IOWR(VKI_ION_IOC_MAGIC, 6, struct vki_ion_custom_data)
 
 //----------------------------------------------------------------------
-// From linux-3.19-rc5/drivers/staging/android/uapi/sync.h
+// From include/uapi/linux/sync_file.h 6.10.3
 //----------------------------------------------------------------------
 
 struct vki_sync_merge_data {
-        __vki_s32 fd2;
         char      name[32];
+        __vki_s32 fd2;
         __vki_s32 fence;
+        __vki_u32 flags;
+	__vki_u32 pad;
 };
 
-struct vki_sync_pt_info {
-        __vki_u32 len;
+struct vki_sync_fence_info {
         char      obj_name[32];
         char      driver_name[32];
         __vki_s32 status;
-        __vki_u64 timestamp_ns;
-        __vki_u8  driver_data[0];
+        __vki_u32 flags;
+	__vki_u64 timestamp_ns;
 };
 
-struct vki_sync_fence_info_data {
-        __vki_u32 len;
+struct vki_sync_file_info {
         char      name[32];
         __vki_s32 status;
-        __vki_u8  pt_info[0];
+        __vki_u32 flags;
+        __vki_u32 num_fences;
+        __vki_u32 pad;
+	__vki_u64 sync_fence_info;
+};
+
+struct vki_sync_set_deadline {
+	__vki_u64 deadline_ns;
+	__vki_u64 pad;
 };
 
 #define VKI_SYNC_IOC_MAGIC   '>'
@@ -3885,10 +3898,13 @@ struct vki_sync_fence_info_data {
    _VKI_IOW(VKI_SYNC_IOC_MAGIC, 0, __vki_s32)
 
 #define VKI_SYNC_IOC_MERGE \
-   _VKI_IOWR(VKI_SYNC_IOC_MAGIC, 1, struct vki_sync_merge_data)
+   _VKI_IOWR(VKI_SYNC_IOC_MAGIC, 3, struct vki_sync_merge_data)
 
-#define VKI_SYNC_IOC_FENCE_INFO \
-   _VKI_IOWR(VKI_SYNC_IOC_MAGIC, 2, struct vki_sync_fence_info_data)
+#define VKI_SYNC_IOC_FILE_INFO \
+   _VKI_IOWR(VKI_SYNC_IOC_MAGIC, 4, struct vki_sync_file_info)
+
+#define VKI_SYNC_IOC_SET_DEADLINE \
+   _VKI_IOW(VKI_SYNC_IOC_MAGIC, 5, struct vki_sync_set_deadline)
 
 //----------------------------------------------------------------------
 // From drivers/staging/lustre/lustre/include/lustre/lustre_user.h
@@ -5454,6 +5470,12 @@ struct vki_open_how {
 
 #define VKI_CLOSE_RANGE_UNSHARE (1U << 1)
 #define VKI_CLOSE_RANGE_CLOEXEC (1U << 2)
+
+//----------------------------------------------------------------------
+// From linux/magic.h
+//----------------------------------------------------------------------
+
+#define VKI_BTRFS_SUPER_MAGIC    0x9123683E
 
 /*--------------------------------------------------------------------*/
 /*--- end                                                          ---*/
