@@ -19,8 +19,11 @@ jobs:
             ubuntu-version: 24.04
             additional-deps: gcc-multilib libc6-dev-i386
           - architecture: arm64
-            platform: buildjet-2vcpu-ubuntu-2204-arm
+            platform: codspeedhq-arm64-ubuntu-22.04
             ubuntu-version: 22.04
+          - architecture: arm64
+            platform: codspeedhq-arm64-ubuntu-24.04
+            ubuntu-version: 24.04
 
     runs-on: ${{ matrix.runner.platform }}
     steps:
