@@ -302,18 +302,12 @@ case "${host_cpu}" in
         ARCH_MAX="nanomips"
         ;;
 
-<<<<<<< HEAD
-     *)
-||||||| fcdaa4742
-     *)
-=======
      riscv64)
        AC_MSG_RESULT([ok (${host_cpu})])
        ARCH_MAX="riscv64"
        ;;
 
      *)
->>>>>>> VALGRIND_3_25_1
 	AC_MSG_RESULT([no (${host_cpu})])
 	AC_MSG_ERROR([Unsupported host architecture. Sorry])
 	;;
