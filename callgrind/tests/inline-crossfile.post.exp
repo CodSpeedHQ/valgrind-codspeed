@@ -1,0 +1,7 @@
+=== Main Function Inline Markers ===
+fi=inline-crossfile-helper1.h
+cfni=compute_sum
+fi=inline-crossfile-helper2.h
+cfni=compute_product
+fe=inline-crossfile.c
+cfni=???

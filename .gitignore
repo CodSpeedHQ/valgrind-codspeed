@@ -158,6 +158,8 @@
 /callgrind/tests/clreq
 /callgrind/tests/simwork
 /callgrind/tests/threads
+/callgrind/tests/inline-samefile
+/callgrind/tests/inline-crossfile
 
 # /coregrind/
 /coregrind/*.a

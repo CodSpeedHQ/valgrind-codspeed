@@ -344,6 +344,7 @@ static Addr       debug_cache_addr[DEBUG_CACHE_SIZE];
 static file_node* debug_cache_file[DEBUG_CACHE_SIZE];
 static int        debug_cache_line[DEBUG_CACHE_SIZE];
 static Bool       debug_cache_info[DEBUG_CACHE_SIZE];
+static const HChar* debug_cache_inlfn[DEBUG_CACHE_SIZE];
 
 static __inline__
 void init_debug_cache(void)
@@ -354,6 +355,7 @@ void init_debug_cache(void)
 	debug_cache_file[i] = 0;
 	debug_cache_line[i] = 0;
 	debug_cache_info[i] = 0;
+	debug_cache_inlfn[i] = 0;
     }
 }
 
@@ -386,6 +388,15 @@ Bool get_debug_pos(BBCC* bbcc, Addr addr, AddrPos* p)
 	debug_cache_addr[cachepos] = addr;
 	debug_cache_line[cachepos] = p->line;
 	debug_cache_file[cachepos] = p->file;
+
+	/* Query inline info at the same time we query file/line */
+	const HChar* inl_fn = 0;
+	Bool has_inline = VG_(get_inline_fnname)(ep, addr, &inl_fn);
+	if (has_inline) {
+	    debug_cache_inlfn[cachepos] = inl_fn;
+	} else {
+	    debug_cache_inlfn[cachepos] = (const HChar*)(-1);
+	}
     }
 
     /* Address offset from bbcc start address */
@@ -397,6 +408,44 @@ Bool get_debug_pos(BBCC* bbcc, Addr addr, AddrPos* p)
 	     p->file->name, p->line);
 
     return found_file_line;
+}
+
+/* Get inline function name for an address, with caching.
+ * Returns True if address is in an inlined function, False otherwise.
+ * If True, *inl_fn will be set to the inline function name.
+ */
+static Bool get_inline_info(Addr addr, const HChar** inl_fn)
+{
+    int cachepos = addr % DEBUG_CACHE_SIZE;
+
+    /* Check cache first - but only if inline info was already queried for this address */
+    if (debug_cache_addr[cachepos] == addr && debug_cache_inlfn[cachepos] != 0) {
+        /* We have cached inline info for this address */
+        if (debug_cache_inlfn[cachepos] == (const HChar*)(-1)) {
+            /* Special marker: no inline function at this address */
+            *inl_fn = 0;
+            return False;
+        }
+        *inl_fn = debug_cache_inlfn[cachepos];
+        return True;
+    }
+
+    DiEpoch ep = VG_(current_DiEpoch)();
+    Bool has_inline = VG_(get_inline_fnname)(ep, addr, inl_fn);
+
+    if (has_inline) {
+        /* Cache the inline function name */
+        debug_cache_inlfn[cachepos] = *inl_fn;
+    } else {
+        *inl_fn = 0;
+        /* Use special marker -1 to indicate "no inline function" */
+        debug_cache_inlfn[cachepos] = (const HChar*)(-1);
+    }
+
+    CLG_DEBUG(3, "  get_inline_info(%#lx): %s\n",
+             addr, has_inline ? *inl_fn : "(not inlined)");
+
+    return has_inline;
 }
 
 
@@ -426,13 +475,15 @@ static void init_fcost(AddrCost* c, Addr addr, Addr bbaddr, file_node* file)
     CLG_(init_cost)( CLG_(sets).full, c->cost );
 }
 
+/* Track last inline function to avoid repeated cfni= output */
+static const HChar* last_inline_fn = 0;
 
 /**
  * print position change inside of a BB (last -> curr)
  * this doesn't update last to curr!
  */
 static void fprint_apos(VgFile *fp, AddrPos* curr, AddrPos* last,
-                        file_node* func_file)
+                        file_node* func_file, BBCC* bbcc)
 {
     CLG_ASSERT(curr->file != 0);
     CLG_DEBUG(2, "    print_apos(file '%s', line %u, bb %#lx, addr %#lx) fnFile '%s'\n",
@@ -446,6 +497,24 @@ static void fprint_apos(VgFile *fp, AddrPos* curr, AddrPos* last,
             print_file(fp, "fe=", curr->file);
 	else
             print_file(fp, "fi=", curr->file);
+    }
+
+    /* Check inline function for this position and output cfni= if changed */
+    if (bbcc) {
+        Addr curr_addr = curr->addr + bbcc->bb->obj->offset;
+        const HChar* inline_fn = 0;
+        Bool is_inline = get_inline_info(curr_addr, &inline_fn);
+
+        /* Output cfni= if inline function changed */
+        if (is_inline && inline_fn && inline_fn != last_inline_fn) {
+            VG_(fprintf)(fp, "cfni=%s\n", inline_fn);
+            last_inline_fn = inline_fn;
+        }
+        /* Clear last_inline_fn if we're no longer in inline code */
+        else if (!is_inline && last_inline_fn) {
+            VG_(fprintf)(fp, "cfni=???\n");
+            last_inline_fn = 0;
+        }
     }
 
     if (CLG_(clo).dump_bbs) {
@@ -704,8 +773,8 @@ static Bool fprint_bbcc(VgFile *fp, BBCC* bbcc, AddrPos* last)
     /* get debug info of current instruction address and dump cost
      * if CLG_(clo).dump_bbs or file/line has changed
      */
-    if (!get_debug_pos(bbcc, bb_addr(bb) + instr_info->instr_offset, 
-		       &(newCost->p))) {
+    Addr instr_addr = bb_addr(bb) + instr_info->instr_offset;
+    if (!get_debug_pos(bbcc, instr_addr, &(newCost->p))) {
       /* if we don't have debug info, don't switch to file "???" */
       newCost->p.file = bbcc->cxt->fn[0]->file;
     }
@@ -716,8 +785,10 @@ static Bool fprint_bbcc(VgFile *fp, BBCC* bbcc, AddrPos* last)
       
       if (!CLG_(is_zero_cost)( CLG_(sets).full, currCost->cost )) {
 	something_written = True;
-	
-	fprint_apos(fp, &(currCost->p), last, bbcc->cxt->fn[0]->file);
+
+	/* Output file position and inline function markers */
+	fprint_apos(fp, &(currCost->p), last, bbcc->cxt->fn[0]->file, bbcc);
+
 	fprint_fcost(fp, currCost, last);
       }
 	   
@@ -741,11 +812,11 @@ static Bool fprint_bbcc(VgFile *fp, BBCC* bbcc, AddrPos* last)
 	if (jcc_count>0) {    
 	    if (!CLG_(is_zero_cost)( CLG_(sets).full, currCost->cost )) {
 		/* no need to switch buffers, as position is the same */
-		fprint_apos(fp, &(currCost->p), last, bbcc->cxt->fn[0]->file);
+		fprint_apos(fp, &(currCost->p), last, bbcc->cxt->fn[0]->file, bbcc);
 		fprint_fcost(fp, currCost, last);
 	    }
 	    get_debug_pos(bbcc, bb_addr(bb)+instr_info->instr_offset, &(currCost->p));
-	    fprint_apos(fp, &(currCost->p), last, bbcc->cxt->fn[0]->file);
+	    fprint_apos(fp, &(currCost->p), last, bbcc->cxt->fn[0]->file, bbcc);
 	    something_written = True;
 	    for(jcc=bbcc->jmp[jmp].jcc_list; jcc; jcc=jcc->next_from) {
 		if (((jcc->jmpkind != jk_Call) && (jcc->call_counter >0)) ||
@@ -773,17 +844,17 @@ static Bool fprint_bbcc(VgFile *fp, BBCC* bbcc, AddrPos* last)
   }
   
   if ( (bbcc->skipped &&
-	!CLG_(is_zero_cost)(CLG_(sets).full, bbcc->skipped)) || 
+	!CLG_(is_zero_cost)(CLG_(sets).full, bbcc->skipped)) ||
        (jcc_count>0) ) {
-    
+
     if (!CLG_(is_zero_cost)( CLG_(sets).full, currCost->cost )) {
       /* no need to switch buffers, as position is the same */
-      fprint_apos(fp, &(currCost->p), last, bbcc->cxt->fn[0]->file);
+      fprint_apos(fp, &(currCost->p), last, bbcc->cxt->fn[0]->file, bbcc);
       fprint_fcost(fp, currCost, last);
     }
     
     get_debug_pos(bbcc, bb_jmpaddr(bb), &(currCost->p));
-    fprint_apos(fp, &(currCost->p), last, bbcc->cxt->fn[0]->file);
+    fprint_apos(fp, &(currCost->p), last, bbcc->cxt->fn[0]->file, bbcc);
     something_written = True;
     
     /* first, print skipped costs for calls */
@@ -810,8 +881,8 @@ static Bool fprint_bbcc(VgFile *fp, BBCC* bbcc, AddrPos* last)
   if (CLG_(clo).dump_bbs || CLG_(clo).dump_bb) {
     if (!CLG_(is_zero_cost)( CLG_(sets).full, currCost->cost )) {
       something_written = True;
-      
-      fprint_apos(fp, &(currCost->p), last, bbcc->cxt->fn[0]->file);
+
+      fprint_apos(fp, &(currCost->p), last, bbcc->cxt->fn[0]->file, bbcc);
       fprint_fcost(fp, currCost, last);
     }
     if (CLG_(clo).dump_bbs) VG_(fprintf)(fp, "\n");
@@ -1417,7 +1488,7 @@ static void print_bbccs_of_thread(thread_info* ti)
       if (!CLG_(is_zero_cost)( CLG_(sets).full, ccSum[currSum].cost )) {
 	/* no need to switch buffers, as position is the same */
 	fprint_apos(print_fp, &(ccSum[currSum].p), &lastAPos,
-		    lastFnPos.cxt->fn[0]->file);
+		    lastFnPos.cxt->fn[0]->file, 0);
 	fprint_fcost(print_fp, &ccSum[currSum], &lastAPos);
       }
       
@@ -1437,6 +1508,7 @@ static void print_bbccs_of_thread(thread_info* ti)
       init_fcost(&ccSum[0], 0, 0, 0);
       init_fcost(&ccSum[1], 0, 0, 0);
       currSum = 0;
+      last_inline_fn = 0;  /* reset inline function tracking */
     }
     
     if (CLG_(clo).dump_bbs) {

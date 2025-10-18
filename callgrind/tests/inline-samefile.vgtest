@@ -1,0 +1,4 @@
+prog: inline-samefile
+vgopts: --read-inline-info=yes --compress-strings=no
+post: ./filter_inline callgrind.out.* inline-samefile
+cleanup: rm callgrind.out.*
