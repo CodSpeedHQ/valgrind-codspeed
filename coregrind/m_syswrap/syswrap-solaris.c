@@ -511,6 +511,9 @@ ULong ML_(fletcher64)(UInt *buf, SizeT blocks)
    return (sum2 << 32) | sum1;
 }
 
+#pragma GCC push_options
+#pragma GCC optimize ("O0")
+
 /* Save a complete context (VCPU state, sigmask) of a given client thread
    into the vki_ucontext_t structure.  This structure is supposed to be
    allocated in the client memory, a caller must make sure that the memory can
@@ -665,6 +668,8 @@ void VG_(restore_context)(ThreadId tid, vki_ucontext_t *uc, CorePart part,
                   (new_esp - old_esp) + VG_STACK_REDZONE_SZB);
    }
 }
+
+#pragma GCC pop_options
 
 /* Set a client stack associated with a given thread id according to values
    passed in the vki_stack_t structure. */
@@ -1770,6 +1775,8 @@ PRE(sys_open)
 
 POST(sys_open)
 {
+   POST_newFd_RES;
+
    if (!ML_(fd_allowed)(RES, "open", tid, True)) {
       VG_(close)(RES);
       SET_STATUS_Failure(VKI_EMFILE);
@@ -2357,10 +2364,6 @@ PRE(sys_fstat)
    PRINT("sys_fstat ( %ld, %#lx )", SARG1, ARG2);
    PRE_REG_READ2(long, "fstat", int, fildes, struct stat *, buf);
    PRE_MEM_WRITE("fstat(buf)", ARG2, sizeof(struct vki_stat));
-
-   /* Be strict. */
-   if (!ML_(fd_allowed)(ARG1, "fstat", tid, False))
-      SET_STATUS_Failure(VKI_EBADF);
 }
 
 POST(sys_fstat)
@@ -2489,6 +2492,7 @@ PRE(sys_pipe)
 POST(sys_pipe)
 {
    Int p0, p1;
+   // @todo PJF this needs something like POST_newFd_RES for the two fds?
 
 #if defined(SOLARIS_NEW_PIPE_SYSCALL)
    int *fds = (int*)ARG1;
@@ -2743,7 +2747,7 @@ PRE(sys_shmsys)
 #if defined(SOLARIS_SHM_NEW)
    case VKI_SHMADV:
       /* Libc: int shmadv(int shmid, uint_t cmd, uint_t *advice); */
-      PRINT("sys_shmsys ( %ld, %ld, %lu, %ld )",
+      PRINT("sys_shmsys ( %ld, %ld, %lu, %lu )",
             SARG1, SARG2, ARG3, ARG4);
       PRE_REG_READ4(long, SC2("shmsys", "shmadv"), int, opcode,
                     int, shmid, vki_uint_t, cmd, vki_uint_t *, advice);
@@ -3988,11 +3992,13 @@ PRE(sys_fcntl)
       PRE_REG_READ3(long, "fcntl", int, fildes, int, cmd, int, arg);
       /* Check if a client program isn't going to poison any of V's output
          fds. */
+      /*
       if (ARG2 == VKI_F_DUP2FD &&
           !ML_(fd_allowed)(ARG3, "fcntl(F_DUP2FD)", tid, False)) {
          SET_STATUS_Failure(VKI_EBADF);
          return;
       }
+      */
       break;
 
    /* These ones use ARG3 as "native lock" (input only). */
@@ -4069,8 +4075,11 @@ PRE(sys_fcntl)
 
 POST(sys_fcntl)
 {
+   // @todo PJF we're missing
+   // F_DUP2FD_CLOEXEC F_DUP2FD_CLOFORK F_DUPFD_CLOFORK F_DUP3FD
    switch (ARG2 /*cmd*/) {
    case VKI_F_DUPFD:
+      POST_newFd_RES;
       if (!ML_(fd_allowed)(RES, "fcntl(F_DUPFD)", tid, True)) {
          VG_(close)(RES);
          SET_STATUS_Failure(VKI_EMFILE);
@@ -4079,6 +4088,7 @@ POST(sys_fcntl)
       break;
 
    case VKI_F_DUPFD_CLOEXEC:
+      POST_newFd_RES;
       if (!ML_(fd_allowed)(RES, "fcntl(F_DUPFD_CLOEXEC)", tid, True)) {
          VG_(close)(RES);
          SET_STATUS_Failure(VKI_EMFILE);
@@ -4087,6 +4097,7 @@ POST(sys_fcntl)
       break;
 
    case VKI_F_DUP2FD:
+      POST_newFd_RES;
       if (!ML_(fd_allowed)(RES, "fcntl(F_DUP2FD)", tid, True)) {
          VG_(close)(RES);
          SET_STATUS_Failure(VKI_EMFILE);
@@ -4253,6 +4264,7 @@ PRE(sys_openat)
 
 POST(sys_openat)
 {
+   POST_newFd_RES;
    if (!ML_(fd_allowed)(RES, "openat", tid, True)) {
       VG_(close)(RES);
       SET_STATUS_Failure(VKI_EMFILE);
@@ -6899,7 +6911,7 @@ PRE(sys_modctl)
 
       default:
          VG_(unimplemented)("Syswrap of the modctl call with command "
-                            "MODNVL_DEVLINKSYNC and op %ld.", ARG2);
+                            "MODNVL_DEVLINKSYNC and op %lu.", ARG2);
          /*NOTREACHED*/
          break;
       }
@@ -8535,6 +8547,7 @@ PRE(sys_timer_delete)
    /* int timer_delete(timer_t timerid); */
    PRINT("sys_timer_delete ( %ld )", SARG1);
    PRE_REG_READ1(long, "timer_delete", vki_timer_t, timerid);
+   *flags |= SfPollAfter;
 }
 
 PRE(sys_timer_settime)
@@ -9549,7 +9562,13 @@ POST(sys_door)
 
    switch (ARG6 /*subcode*/) {
    case VKI_DOOR_CREATE:
-      door_record_server(tid, ARG1, RES);
+      POST_newFd_RES;
+      if (!ML_(fd_allowed)(RES, "door_create", tid, True)) {
+         VG_(close)(RES);
+         SET_STATUS_Failure( VKI_EMFILE );
+      } else {
+         door_record_server(tid, ARG1, RES);
+      }
       break;
    case VKI_DOOR_REVOKE:
       door_record_revoke(tid, ARG1);
@@ -10945,7 +10964,7 @@ static SyscallTableEntry syscall_table[] = {
    SOLXY(__NR_uuidsys,              sys_uuidsys),               /* 124 */
 #endif /* SOLARIS_UUIDSYS_SYSCALL */
 #if defined(HAVE_MREMAP)
-   GENX_(__NR_mremap,               sys_mremap),                /* 126 */
+   GENX_(__NR_mremap,               sys_mremap),                /* 126 (Solaris only, not Illumos) */
 #endif /* HAVE_MREMAP */
    SOLX_(__NR_mmapobj,              sys_mmapobj),               /* 127 */
    GENX_(__NR_setrlimit,            sys_setrlimit),             /* 128 */
@@ -10966,7 +10985,7 @@ static SyscallTableEntry syscall_table[] = {
    SOLX_(__NR_seteuid,              sys_seteuid),               /* 141 */
    SOLX_(__NR_forksys,              sys_forksys),               /* 142 */
 #if defined(SOLARIS_GETRANDOM_SYSCALL)
-   SOLXY(__NR_getrandom,            sys_getrandom),             /* 143 */
+   SOLXY(__NR_getrandom,            sys_getrandom),             /* 143 (Solaris) 126 (Illumos) */
 #endif /* SOLARIS_GETRANDOM_SYSCALL */
    SOLXY(__NR_sigtimedwait,         sys_sigtimedwait),          /* 144 */
    SOLX_(__NR_yield,                sys_yield),                 /* 146 */

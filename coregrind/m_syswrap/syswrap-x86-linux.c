@@ -1606,6 +1606,7 @@ static SyscallTableEntry syscall_table[] = {
    LINX_(__NR_shutdown,          sys_shutdown),         // 373
 
    LINX_(__NR_membarrier,        sys_membarrier),       // 375
+   LINXY(__NR_userfaultfd,       sys_userfaultfd),      // 374
    GENX_(__NR_mlock2,            sys_mlock2),           // 376
    LINX_(__NR_copy_file_range,   sys_copy_file_range),  // 377
    LINXY(__NR_preadv2,           sys_preadv2),          // 378
@@ -1619,7 +1620,13 @@ static SyscallTableEntry syscall_table[] = {
    /* Explicitly not supported on i386 yet. */
    GENX_(__NR_arch_prctl,        sys_ni_syscall),       // 384
 
+   LINX_(__NR_io_pgetevents,     sys_io_pgetevents),    // 385
    GENX_(__NR_rseq,              sys_ni_syscall),       // 386
+
+   LINX_(__NR_shmget,            sys_shmget),           // 395
+   LINX_(__NR_shmctl,            sys_shmctl),           // 396
+   LINX_(__NR_shmat,             sys_shmat),            // 397
+   LINX_(__NR_shmdt,             sys_shmdt),            // 398
 
    LINXY(__NR_clock_gettime64,   sys_clock_gettime64),  // 403
    LINX_(__NR_clock_settime64,   sys_clock_settime64),  // 404
@@ -1646,7 +1653,12 @@ static SyscallTableEntry syscall_table[] = {
    LINXY(__NR_io_uring_setup,    sys_io_uring_setup),   // 425
    LINXY(__NR_io_uring_enter,    sys_io_uring_enter),   // 426
    LINXY(__NR_io_uring_register, sys_io_uring_register),// 427
-
+   LINXY(__NR_open_tree,         sys_open_tree),        // 428
+   LINX_(__NR_move_mount,        sys_move_mount),       // 429
+   LINXY(__NR_fsopen,            sys_fsopen),           // 430
+   LINX_(__NR_fsconfig,          sys_fsconfig),         // 431
+   LINXY(__NR_fsmount,           sys_fsmount),          // 432
+   LINXY(__NR_fspick,            sys_fspick),           // 433
    LINXY(__NR_pidfd_open,        sys_pidfd_open),       // 434
    GENX_(__NR_clone3,            sys_ni_syscall),       // 435
    LINXY(__NR_close_range,       sys_close_range),      // 436
@@ -1655,6 +1667,10 @@ static SyscallTableEntry syscall_table[] = {
    LINX_(__NR_faccessat2,	 sys_faccessat2),       // 439
 
    LINXY(__NR_epoll_pwait2,      sys_epoll_pwait2),     // 441
+
+   LINXY(__NR_landlock_create_ruleset, sys_landlock_create_ruleset), // 444
+   LINX_(__NR_landlock_add_rule,       sys_landlock_add_rule),       // 445
+   LINX_(__NR_landlock_restrict_self,  sys_landlock_restrict_self),  // 446
 
    LINXY(__NR_memfd_secret,      sys_memfd_secret),      // 447
 

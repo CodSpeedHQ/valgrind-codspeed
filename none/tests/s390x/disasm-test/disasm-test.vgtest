@@ -1,0 +1,7 @@
+#
+# We do not want disasm-test to be run under the auspices of valgrind.
+# Therefore the real test here is run in the "post" command.
+#
+prereq: ./disasm-test --check-prereq
+prog: /bin/true
+post: ./disasm-test --all --summary

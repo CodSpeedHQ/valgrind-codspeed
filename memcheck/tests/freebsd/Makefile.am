@@ -53,6 +53,8 @@ EXTRA_DIST = \
 	extattr.stderr.exp \
 	fbsd278566.vgtest \
 	fbsd278566.stderr.exp \
+	fchroot.vgtest \
+	fchroot.stderr.exp \
 	fexecve.vgtest \
 	fexecve.stderr.exp \
 	file_locking_wait6.vgtest \
@@ -67,6 +69,7 @@ EXTRA_DIST = \
 	getfsstat.stderr.exp \
 	getfsstat.supp \
 		getfsstat.stderr.exp-x86 \
+	getrlimitusage.vgtest getrlimitusage.stderr.exp \
 	kqueue.vgtest \
 	kqueue.stderr.exp \
 	kqueue.stdout.exp \
@@ -108,6 +111,8 @@ EXTRA_DIST = \
 	sctp2.vgtest \
 	sctp2.stderr.exp \
 	sctp2.stdout.exp \
+	setcred.vgtest \
+	setcred.stderr.exp \
 	setproctitle.vgtest \
 	setproctitle.stderr.exp \
 	setproctitle.stdout.exp \
@@ -136,7 +141,10 @@ EXTRA_DIST = \
 	utimens.stderr.exp \
 	utimes.vgtest \
 	utimes.stderr.exp-x86 \
-	utimes.stderr.exp
+	utimes.stderr.exp \
+	utrace.vgtest \
+	utrace.stderr.exp
+
 
 check_PROGRAMS = \
 	access aio aio_read aligned_alloc bug464476 bug470713 \
@@ -172,6 +180,15 @@ if HAVE_AIO_READV
 check_PROGRAMS += aiov
 endif
 
+if HAVE_FCHROOT
+check_PROGRAMS += fchroot
+fchroot_SOURCES = fchroot.cpp
+endif
+
+if HAVE_GETRLIMITUSAGE
+check_PROGRAMS += getrlimitusage
+endif
+
 inlinfo_SOURCES = inlinfo.c
 inlinfo_DEPENDENCIES = inlinfo_nested.so
 inlinfo_LDFLAGS = -Wl,-rpath,$(top_builddir)/memcheck/tests/freebsd
@@ -193,6 +210,12 @@ endif
 
 if FREEBSD_KQUEUEX_SYSCALL
 check_PROGRAMS += kqueuex
+endif
+
+if HAVE_SETCRED
+check_PROGRAMS += setcred
+setcred_SOURCES = setcred.cpp
+setcred_CXXFLAGS = ${AM_CXXFLAGS} @FLAG_W_NO_UNINITIALIZED@
 endif
 
 if FREEBSD_TIMERFD_SYSCALL

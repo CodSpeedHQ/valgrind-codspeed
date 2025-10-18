@@ -310,6 +310,16 @@ static void run_a_thread_NORETURN ( Word tidW )
          : "r" (VgTs_Empty), "n" (__NR_exit), "m" (tst->os_state.exitcode)
          : "memory" , "$t4", "$a0"
       );
+#elif defined(VGP_riscv64_linux)
+      asm volatile (
+         "sw   %1, %0\n"      /* set tst->status = VgTs_Empty */
+         "li   a7, %2\n"      /* set a7 = __NR_exit */
+         "ld   a0, %3\n"      /* set a0 = tst->os_state.exitcode */
+         "ecall\n"            /* exit(tst->os_state.exitcode) */
+         : "=m" (tst->status)
+         : "r" (VgTs_Empty), "n" (__NR_exit), "m" (tst->os_state.exitcode)
+         : "a7", "a0"
+      );
 #else
 # error Unknown platform
 #endif
@@ -535,6 +545,13 @@ static SysRes clone_new_thread ( Word (*fn)(void *),
       (ML_(start_thread_NORETURN), stack, flags, ctst,
        child_tidptr, parent_tidptr, NULL);
    res = VG_ (mk_SysRes_nanomips_linux) (ret);
+#elif defined(VGP_riscv64_linux)
+   ULong a0;
+   ctst->arch.vex.guest_x10 = 0;
+   a0 = do_syscall_clone_riscv64_linux
+      (ML_(start_thread_NORETURN), stack, flags, ctst,
+       child_tidptr, parent_tidptr, NULL);
+   res = VG_(mk_SysRes_riscv64_linux)( a0 );
 #else
 # error Unknown platform
 #endif
@@ -560,7 +577,7 @@ static SysRes setup_child_tls (ThreadId ctid, Addr tlsaddr)
 {
    static const Bool debug = False;
    ThreadState* ctst = VG_(get_ThreadState)(ctid);
-   // res is succesful by default, overriden if a real syscall is needed/done.
+   // res is successful by default, overriden if a real syscall is needed/done.
    SysRes res = VG_(mk_SysRes_Success)(0);
 
    if (debug)
@@ -597,6 +614,8 @@ static SysRes setup_child_tls (ThreadId ctid, Addr tlsaddr)
 #elif defined(VGP_mips32_linux) || defined(VGP_nanomips_linux)
    ctst->arch.vex.guest_ULR = tlsaddr;
    ctst->arch.vex.guest_r27 = tlsaddr;
+#elif defined(VGP_riscv64_linux)
+   ctst->arch.vex.guest_x4 = tlsaddr;
 #else
 # error Unknown platform
 #endif
@@ -755,7 +774,7 @@ static SysRes ML_(do_fork_clone) ( ThreadId tid, UInt flags,
     || defined(VGP_ppc64be_linux) || defined(VGP_ppc64le_linux)	\
     || defined(VGP_arm_linux) || defined(VGP_mips32_linux) \
     || defined(VGP_mips64_linux) || defined(VGP_arm64_linux) \
-    || defined(VGP_nanomips_linux)
+    || defined(VGP_nanomips_linux) || defined(VGP_riscv64_linux)
    res = VG_(do_syscall5)( __NR_clone, flags, 
                            (UWord)NULL, (UWord)parent_tidptr, 
                            (UWord)NULL, (UWord)child_tidptr );
@@ -823,7 +842,7 @@ PRE(sys_clone)
     || defined(VGP_ppc64be_linux) || defined(VGP_ppc64le_linux)	\
     || defined(VGP_arm_linux) || defined(VGP_mips32_linux) \
     || defined(VGP_mips64_linux) || defined(VGP_arm64_linux) \
-    || defined(VGP_nanomips_linux)
+    || defined(VGP_nanomips_linux) || defined(VGP_riscv64_linux)
 #define ARG_CHILD_TIDPTR ARG5
 #define PRA_CHILD_TIDPTR PRA5
 #define ARG_TLS          ARG4
@@ -981,7 +1000,8 @@ PRE(sys_mount)
 {
    // Nb: depending on 'flags', the 'type' and 'data' args may be ignored.
    // We are conservative and check everything, except the memory pointed to
-   // by 'data'.
+   // by 'data'. And since both 'source' and 'type' may be ignored, we allow
+   // them to be NULL.
    *flags |= SfMayBlock;
    PRINT("sys_mount( %#" FMT_REGWORD "x(%s), %#" FMT_REGWORD "x(%s), %#"
          FMT_REGWORD "x(%s), %#" FMT_REGWORD "x, %#" FMT_REGWORD "x )",
@@ -993,7 +1013,8 @@ PRE(sys_mount)
    if (ARG1)
       PRE_MEM_RASCIIZ( "mount(source)", ARG1);
    PRE_MEM_RASCIIZ( "mount(target)", ARG2);
-   PRE_MEM_RASCIIZ( "mount(type)", ARG3);
+   if (ARG3)
+      PRE_MEM_RASCIIZ( "mount(type)", ARG3);
 }
 
 PRE(sys_oldumount)
@@ -2084,6 +2105,7 @@ PRE(sys_epoll_create)
 POST(sys_epoll_create)
 {
    vg_assert(SUCCESS);
+   POST_newFd_RES;
    if (!ML_(fd_allowed)(RES, "epoll_create", tid, True)) {
       VG_(close)(RES);
       SET_STATUS_Failure( VKI_EMFILE );
@@ -2101,6 +2123,7 @@ PRE(sys_epoll_create1)
 POST(sys_epoll_create1)
 {
    vg_assert(SUCCESS);
+   POST_newFd_RES;
    if (!ML_(fd_allowed)(RES, "epoll_create1", tid, True)) {
       VG_(close)(RES);
       SET_STATUS_Failure( VKI_EMFILE );
@@ -2215,6 +2238,7 @@ PRE(sys_eventfd)
 }
 POST(sys_eventfd)
 {
+   POST_newFd_RES;
    if (!ML_(fd_allowed)(RES, "eventfd", tid, True)) {
       VG_(close)(RES);
       SET_STATUS_Failure( VKI_EMFILE );
@@ -2231,6 +2255,7 @@ PRE(sys_eventfd2)
 }
 POST(sys_eventfd2)
 {
+   POST_newFd_RES;
    if (!ML_(fd_allowed)(RES, "eventfd2", tid, True)) {
       VG_(close)(RES);
       SET_STATUS_Failure( VKI_EMFILE );
@@ -2550,32 +2575,49 @@ PRE(sys_io_destroy)
    }  
 }  
 
+static
+void common_pre_io_getevents(ThreadId tid, UWord a1, UWord a2, UWord a3, UWord a4, UWord a5, UWord a6, UWord* flags, const HChar* funtion_name)
+{
+   HChar buf[25];
+   *flags |= SfMayBlock;
+   PRINT("sys_%s ( %llu, %lld, %lld, %#" FMT_REGWORD "x, %#"
+         FMT_REGWORD "x )", funtion_name,
+         (ULong)a1,(Long)a2,(Long)a3,a4,a5);
+   if (a3 > 0) {
+      VG_(snprintf)(buf, 25, "%s(events)", funtion_name);
+      PRE_MEM_WRITE( buf, a4, sizeof(struct vki_io_event)*a3 );
+   }
+   if (a5 != 0) {
+      VG_(snprintf)(buf, 25, "%s(timeout)", funtion_name);
+      PRE_MEM_READ( buf, a5, sizeof(struct vki_timespec));
+   }
+
+   if (a6 != 0) {
+      // only for io_pgetevents
+      PRE_MEM_READ("io_pgetevents(usig)",
+                   a6, sizeof(struct vki__aio_sigset));
+   }
+}
+
 PRE(sys_io_getevents)
 {
-   *flags |= SfMayBlock;
-   PRINT("sys_io_getevents ( %llu, %lld, %lld, %#" FMT_REGWORD "x, %#"
-         FMT_REGWORD "x )",
-         (ULong)ARG1,(Long)ARG2,(Long)ARG3,ARG4,ARG5);
    PRE_REG_READ5(long, "io_getevents",
                  vki_aio_context_t, ctx_id, long, min_nr, long, nr,
                  struct io_event *, events,
                  struct timespec *, timeout);
-   if (ARG3 > 0)
-      PRE_MEM_WRITE( "io_getevents(events)",
-                     ARG4, sizeof(struct vki_io_event)*ARG3 );
-   if (ARG5 != 0)
-      PRE_MEM_READ( "io_getevents(timeout)",
-                    ARG5, sizeof(struct vki_timespec));
+   common_pre_io_getevents(tid, ARG1, ARG2, ARG3, ARG4, ARG5, 0U, flags, "io_getevents");
 }
-POST(sys_io_getevents)
+
+static
+void common_post_sys_io_events(ThreadId tid, UWord a4, SyscallStatus* status, const HChar* funtion_name)
 {
    Int i;
    vg_assert(SUCCESS);
    if (RES > 0) {
-      POST_MEM_WRITE( ARG4, sizeof(struct vki_io_event)*RES );
+      POST_MEM_WRITE( a4, sizeof(struct vki_io_event)*RES );
       for (i = 0; i < RES; i++) {
          const struct vki_io_event *vev =
-            ((struct vki_io_event *)(Addr)ARG4) + i;
+            ((struct vki_io_event *)(Addr)a4) + i;
          const struct vki_iocb *cb = (struct vki_iocb *)(Addr)vev->obj;
 
          switch (cb->aio_lio_opcode) {
@@ -2594,32 +2636,38 @@ POST(sys_io_getevents)
             break;
 
          case VKI_IOCB_CMD_PREADV:
-	     if (vev->result > 0) {
-                  struct vki_iovec * vec = (struct vki_iovec *)(Addr)cb->aio_buf;
-                  Int remains = vev->result;
-                  Int j;
+            if (vev->result > 0) {
+               struct vki_iovec * vec = (struct vki_iovec *)(Addr)cb->aio_buf;
+               Int remains = vev->result;
+                Int j;
 
-                  for (j = 0; j < cb->aio_nbytes; j++) {
-                       Int nReadThisBuf = vec[j].iov_len;
-                       if (nReadThisBuf > remains) nReadThisBuf = remains;
-                       POST_MEM_WRITE( (Addr)vec[j].iov_base, nReadThisBuf );
-                       remains -= nReadThisBuf;
-                       if (remains < 0) VG_(core_panic)("io_getevents(PREADV): remains < 0");
-                  }
-	     }
-             break;
+               for (j = 0; j < cb->aio_nbytes; j++) {
+                   Int nReadThisBuf = vec[j].iov_len;
+                  if (nReadThisBuf > remains) nReadThisBuf = remains;
+                  POST_MEM_WRITE( (Addr)vec[j].iov_base, nReadThisBuf );
+                  remains -= nReadThisBuf;
+                  if (remains < 0) VG_(core_panic)("io_getevents(PREADV): remains < 0");
+               }
+            }
+            break;
 
          case VKI_IOCB_CMD_PWRITEV:
              break;
 
          default:
             VG_(message)(Vg_DebugMsg,
-                        "Warning: unhandled io_getevents opcode: %u\n",
+                        "Warning: unhandled %s opcode: %u\n",
+                        funtion_name,
                         cb->aio_lio_opcode);
             break;
          }
       }
    }
+}
+
+POST(sys_io_getevents)
+{
+   common_post_sys_io_events(tid, ARG4, status, "io_getevents");
 }
 
 PRE(sys_io_submit)
@@ -2757,6 +2805,7 @@ PRE(sys_fanotify_init)
 
 POST(sys_fanotify_init)
 {
+   POST_newFd_RES;
    vg_assert(SUCCESS);
    if (!ML_(fd_allowed)(RES, "fanotify_init", tid, True)) {
       VG_(close)(RES);
@@ -2805,6 +2854,7 @@ PRE(sys_inotify_init)
 POST(sys_inotify_init)
 {
    vg_assert(SUCCESS);
+   POST_newFd_RES;
    if (!ML_(fd_allowed)(RES, "inotify_init", tid, True)) {
       VG_(close)(RES);
       SET_STATUS_Failure( VKI_EMFILE );
@@ -3244,6 +3294,7 @@ PRE(sys_timer_delete)
 {
    PRINT("sys_timer_delete( %#" FMT_REGWORD "x )", ARG1);
    PRE_REG_READ1(long, "timer_delete", vki_timer_t, timerid);
+   *flags |= SfPollAfter;
 }
 
 /* ---------------------------------------------------------------------
@@ -4163,6 +4214,54 @@ POST(sys_memfd_create)
    }
 }
 
+PRE(sys_landlock_create_ruleset)
+{
+   PRINT("sys_landlock_create_ruleset ( %#" FMT_REGWORD "x, %lu, %lu )",
+         ARG1, ARG2, ARG3);
+   PRE_REG_READ3(long, "landlock_create_ruleset",
+                 const struct vki_landlock_ruleset_attr*, attr,
+                 vki_size_t, size, vki_uint32_t, flags);
+   PRE_MEM_READ( "landlock_create_ruleset(value)", ARG1, ARG2 );
+
+   /* XXX Alternatively we could always fail with EOPNOTSUPP
+      since the rules might interfere with valgrind itself.  */
+}
+
+POST(sys_landlock_create_ruleset)
+{
+   /* Returns either the abi version or a file descriptor.  */
+   if (ARG3 != VKI_LANDLOCK_CREATE_RULESET_VERSION) {
+      if (!ML_(fd_allowed)(RES, "landlock_create_ruleset", tid, True)) {
+         VG_(close)(RES);
+         SET_STATUS_Failure( VKI_EMFILE );
+      } else {
+         if (VG_(clo_track_fds))
+            ML_(record_fd_open_nameless)(tid, RES);
+      }
+   }
+}
+
+PRE(sys_landlock_add_rule)
+{
+   PRINT("sys_landlock_add_rule ( %ld, %lu, %#" FMT_REGWORD "x, %lu )",
+         SARG1, ARG2, ARG3, ARG4);
+   PRE_REG_READ4(long, "landlock_add_rule",
+                 int, ruleset_fd, enum vki_landlock_rule_type, rule_type,
+                 const void*, rule_attr, vki_uint32_t, flags);
+   if (!ML_(fd_allowed)(ARG1, "landlock_add_rule", tid, False))
+      SET_STATUS_Failure(VKI_EBADF);
+   /* XXX Depending on rule_type we should also check the given rule_attr.  */
+}
+
+PRE(sys_landlock_restrict_self)
+{
+   PRINT("sys_landlock_restrict_self ( %ld, %lu )", SARG1, ARG2);
+   PRE_REG_READ2(long, "landlock_create_ruleset",
+                 int, ruleset_fd, vki_uint32_t, flags);
+   if (!ML_(fd_allowed)(ARG1, "landlock_restrict_self", tid, False))
+      SET_STATUS_Failure(VKI_EBADF);
+}
+
 PRE(sys_memfd_secret)
 {
    PRINT("sys_memfd_secret ( %#" FMT_REGWORD "x )", ARG1);
@@ -4364,9 +4463,13 @@ PRE(sys_sigaction)
       PRE_MEM_READ( "sigaction(act->sa_handler)", (Addr)&sa->ksa_handler, sizeof(sa->ksa_handler));
       PRE_MEM_READ( "sigaction(act->sa_mask)", (Addr)&sa->sa_mask, sizeof(sa->sa_mask));
       PRE_MEM_READ( "sigaction(act->sa_flags)", (Addr)&sa->sa_flags, sizeof(sa->sa_flags));
+#     if !defined(VGP_riscv64_linux)
+      /* Check the sa_restorer field. More recent Linux platforms completely
+         drop this member. */
       if (ML_(safe_to_deref)(sa,sizeof(struct vki_old_sigaction))
           && (sa->sa_flags & VKI_SA_RESTORER))
          PRE_MEM_READ( "sigaction(act->sa_restorer)", (Addr)&sa->sa_restorer, sizeof(sa->sa_restorer));
+#     endif
    }
 
    if (ARG3 != 0) {
@@ -4482,9 +4585,11 @@ PRE(sys_rt_sigaction)
       PRE_MEM_READ( "rt_sigaction(act->sa_handler)", (Addr)&sa->ksa_handler, sizeof(sa->ksa_handler));
       PRE_MEM_READ( "rt_sigaction(act->sa_mask)", (Addr)&sa->sa_mask, sizeof(sa->sa_mask));
       PRE_MEM_READ( "rt_sigaction(act->sa_flags)", (Addr)&sa->sa_flags, sizeof(sa->sa_flags));
+#     if !defined(VGP_riscv64_linux)
       if (ML_(safe_to_deref)(sa,sizeof(vki_sigaction_toK_t))
           && (sa->sa_flags & VKI_SA_RESTORER))
          PRE_MEM_READ( "rt_sigaction(act->sa_restorer)", (Addr)&sa->sa_restorer, sizeof(sa->sa_restorer));
+#     endif
    }
    if (ARG3 != 0)
       PRE_MEM_WRITE( "rt_sigaction(oldact)", ARG3, sizeof(vki_sigaction_fromK_t));
@@ -5848,6 +5953,7 @@ PRE(sys_openat)
 POST(sys_openat)
 {
    vg_assert(SUCCESS);
+   POST_newFd_RES;
    if (!ML_(fd_allowed)(RES, "openat", tid, True)) {
       VG_(close)(RES);
       SET_STATUS_Failure( VKI_EMFILE );
@@ -6860,7 +6966,8 @@ POST(sys_lookup_dcookie)
 #endif
 
 #if defined(VGP_amd64_linux) || defined(VGP_s390x_linux)        \
-      || defined(VGP_arm64_linux) || defined(VGP_nanomips_linux)
+      || defined(VGP_arm64_linux) || defined(VGP_nanomips_linux) \
+      || defined(VGP_riscv64_linux)
 PRE(sys_lookup_dcookie)
 {
    *flags |= SfMayBlock;
@@ -10349,6 +10456,10 @@ PRE(sys_ioctl)
       break;
    }
 
+   case VKI_EVIOCGRAB:
+	/* This just takes an int argument. */
+	break;
+
    default:
       /* EVIOC* are variable length and return size written on success */
       switch (ARG2 & ~(_VKI_IOC_SIZEMASK << _VKI_IOC_SIZESHIFT)) {
@@ -12993,7 +13104,11 @@ PRE(sys_bpf)
             }
             /* Get size of key for this map. */
             if (bpf_map_get_sizes(attr->map_fd, &key_size, &value_size)) {
-               PRE_MEM_READ("bpf(attr->key)", attr->key, key_size);
+               /* see https://bugs.kde.org/show_bug.cgi?id=496571 */
+               /* Key is null when getting first entry in map. */
+               if (attr->key) {
+                  PRE_MEM_READ("bpf(attr->key)", attr->key, key_size);
+               }
                PRE_MEM_WRITE("bpf(attr->next_key)", attr->next_key, key_size);
             }
          }
@@ -13379,6 +13494,20 @@ PRE(sys_pkey_free)
   SET_STATUS_Failure( VKI_EINVAL );
 }
 
+PRE(sys_io_pgetevents)
+{
+   PRE_REG_READ5(long, "io_pgetevents",
+                 vki_aio_context_t, ctx_id, long, min_nr, long, nr,
+                 struct io_event *, events,
+                 struct timespec *, timeout);
+   common_pre_io_getevents(tid, ARG1, ARG2, ARG3, ARG4, ARG5, ARG6, flags, "io_pgetevents");
+}
+
+POST(sys_io_pgetevents)
+{
+   common_post_sys_io_events(tid, ARG4, status, "io_pgetevents");
+}
+
 PRE(sys_pkey_mprotect)
 {
    PRINT("sys_pkey_mprotect ( %#" FMT_REGWORD "x, %" FMT_REGWORD "u, %"
@@ -13572,18 +13701,22 @@ PRE(sys_execveat)
 
 PRE(sys_close_range)
 {
-   SysRes res = VG_(mk_SysRes_Success)(0);
-   unsigned int beg, end;
-   unsigned int last = ARG2;
+   UInt first = ARG1;
+   UInt last = ARG2;
+
+   vg_assert(VG_(log_output_sink).fd == -1 ||
+             VG_(log_output_sink).fd >= VG_(fd_hard_limit));
+   vg_assert(VG_(xml_output_sink).fd == -1 ||
+             VG_(xml_output_sink).fd >= VG_(fd_hard_limit));
 
    FUSE_COMPATIBLE_MAY_BLOCK();
    PRINT("sys_close_range ( %" FMT_REGWORD "u, %" FMT_REGWORD "u, %"
          FMT_REGWORD "u )", ARG1, ARG2, ARG3);
    PRE_REG_READ3(long, "close_range",
                  unsigned int, first, unsigned int, last,
-                 unsigned int, flags);
+                 int, flags);
 
-   if (ARG1 > last) {
+   if (first > last) {
       SET_STATUS_Failure( VKI_EINVAL );
       return;
    }
@@ -13591,33 +13724,33 @@ PRE(sys_close_range)
    if (last >= VG_(fd_hard_limit))
       last = VG_(fd_hard_limit) - 1;
 
-   if (ARG1 > last) {
+   if (first > last) {
       SET_STATUS_Success ( 0 );
       return;
    }
 
-   beg = end = ARG1;
-   do {
-      if (end > last
-	  || (end == 2/*stderr*/ && VG_(debugLog_getLevel)() > 0)
-	  || end == VG_(log_output_sink).fd
-	  || end == VG_(xml_output_sink).fd) {
-         /* Split the range if it contains a file descriptor we're not
-          * supposed to close. */
-         if (end - 1 >= beg)
-             res = VG_(do_syscall3)(__NR_close_range, (UWord)beg, (UWord)end - 1, ARG3 );
-         beg = end + 1;
+   if (VG_(debugLog_getLevel)() > 0 &&
+      first <= 2U &&
+      last >= 2U &&
+      first != last) {
+      SysRes res = VG_(mk_SysRes_Success)(0);
+      if (first <= 1U) {
+         res = VG_(do_syscall3)(__NR_close_range, first, 1U, ARG3);
       }
-   } while (end++ <= last);
-
-   /* If it failed along the way, it's presumably the flags being wrong. */
-   SET_STATUS_from_SysRes (res);
+      if (!sr_isError(res) && last >= 3U) {
+         res = VG_(do_syscall3)(__NR_close_range, 3U, last, ARG3);
+      }
+      /* If it failed along the way, it's presumably the flags being wrong. */
+      SET_STATUS_from_SysRes (res);
+   } else {
+      SET_STATUS_from_SysRes(VG_(do_syscall3)(__NR_close_range, first, last, ARG3));
+   }
 }
 
 POST(sys_close_range)
 {
-   unsigned int fd;
-   unsigned int last = ARG2;
+   UInt fd;
+   UInt last = ARG2;
 
    if (!VG_(clo_track_fds)
        || (ARG3 & VKI_CLOSE_RANGE_CLOEXEC) != 0)
@@ -13628,13 +13761,11 @@ POST(sys_close_range)
 
    /* If the close_range range is too wide, we don't want to loop
       through the whole range.  */
-   if (ARG2 == ~0U)
+   if (ARG2 >= VG_(fd_hard_limit))
      ML_(record_fd_close_range)(tid, ARG1);
    else {
      for (fd = ARG1; fd <= last; fd++)
-       if ((fd != 2/*stderr*/ || VG_(debugLog_getLevel)() == 0)
-           && fd != VG_(log_output_sink).fd
-           && fd != VG_(xml_output_sink).fd)
+       if ((fd != 2/*stderr*/ || VG_(debugLog_getLevel)() == 0))
          ML_(record_fd_close)(tid, fd);
    }
 }
@@ -13785,6 +13916,172 @@ POST(sys_pidfd_getfd)
    } else {
       if (VG_(clo_track_fds))
          ML_(record_fd_open_nameless) (tid, RES);
+   }
+}
+
+/* int open_tree (int dfd, const char *filename, unsigned int flags)  */
+PRE(sys_open_tree)
+{
+   PRINT("sys_open_tree ( %ld, %#" FMT_REGWORD "x(%s), %ld",
+         SARG1, ARG2, (HChar*)(Addr)ARG2, SARG3);
+   PRE_REG_READ3(long, "open_tree",
+                 int, dfd, const char *, filename, int, flags);
+   PRE_MEM_RASCIIZ( "open_tree(filename)", ARG2);
+   /* For absolute filenames, dfd is ignored.  If dfd is AT_FDCWD,
+      filename is relative to cwd.  When comparing dfd against AT_FDCWD,
+      be sure only to compare the bottom 32 bits. */
+   if (ML_(safe_to_deref)( (void*)(Addr)ARG2, 1 )
+       && *(Char *)(Addr)ARG2 != '/'
+       && ((Int)ARG1) != ((Int)VKI_AT_FDCWD)
+       && !ML_(fd_allowed)(ARG1, "open_tree", tid, False))
+      SET_STATUS_Failure( VKI_EBADF );
+}
+
+POST(sys_open_tree)
+{
+   if (!ML_(fd_allowed)(RES, "open_tree", tid, True)) {
+      VG_(close)(RES);
+      SET_STATUS_Failure( VKI_EMFILE );
+   } else {
+      if (VG_(clo_track_fds))
+         ML_(record_fd_open_with_given_name)(tid, RES, (HChar*)(Addr)ARG2);
+   }
+}
+
+/* int move_mount (int from_dfd, const char *from_pathname,
+                   int to_dfd, const char *to_pathname,
+                   unsigned int flags)  */
+PRE(sys_move_mount)
+{
+   PRINT("sys_move_mount ( %ld, %#" FMT_REGWORD "x(%s), "
+         "%ld, %#" FMT_REGWORD "x(%s), %ld",
+         SARG1, ARG2, (HChar*)(Addr)ARG2,
+         SARG3, ARG4, (HChar*)(Addr)ARG4, SARG5);
+   PRE_REG_READ5(long, "mount_move",
+                 int, from_dfd, const char *, from_pathname,
+                 int, to_dfd, const char*, to_pathname, int, flags);
+   PRE_MEM_RASCIIZ( "mount_move(from_pathname)", ARG2);
+   /* For absolute filenames, from_dfd is ignored.  If from_dfd is AT_FDCWD,
+      from_pathname is relative to cwd.  When comparing from_dfd against
+      AT_FDCWD, be sure only to compare the bottom 32 bits. */
+   if (ML_(safe_to_deref)( (void*)(Addr)ARG2, 1 )
+       && *(Char *)(Addr)ARG2 != '/'
+       && ((Int)ARG1) != ((Int)VKI_AT_FDCWD)
+       && !ML_(fd_allowed)(ARG1, "mount_move", tid, False))
+      SET_STATUS_Failure( VKI_EBADF );
+   PRE_MEM_RASCIIZ( "mount_move(from_pathname)", ARG4);
+   /* For absolute filenames, to_dfd is ignored.  If to_dfd is AT_FDCWD,
+      to_pathname is relative to cwd.  When comparing to_dfd against
+      AT_FDCWD, be sure only to compare the bottom 32 bits. */
+   if (ML_(safe_to_deref)( (void*)(Addr)ARG4, 1 )
+       && *(Char *)(Addr)ARG4 != '/'
+       && ((Int)ARG4) != ((Int)VKI_AT_FDCWD)
+       && !ML_(fd_allowed)(ARG3, "mount_move", tid, False))
+      SET_STATUS_Failure( VKI_EBADF );
+}
+
+/* int fsopen (const char *fs_name, unsigned int flags)  */
+PRE(sys_fsopen)
+{
+   PRINT("sys_fsopen ( %#" FMT_REGWORD "x(%s), %ld",
+         ARG1, (HChar*)(Addr)ARG1, SARG2);
+   PRE_REG_READ2(long, "fsopen", const char *, fs_name, int, flags);
+   PRE_MEM_RASCIIZ( "fsopen(filename)", ARG1);
+}
+
+POST(sys_fsopen)
+{
+   if (!ML_(fd_allowed)(RES, "fsopen", tid, True)) {
+      VG_(close)(RES);
+      SET_STATUS_Failure( VKI_EMFILE );
+   } else {
+      if (VG_(clo_track_fds))
+         ML_(record_fd_open_with_given_name)(tid, RES, (HChar*)(Addr)ARG1);
+   }
+}
+
+/* int fsmount (int fd, unsigned int flags, unsigned int ms_flags)  */
+PRE(sys_fsmount)
+{
+   PRINT("sys_fsmount ( %ld, %ld, %ld", SARG1, SARG2, SARG3);
+   PRE_REG_READ3(long, "fsmount", int, fd, int, flags, int, ms_flags);
+   if (!ML_(fd_allowed)(ARG1, "fsmount", tid, False))
+      SET_STATUS_Failure( VKI_EBADF );
+}
+
+POST(sys_fsmount)
+{
+   if (!ML_(fd_allowed)(RES, "fsmount", tid, True)) {
+      VG_(close)(RES);
+      SET_STATUS_Failure( VKI_EMFILE );
+   } else {
+      if (VG_(clo_track_fds))
+         ML_(record_fd_open_nameless)(tid, RES);
+   }
+}
+
+/* int fsconfig (int fd, unsigned int cmd, const char *key,
+                 const void *value, int aux)  */
+PRE(sys_fsconfig)
+{
+   PRINT("sys_fsconfig ( %ld, %ld, %#" FMT_REGWORD "x(%s), "
+         "%#" FMT_REGWORD "x, %ld )",
+         SARG1, SARG2, ARG3, (HChar*)(Addr)ARG3, ARG4, SARG6);
+   PRE_REG_READ5(long, "fsconfig", int, fd, int, cmd,
+                 const char *, key, const void *, value, int, aux);
+   if (ARG3)
+      PRE_MEM_RASCIIZ( "fsconfig(key)", ARG3);
+   if (!ML_(fd_allowed)(ARG1, "fsconfig", tid, False))
+      SET_STATUS_Failure( VKI_EBADF );
+   /* XXX we could also check the value based on the cmd FSCONFIG_...  */
+}
+
+/* int fspick (int dfd, const char *path, unsigned int flags)  */
+PRE(sys_fspick)
+{
+   PRINT("sys_fspick ( %ld, %#" FMT_REGWORD "x(%s), %ld",
+         SARG1, ARG2, (HChar*)(Addr)ARG2, SARG3);
+   PRE_REG_READ3(long, "fspick",
+                 int, dfd, const char *, filename, int, flags);
+   PRE_MEM_RASCIIZ( "fspick(path)", ARG2);
+   /* For absolute filenames, dfd is ignored.  If dfd is AT_FDCWD,
+      path is relative to cwd.  When comparing dfd against AT_FDCWD,
+      be sure only to compare the bottom 32 bits. */
+   if (ML_(safe_to_deref)( (void*)(Addr)ARG2, 1 )
+       && *(Char *)(Addr)ARG2 != '/'
+       && ((Int)ARG1) != ((Int)VKI_AT_FDCWD)
+       && !ML_(fd_allowed)(ARG1, "fspick", tid, False))
+      SET_STATUS_Failure( VKI_EBADF );
+}
+
+POST(sys_fspick)
+{
+   if (!ML_(fd_allowed)(RES, "fspick", tid, True)) {
+      VG_(close)(RES);
+      SET_STATUS_Failure( VKI_EMFILE );
+   } else {
+      if (VG_(clo_track_fds))
+         ML_(record_fd_open_with_given_name)(tid, RES, (HChar*)(Addr)ARG2);
+   }
+}
+
+/* int syscall(SYS_userfaultfd, int flags); */
+
+PRE(sys_userfaultfd)
+{
+   PRINT("sys_userfaultfd ( %ld )", SARG1);
+   PRE_REG_READ1(long, "userfaultfd", int, size);
+}
+
+POST(sys_userfaultfd)
+{
+   vg_assert(SUCCESS);
+   if (!ML_(fd_allowed)(RES, "userfaultfd", tid, True)) {
+      VG_(close)(RES);
+      SET_STATUS_Failure( VKI_EMFILE );
+   } else {
+      if (VG_(clo_track_fds))
+         ML_(record_fd_open_nameless)(tid, RES);
    }
 }
 

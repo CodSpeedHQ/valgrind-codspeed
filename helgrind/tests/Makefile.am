@@ -5,6 +5,7 @@ dist_noinst_SCRIPTS = \
 		      filter_stderr_solaris \
 		      filter_helgrind \
 		      filter_xml \
+                      filter_fiw \
 		      filter_freebsd.awk \
 		      filter_stderr_freebsd \
 		      filter_bug392331
@@ -33,6 +34,7 @@ EXTRA_DIST = \
 	bar_bad.vgtest bar_bad.stdout.exp bar_bad.stderr.exp \
 		bar_bad.stderr.exp-destroy-hang \
 		bar_bad.stderr.exp-freebsd \
+		bar_bad.stderr.exp-illumos \
 	bar_trivial.vgtest bar_trivial.stdout.exp bar_trivial.stderr.exp \
 	free_is_write.vgtest free_is_write.stdout.exp \
 		free_is_write.stderr.exp \
@@ -87,7 +89,7 @@ EXTRA_DIST = \
 		tc03_re_excl.stderr.exp \
 	tc04_free_lock.vgtest tc04_free_lock.stdout.exp \
 		tc04_free_lock.stderr.exp \
-		tc04_free_lock.stderr.exp-freebsd15 \
+		tc04_free_lock.stderr.exp-freebsd \
 	tc05_simple_race.vgtest tc05_simple_race.stdout.exp \
 		tc05_simple_race.stderr.exp \
 	tc06_two_races.vgtest tc06_two_races.stdout.exp \
@@ -100,7 +102,6 @@ EXTRA_DIST = \
 	tc09_bad_unlock.vgtest tc09_bad_unlock.stdout.exp \
 		tc09_bad_unlock.stderr.exp tc09_bad_unlock.stderr.exp-solaris \
 		tc09_bad_unlock.stderr.exp-freebsd \
-		tc09_bad_unlock.stderr.exp-freebsd15 \
 	tc10_rec_lock.vgtest tc10_rec_lock.stdout.exp tc10_rec_lock.stderr.exp \
 	tc11_XCHG.vgtest tc11_XCHG.stdout.exp tc11_XCHG.stderr.exp \
 	tc12_rwl_trivial.vgtest tc12_rwl_trivial.stdout.exp \

@@ -384,7 +384,7 @@ void VG_(main_thread_wrapper_NORETURN)(ThreadId tid)
    vg_assert( VG_(count_living_threads)() == 1 );
 
    ML_(call_on_new_stack_0_1)(
-      (Addr)sp,               /* stack */
+      sp,                     /* stack */
       0,                      /* bogus return address */
       run_a_thread_NORETURN,  /* fn to call */
       (Word)tid               /* arg to give it */
@@ -1400,12 +1400,17 @@ PRE(sys_fcntl)
       PRINT("sys_fcntl[UNKNOWN] ( %lu, %lu, %lu )", ARG1,ARG2,ARG3);
       I_die_here;
    }
+
+   if (!ML_(fd_allowed)(ARG1, "fcntl", tid, False)) {
+     SET_STATUS_Failure (VKI_EBADF);
+   }
 }
 
 POST(sys_fcntl)
 {
    vg_assert(SUCCESS);
    if (ARG2 == VKI_F_DUPFD) {
+      POST_newFd_RES;
       if (!ML_(fd_allowed)(RES, "fcntl(DUPFD)", tid, True)) {
          VG_(close)(RES);
          SET_STATUS_Failure( VKI_EMFILE );
@@ -1415,6 +1420,7 @@ POST(sys_fcntl)
          }
       }
    } else if (ARG2 == VKI_F_DUPFD_CLOEXEC) {
+      POST_newFd_RES;
       if (!ML_(fd_allowed)(RES, "fcntl(DUPFD_CLOEXEC)", tid, True)) {
          VG_(close)(RES);
          SET_STATUS_Failure( VKI_EMFILE );
@@ -2007,7 +2013,7 @@ PRE(sys___sysctl)
     *    downwards). Without any special handling this would return the
     *    address of the host userstack. We have created a stack for the
     *    guest (in aspacemgr) and that is the one that we want the guest
-    *    to see. Aspacemgr is setup in m_main.c with the adresses and sizes
+    *    to see. Aspacemgr is setup in m_main.c with the addresses and sizes
     *    saved to file static variables in that file, so we call
     *    VG_(get_usrstack)() to retrieve them from there.
     */
@@ -2407,6 +2413,7 @@ PRE(sys_timer_delete)
 {
    PRINT("sys_timer_delete( %#" FMT_REGWORD "x )", ARG1);
    PRE_REG_READ1(long, "timer_delete", vki_timer_t, timerid);
+   *flags |= SfPollAfter;
 }
 
 // SYS_ktimer_settime   237
@@ -2723,6 +2730,7 @@ PRE(sys_fhopen)
 POST(sys_fhopen)
 {
    vg_assert(SUCCESS);
+   POST_newFd_RES;
    if (!ML_(fd_allowed)(RES, "fhopen", tid, True)) {
       VG_(close)(RES);
       SET_STATUS_Failure( VKI_EMFILE );
@@ -3104,13 +3112,40 @@ POST(sys_sched_rr_get_interval)
    POST_MEM_WRITE(ARG2, sizeof(struct vki_timespec));
 }
 
+/*
+ * Putting this here rather than in vki-freebsd.h because this is a workaround
+ * (see https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=284563)
+ * The syscall interface doesn't allow us to properly validate the memory,
+ * and struct utrace_rtld isn't public.
+ */
+#define	VKI_RTLD_UTRACE_SIG_SZ 4
+
+struct vki_utrace_rtld {
+    char sig[VKI_RTLD_UTRACE_SIG_SZ];
+    int event;
+    void *handle;
+    void *mapbase;
+    size_t mapsize;
+    int refcnt;
+    char name[VKI_PATH_MAX];
+};
+
 // SYS_utrace  335
 // int utrace(const void *addr, size_t len);
 PRE(sys_utrace)
 {
    PRINT("sys_utrace ( %#" FMT_REGWORD "x, %" FMT_REGWORD "u )", ARG1, ARG2);
    PRE_REG_READ2(int, "utrace", const void *, addr, vki_size_t, len);
-   PRE_MEM_READ( "utrace(addr)", ARG1, ARG2 );
+   if (ARG1 && ARG2 >= sizeof(struct vki_utrace_rtld) && ML_(safe_to_deref)((const void*)ARG1, ARG2)) {
+       struct vki_utrace_rtld* ut = (struct vki_utrace_rtld*)ARG1;
+       PRE_MEM_READ("utrace(addr.sig)", (Addr)&ut->sig, VKI_RTLD_UTRACE_SIG_SZ*sizeof(char));
+       PRE_MEM_READ("utrace(addr.event)", (Addr)&ut->event, sizeof(int));
+       PRE_MEM_READ("utrace(addr.handle)", (Addr)&ut->handle, sizeof(void*));
+       PRE_MEM_READ("utrace(addr.mapbase)", (Addr)&ut->mapbase, sizeof(void*));
+       PRE_MEM_READ("utrace(addr.mapsize)", (Addr)&ut->mapsize, sizeof(size_t));
+       PRE_MEM_READ("utrace(addr.refcnt)", (Addr)&ut->handle, sizeof(int));
+       PRE_MEM_READ("utrace(addr.name)", (Addr)&ut->name, VKI_PATH_MAX*sizeof(char));
+   }
 }
 
 // SYS_kldsym  337
@@ -3505,6 +3540,7 @@ PRE(sys_kqueue)
 
 POST(sys_kqueue)
 {
+   POST_newFd_RES;
    if (!ML_(fd_allowed)(RES, "kqueue", tid, True)) {
       VG_(close)(RES);
       SET_STATUS_Failure( VKI_EMFILE );
@@ -4616,12 +4652,8 @@ POST(sys__umtx_op)
             ML_(record_fd_open_nameless) (tid, RES);
       }
       break;
-   case VKI_UMTX_OP_ROBUST_LISTS:
-      break;
    case VKI_UMTX_OP_GET_MIN_TIMEOUT:
       POST_MEM_WRITE( ARG4, sizeof(long int) );
-      break;
-   case VKI_UMTX_OP_SET_MIN_TIMEOUT:
       break;
    default:
       break;
@@ -4673,6 +4705,7 @@ PRE(sys_kmq_open)
 POST(sys_kmq_open)
 {
    vg_assert(SUCCESS);
+   POST_newFd_RES;
    if (!ML_(fd_allowed)(RES, "mq_open", tid, True)) {
       VG_(close)(RES);
       SET_STATUS_Failure( VKI_EMFILE );
@@ -5024,6 +5057,7 @@ PRE(sys_shm_open)
 POST(sys_shm_open)
 {
    vg_assert(SUCCESS);
+   POST_newFd_RES;
    if (!ML_(fd_allowed)(RES, "shm_open", tid, True)) {
       VG_(close)(RES);
       SET_STATUS_Failure( VKI_EMFILE );
@@ -5289,6 +5323,7 @@ PRE(sys_openat)
 POST(sys_openat)
 {
    vg_assert(SUCCESS);
+   POST_newFd_RES;
    if (!ML_(fd_allowed)(RES, "openat", tid, True)) {
       VG_(close)(RES);
       SET_STATUS_Failure( VKI_EMFILE );
@@ -6535,6 +6570,7 @@ PRE(sys_shm_open2)
 POST(sys_shm_open2)
 {
    vg_assert(SUCCESS);
+   POST_newFd_RES;
    if (!ML_(fd_allowed)(RES, "shm_open2", tid, True)) {
       VG_(close)(RES);
       SET_STATUS_Failure( VKI_EMFILE );
@@ -6579,10 +6615,8 @@ POST(sys___realpathat)
 // int close_range(u_int lowfd, u_int highfd, int flags);
 PRE(sys_close_range)
 {
-   SysRes res = VG_(mk_SysRes_Success)(0);
-   unsigned int lowfd = ARG1;
-   unsigned int fd_counter; // will count from lowfd to highfd
-   unsigned int highfd = ARG2;
+   UInt lowfd = ARG1;
+   UInt highfd = ARG2;
 
    /* on linux the may lock if futexes are used
     * there is a lock in the kernel but I assume it's just
@@ -6606,46 +6640,48 @@ PRE(sys_close_range)
       return;
    }
 
-   fd_counter = lowfd;
-   do {
-      if (fd_counter > highfd
-          || (fd_counter == 2U/*stderr*/ && VG_(debugLog_getLevel)() > 0)
-          || fd_counter == VG_(log_output_sink).fd
-          || fd_counter == VG_(xml_output_sink).fd) {
-         /* Split the range if it contains a file descriptor we're not
-          * supposed to close. */
-         if (fd_counter - 1 >= lowfd) {
-            res = VG_(do_syscall3)(__NR_close_range, (UWord)lowfd, (UWord)fd_counter - 1, ARG3 );
-         }
-         lowfd = fd_counter + 1;
-      }
-   } while (fd_counter++ <= highfd);
+   vg_assert(VG_(log_output_sink).fd == -1 ||
+             VG_(log_output_sink).fd >= VG_(fd_hard_limit));
+   vg_assert(VG_(xml_output_sink).fd == -1 ||
+             VG_(xml_output_sink).fd >= VG_(fd_hard_limit));
 
-   /* If it failed along the way, it's presumably the flags being wrong. */
-   SET_STATUS_from_SysRes (res);
+   if (VG_(debugLog_getLevel)() > 0 &&
+      lowfd <= 2U &&
+      highfd >= 2U &&
+      lowfd != highfd) {
+      SysRes res = VG_(mk_SysRes_Success)(0);
+      if (lowfd <= 1U) {
+         res = VG_(do_syscall3)(__NR_close_range, lowfd, 1U, ARG3);
+      }
+      if (!sr_isError(res) && highfd >= 3U) {
+         res = VG_(do_syscall3)(__NR_close_range, 3U, highfd, ARG3);
+      }
+      /* If it failed along the way, it's presumably the flags being wrong. */
+      SET_STATUS_from_SysRes (res);
+   } else {
+      SET_STATUS_from_SysRes(VG_(do_syscall3)(__NR_close_range, lowfd, highfd, ARG3));
+   }
 }
 
 POST(sys_close_range)
 {
-   unsigned int fd;
-   unsigned int last = ARG2;
+   UInt fd;
+   UInt highfd = ARG2;
 
    if (!VG_(clo_track_fds)
        || (ARG3 & VKI_CLOSE_RANGE_CLOEXEC) != 0)
       return;
 
-   if (last >= VG_(fd_hard_limit))
-      last = VG_(fd_hard_limit) - 1;
+   if (highfd >= VG_(fd_hard_limit))
+       highfd = VG_(fd_hard_limit) - 1;
 
    /* If the close_range range is too wide, we don't want to loop
       through the whole range.  */
-   if (ARG2 == ~0U)
-     ML_(record_fd_close_range)(tid, ARG1);
-   else {
-      for (fd = ARG1; fd <= last; fd++)
-         if ((fd != 2/*stderr*/ || VG_(debugLog_getLevel)() == 0)
-             && fd != VG_(log_output_sink).fd
-             && fd != VG_(xml_output_sink).fd)
+   if (ARG2 >= VG_(fd_hard_limit)) {
+      ML_(record_fd_close_range)(tid, ARG1);
+   } else {
+      for (fd = ARG1; fd <= highfd; fd++)
+         if ((fd != 2/*stderr*/ || VG_(debugLog_getLevel)() == 0))
             ML_(record_fd_close)(tid, fd);
    }
 }
@@ -6796,6 +6832,7 @@ PRE(sys_kqueuex)
 
 POST(sys_kqueuex)
 {
+   POST_newFd_RES;
    if (!ML_(fd_allowed)(RES, "kqueuex", tid, True)) {
       VG_(close)(RES);
       SET_STATUS_Failure(VKI_EMFILE);
@@ -6828,6 +6865,7 @@ PRE(sys_timerfd_create)
 
 POST(sys_timerfd_create)
 {
+   POST_newFd_RES;
    if (!ML_(fd_allowed)(RES, "timerfd_create", tid, True)) {
       VG_(close)(RES);
       SET_STATUS_Failure( VKI_EMFILE );
@@ -6895,7 +6933,7 @@ POST(sys_timerfd_settime)
 // int kcmp(pid_t pid1, pid_t pid2, int type, uintptr_t idx1, uintptr_t idx2);
 PRE(sys_kcmp)
 {
-   PRINT("kcmp(%ld, %ld, %ld, %" FMT_REGWORD "u, %" FMT_REGWORD "u)",
+   PRINT("sys_kcmp(%ld, %ld, %ld, %" FMT_REGWORD "u, %" FMT_REGWORD "u)",
          SARG1, SARG2, SARG3, ARG4, ARG5);
    switch (ARG3) {
    case VKI_KCMP_FILES:
@@ -6914,6 +6952,76 @@ PRE(sys_kcmp)
       break;
    }
 }
+
+// SYS_getrlimitusage 589
+// from syscalls.master
+// int getrlimitusage(u_int which, int flags, _Out_ rlim_t *res);
+PRE(sys_getrlimitusage)
+{
+   PRINT("sys_getrlimitusage(%lu, %ld, %#" FMT_REGWORD "x )", ARG1, SARG2, ARG3);
+   PRE_REG_READ3(int, "getrlimitusage", u_int, which, int, flags, vki_rlim_t*, res);
+
+   PRE_MEM_WRITE("getrlimitusage(res)", ARG3, sizeof(vki_rlim_t));
+}
+
+POST(sys_getrlimitusage)
+{
+   POST_MEM_WRITE(ARG3, sizeof(vki_rlim_t));
+
+   // flags can be GETRLIMITUSAGE_EUID or not
+   // not sure what that means?
+
+   // we need to set the values for NOFILE DATA and STACK
+   vki_rlim_t* res = (vki_rlim_t*)ARG3;
+   switch (ARG1) {
+   case VKI_RLIMIT_NOFILE:
+      *res = ML_(get_fd_count)() + 3;
+      break;
+   case VKI_RLIMIT_DATA:
+      /*
+       * The OS initializes this the the size of the .data for the exe.
+       * We read this in readelf.c.
+       */
+      *res = VG_(data_size)() + VG_(brk_limit) - VG_(brk_base);
+      break;
+   case VKI_RLIMIT_STACK:
+      /*
+       * The main client stack is quite different when running under Valgrind. 
+       * See aspacemg-linux.c for details, but in short on 64bit systems
+       * the main stack starts with 128k reserved and a 512M limit.
+       * Valgrind just has one value, 16M by default (can be changed with
+       * --main-stacksize). Maybe we should use something more like the OS
+       * but it doesn't seem that important.
+       */
+      *res = VG_(get_client_stack_max_size)();
+      break;
+   default:
+      // do nothing
+      break;
+   }
+}
+
+// SYS_fchroot 590
+// int fchroot(int fd);
+PRE(sys_fchroot)
+{
+   PRINT("sys_fchroot(%ld)", ARG1);
+   PRE_REG_READ1(int, "fchroot", int, fd);
+
+   /* Be strict. */
+   if (!ML_(fd_allowed)(ARG1, "fchroot", tid, False))
+      SET_STATUS_Failure(VKI_EBADF);
+}
+
+// SYS_setcred
+// int setcred(u_int flags, const struct setcred *wcred, size_t size);
+PRE(sys_setcred)
+{
+   PRINT("sys_setcred(%ld, %#" FMT_REGWORD "x, %lu)", ARG1, ARG2, ARG3);
+   PRE_REG_READ3(int, "setcred", u_int, flags, const struct setcred*, wcred, size_t, size);
+   PRE_MEM_READ("setcred(wcred)", ARG2, sizeof(struct vki_setcred));
+}
+
 
 #undef PRE
 #undef POST
@@ -7606,6 +7714,10 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    BSDXY(__NR_timerfd_settime,  sys_timerfd_settime),   // 586
    BSDXY(__NR_timerfd_gettime,  sys_timerfd_gettime),   // 587
    BSDX_(__NR_kcmp,             sys_kcmp),              // 588
+   BSDXY(__NR_getrlimitusage,   sys_getrlimitusage),    // 589
+
+   BSDX_(__NR_fchroot,          sys_fchroot),           // 590
+   BSDX_(__NR_setcred,          sys_setcred),           // 591
 
    BSDX_(__NR_fake_sigreturn,   sys_fake_sigreturn),    // 1000, fake sigreturn
 

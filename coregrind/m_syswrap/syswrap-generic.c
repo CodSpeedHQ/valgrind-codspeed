@@ -552,9 +552,58 @@ static OpenFd *allocated_fds = NULL;
 
 /* Count of open file descriptors. */
 static Int fd_count = 0;
+/* Last used file descriptor for "new" fds.
+   Used (and updated) in get_next_new_fd to find a new (not yet used)
+   fd number to return in syscall wrappers.  */
+static Int last_new_fd = 0;
+
+/* Replace (dup2) the fd with the highest file descriptor available.
+   Close the fd and return the newly created file descriptor on  success.
+   Keep track of the last_new_fd and return the initial fd on failure. */
+int ML_(get_next_new_fd)(int fd)
+{
+   int next_new_fd;
+
+   /* Check if last_new needs to wrap around.  */
+   if (last_new_fd == 0)
+     last_new_fd = VG_(fd_hard_limit);
+
+   next_new_fd = last_new_fd - 1;
+
+   /* Find the next fd number not in use. If we have to wrap around,
+      just use fd itself.  */
+   while (next_new_fd >= 0 && ML_(fd_recorded)(next_new_fd))
+      next_new_fd--;
+   if (next_new_fd < 0)
+     next_new_fd = fd;
+
+   /* Duplicate and close the existing fd if needed.  */
+   if (next_new_fd != fd) {
+      SysRes res = VG_(dup2)(fd, next_new_fd);
+      if (!sr_isError(res))
+         VG_(close)(fd);
+      else
+        next_new_fd = fd;
+
+      /* Record what the last new fd was we returned.  */
+      last_new_fd = next_new_fd;
+   } else {
+      /* There was no lower "new" fd found. Lets wrap around for
+         the next round.  */
+      last_new_fd = VG_(fd_hard_limit);
+   }
+
+   return next_new_fd;
+}
+
+
+Int ML_(get_fd_count)(void)
+{
+   return fd_count;
+}
 
 /* Close_range caller might want to close very wide range of file descriptors,
-   up to 0U.  We want to avoid iterating through such a range in a normall
+   up to ~0U.  We want to avoid iterating through such a range in a normal
    close_range, just up to any open file descriptor.  Also, unlike
    record_fd_close_range, we assume the user might deliberately double closes
    any file descriptors in the range, so don't warn about double close here. */
@@ -588,7 +637,8 @@ struct BadCloseExtra {
    HChar *description;            /* Description of the file descriptor
                                      might include the pathname */
    ExeContext *where_closed;      /* record the last close of fd */
-   ExeContext *where_opened;      /* recordwhere the fd  was opened */
+   ExeContext *where_opened;      /* recordwhere the fd  was opened,
+                                     NULL if inherited file descriptor */
 };
 
 struct FdBadUse {
@@ -597,7 +647,8 @@ struct FdBadUse {
   HChar *description;            /* Description of the file descriptor
                                     might include the pathname */
   ExeContext *where_closed;      /* record the last close of fd */
-  ExeContext *where_opened;      /* recordwhere the fd  was opened */
+  ExeContext *where_opened;      /* recordwhere the fd  was opened,
+                                    NULL if inherited file descriptor */
 };
 
 struct NotClosedExtra {
@@ -935,30 +986,30 @@ HChar *getsockdetails(Int fd, UInt len, HChar *buf)
 void VG_(show_open_fds) (const HChar* when)
 {
    OpenFd *i;
-   int non_std = 0;
+   int inherited = 0;
 
    for (i = allocated_fds; i; i = i->next) {
-      if (i->fd > 2 && i->fd_closed != True)
-         non_std++;
+      if (i->where == NULL && !i->fd_closed)
+         inherited++;
    }
 
    /* If we are running quiet and there are either no open file descriptors
       or not tracking all fds, then don't report anything.  */
    if ((fd_count == 0
-        || ((non_std == 0) && (VG_(clo_track_fds) < 2)))
+        || ((fd_count - inherited == 0) && (VG_(clo_track_fds) < 2)))
        && (VG_(clo_verbosity) == 0))
       return;
 
    if (!VG_(clo_xml)) {
-      VG_(umsg)("FILE DESCRIPTORS: %d open (%d std) %s.\n",
-                fd_count, fd_count - non_std, when);
+      VG_(umsg)("FILE DESCRIPTORS: %d open (%d inherited) %s.\n",
+                fd_count, inherited, when);
    }
 
    for (i = allocated_fds; i; i = i->next) {
       if (i->fd_closed)
          continue;
 
-      if (i->fd <= 2 && VG_(clo_track_fds) < 2)
+      if (i->where == NULL && VG_(clo_track_fds) < 2)
           continue;
 
       struct NotClosedExtra nce;
@@ -1148,8 +1199,11 @@ void fd_pp_Error (const Error *err)
       VG_(pp_ExeContext)( where );
       VG_(emit)("%sPreviously closed%s\n", auxpre, auxpost);
       VG_(pp_ExeContext)(bce->where_closed);
-      VG_(emit)("%sOriginally opened%s\n", auxpre, auxpost);
-      VG_(pp_ExeContext)(bce->where_opened);
+      // Inherited file descriptors where never opened (by the program)
+      if (bce->where_opened) {
+         VG_(emit)("%sOriginally opened%s\n", auxpre, auxpost);
+         VG_(pp_ExeContext)(bce->where_opened);
+      }
    } else if (VG_(get_error_kind)(err) == FdNotClosed) {
       if (xml) VG_(emit)("  <kind>FdNotClosed</kind>\n");
       struct NotClosedExtra *nce = (struct NotClosedExtra *)
@@ -1179,6 +1233,7 @@ void fd_pp_Error (const Error *err)
       }
       VG_(emit)("%sFile descriptor %d %s%s\n", whatpre, nce->fd,
           error_string, whatpost);
+      VG_(pp_ExeContext)(where);
       /* If the file descriptor was never created we won't have
          where_closed and where_opened. Only print them in a
          use after close case.  */
@@ -1190,7 +1245,6 @@ void fd_pp_Error (const Error *err)
         VG_(emit)("%sOriginally opened%s\n", auxpre, auxpost);
         VG_(pp_ExeContext)(nce->where_opened);
       }
-      VG_(pp_ExeContext)(where);
    } else {
       vg_assert2 (False, "Unknown error kind: %d",
                   VG_(get_error_kind)(err));
@@ -1765,6 +1819,7 @@ ML_(generic_POST_sys_socketpair) ( ThreadId tid,
    Int fd1 = ((Int*)arg3)[0];
    Int fd2 = ((Int*)arg3)[1];
    vg_assert(!sr_isError(res)); /* guaranteed by caller */
+   // @todo PJF this needs something like POST_newFd_RES for the two fds?
    POST_MEM_WRITE( arg3, 2*sizeof(int) );
    if (!ML_(fd_allowed)(fd1, "socketcall.socketpair", tid, True) ||
        !ML_(fd_allowed)(fd2, "socketcall.socketpair", tid, True)) {
@@ -2624,7 +2679,7 @@ ML_(generic_PRE_sys_mmap) ( ThreadId tid,
    if (arg4 & VKI_MAP_FIXED) {
       mreq.rkind = MFixed;
    } else
-#if defined(VKI_MAP_ALIGN) /* Solaris specific */
+#if defined(VGO_solaris) && defined(VKI_MAP_ALIGN)
    if (arg4 & VKI_MAP_ALIGN) {
       mreq.rkind = MAlign;
       if (mreq.start == 0) {
@@ -2632,6 +2687,15 @@ ML_(generic_PRE_sys_mmap) ( ThreadId tid,
       }
       /* VKI_MAP_FIXED and VKI_MAP_ALIGN don't like each other. */
       arg4 &= ~VKI_MAP_ALIGN;
+   } else
+#endif
+#if defined(VGO_freebsd)
+   if (arg4 & VKI_MAP_ALIGNMENT_MASK) {
+      mreq.rkind = MAlign;
+      if (mreq.start == 0U) {
+         mreq.start = 1U << (arg4 >> VKI_MAP_ALIGNMENT_SHIFT);
+      }
+      arg4 &= ~VKI_MAP_ALIGNMENT_MASK;
    } else
 #endif
    if (arg1 != 0) {
@@ -2953,6 +3017,14 @@ PRE(sys_setitimer)
                          &(value->it_interval));
       PRE_timeval_READ( "setitimer(&value->it_value)",
                          &(value->it_value));
+      // "Setting it_value to 0 disables a timer"
+      // poll for signals in that case
+      if (ML_(safe_to_deref)(value, sizeof(*value))) {
+         if (value->it_value.tv_sec == 0 &&
+             value->it_value.tv_usec == 0) {
+            *flags |= SfPollAfter;
+         }
+      }
    }
    if (ARG3 != (Addr)NULL) {
       struct vki_itimerval *ovalue = (struct vki_itimerval*)(Addr)ARG3;
@@ -3670,6 +3742,7 @@ PRE(sys_dup)
 POST(sys_dup)
 {
    vg_assert(SUCCESS);
+   POST_newFd_RES;
    if (!ML_(fd_allowed)(RES, "dup", tid, True)) {
       VG_(close)(RES);
       SET_STATUS_Failure( VKI_EMFILE );
@@ -3733,7 +3806,7 @@ POST(sys_newfstat)
 #endif
 
 #if !defined(VGO_solaris) && !defined(VGP_arm64_linux) && \
-    !defined(VGP_nanomips_linux)
+    !defined(VGP_nanomips_linux) && !defined(VGP_riscv64_linux)
 static vki_sigset_t fork_saved_mask;
 
 // In Linux, the sys_fork() function varies across architectures, but we
@@ -3784,7 +3857,7 @@ PRE(sys_fork)
       VG_(sigprocmask)(VKI_SIG_SETMASK, &fork_saved_mask, NULL);
    }
 }
-#endif // !defined(VGO_solaris) && !defined(VGP_arm64_linux)
+#endif
 
 PRE(sys_ftruncate)
 {
@@ -4538,6 +4611,7 @@ PRE(sys_open)
 POST(sys_open)
 {
    vg_assert(SUCCESS);
+   POST_newFd_RES;
    if (!ML_(fd_allowed)(RES, "open", tid, True)) {
       VG_(close)(RES);
       SET_STATUS_Failure( VKI_EMFILE );
@@ -4604,6 +4678,7 @@ PRE(sys_creat)
 POST(sys_creat)
 {
    vg_assert(SUCCESS);
+   POST_newFd_RES;
    if (!ML_(fd_allowed)(RES, "creat", tid, True)) {
       VG_(close)(RES);
       SET_STATUS_Failure( VKI_EMFILE );

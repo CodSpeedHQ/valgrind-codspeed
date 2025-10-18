@@ -182,6 +182,7 @@ XArray *VG_(clo_req_tsyms);  // array of strings
 Bool   VG_(clo_run_libc_freeres) = True;
 Bool   VG_(clo_run_cxx_freeres) = True;
 UInt   VG_(clo_track_fds)      = 0;
+UInt   VG_(clo_modify_fds)      = 0;
 Bool   VG_(clo_show_below_main)= False;
 Bool   VG_(clo_keep_debuginfo) = False;
 Bool   VG_(clo_show_emwarns)   = False;
@@ -203,7 +204,8 @@ UInt   VG_(clo_unw_stack_scan_frames) = 5;
 VgSmc VG_(clo_smc_check) = Vg_SmcAllNonFile;
 #elif defined(VGA_ppc32) || defined(VGA_ppc64be) || defined(VGA_ppc64le) \
       || defined(VGA_arm) || defined(VGA_arm64) \
-      || defined(VGA_mips32) || defined(VGA_mips64) || defined(VGA_nanomips)
+      || defined(VGA_mips32) || defined(VGA_mips64) || defined(VGA_nanomips) \
+      || defined(VGA_riscv64)
 VgSmc VG_(clo_smc_check) = Vg_SmcStack;
 #else
 #  error "Unknown arch"

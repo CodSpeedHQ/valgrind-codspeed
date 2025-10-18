@@ -1230,6 +1230,8 @@ struct vki_rlimit {
 #define VKI_RLIMIT_CORE    4  /* max core file size */
 #define VKI_RLIMIT_NOFILE  8  /* max number of open files */
 
+#define VKI_GETRLIMITUSAGE_EUID 0x0001
+
 struct vki___wrusage {
    struct vki_rusage   wru_self;
    struct vki_rusage   wru_children;
@@ -1521,9 +1523,16 @@ typedef enum vki_idtype {
 #define VKI_MAP_PRIVATE 0x02     /* Changes are private */
 #define VKI_MAP_FIXED   0x10     /* Interpret addr exactly */
 #define VKI_MAP_NORESERVE  0x0040      /* don't check for reservations */
-#define  VKI_MAP_STACK  0x400
+#define VKI_MAP_STACK  0x400
 #define VKI_MAP_ANON 0x1000   /* don't use a file */
-#define  VKI_MAP_ANONYMOUS VKI_MAP_ANON
+#define VKI_MAP_ANONYMOUS VKI_MAP_ANON
+
+#define VKI_MAP_ALIGNED(n)   ((n) << VKI_MAP_ALIGNMENT_SHIFT)
+#define VKI_MAP_ALIGNMENT_SHIFT     24
+#define VKI_MAP_ALIGNMENT_MASK      VKI_MAP_ALIGNED(0xff)
+#define VKI_MAP_ALIGNED_SUPER       VKI_MAP_ALIGNED(1) /* align on a superpage */
+
+
 
 //----------------------------------------------------------------------
 // From sys/stat.h
@@ -3247,6 +3256,23 @@ union vki_ccb {
 };
 
 #define VKI_CAMIOCOMMAND _VKI_IOWR(VKI_CAM_VERSION, 2, union vki_ccb)
+
+//----------------------------------------------------------------------
+// From cam/scsi/scsi_all.h
+//----------------------------------------------------------------------
+struct vki_setcred {
+   vki_uid_t    sc_uid;                /* effective user id */
+   vki_uid_t    sc_ruid;               /* real user id */
+   vki_uid_t    sc_svuid;              /* saved user id */
+   vki_gid_t    sc_gid;                /* effective group id */
+   vki_gid_t    sc_rgid;               /* real group id */
+   vki_gid_t    sc_svgid;              /* saved group id */
+   vki_u_int    sc_pad;                /* see 32-bit compat structure */
+   vki_u_int    sc_supp_groups_nb;     /* number of supplementary groups */
+   vki_gid_t   *sc_supp_groups;        /* supplementary groups */
+   struct vki_mac *sc_label;           /* MAC label */
+};
+
 
 
 /*--------------------------------------------------------------------*/

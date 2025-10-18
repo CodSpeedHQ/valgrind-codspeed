@@ -1,4 +1,3 @@
-
 ##------------------------------------------------------------##
 #
 # The multiple-architecture stuff in this file is pretty
@@ -8,17 +7,20 @@
 ##------------------------------------------------------------##
 
 # Process this file with autoconf to produce a configure script.
-#
+# We would like to have at least autoconf 2.69
+AC_PREREQ(2.69)
+
 # Define major, minor, micro and suffix here once, then reuse them
 # for version number in valgrind.h and vg-entities (documentation).
 # suffix must be empty for a release, otherwise it is GIT or RC1, etc.
 # Also set the (expected/last) release date here.
 # Do not forget to rerun ./autogen.sh
 m4_define([v_major_ver], [3])
-m4_define([v_minor_ver], [24])
-m4_define([v_micro_ver], [0])
+m4_define([v_minor_ver], [25])
+m4_define([v_micro_ver], [1])
+m4_define([v_suffix_ver], [])
 m4_define([v_suffix_ver], [codspeed])
-m4_define([v_rel_date], ["10 Feb 2025"])
+m4_define([v_rel_date], ["18 Oct 2025"])
 m4_define([v_version],
 	  m4_if(v_suffix_ver, [],
 		[v_major_ver.v_minor_ver.v_micro_ver],
@@ -50,26 +52,15 @@ CXXFLAGS="$CXXFLAGS"
 #----------------------------------------------------------------------------
 
 AC_PROG_LN_S
-m4_version_prereq([2.70], [AC_PROG_CC], [AC_PROG_CC_C99])
-# Make sure we can compile in C99 mode.
-if test "$ac_cv_prog_cc_c99" = "no"; then
-    AC_MSG_ERROR([Valgrind relies on a C compiler supporting C99])
-fi
+
+# Provided by gnulib's m4/std-gnu11.m4 for autoconf pre 2.70
+# Make sure we can compile in C11 mode.
+AC_PROG_CC
+AS_IF([test "x$ac_cv_prog_cc_c11" = "xno"],
+      [AC_MSG_ERROR([Valgrind relies on a C compiler supporting C11])])
+
 AC_PROG_CPP
 AC_PROG_CXX
-# AC_PROG_OBJC apparently causes problems on older Linux distros (eg. with
-# autoconf 2.59).  If we ever have any Objective-C code in the Valgrind code
-# base (eg. most likely as Darwin-specific tests) we'll need one of the
-# following:
-# - put AC_PROG_OBJC in a Darwin-specific part of this file
-# - Use AC_PROG_OBJC here and up the minimum autoconf version
-# - Use the following, which is apparently equivalent:
-#     m4_ifdef([AC_PROG_OBJC],
-#        [AC_PROG_OBJC],
-#        [AC_CHECK_TOOL([OBJC], [gcc])
-#         AC_SUBST([OBJC])
-#         AC_SUBST([OBJCFLAGS])
-#        ])
 AC_PROG_RANLIB
 # Set LTO_RANLIB variable to an lto enabled ranlib
 if test "x$LTO_RANLIB" = "x"; then
@@ -77,12 +68,6 @@ if test "x$LTO_RANLIB" = "x"; then
 fi
 AC_ARG_VAR([LTO_RANLIB],[Library indexer command for link time optimisation])
 
-# provide a very basic definition for AC_PROG_SED if it's not provided by
-# autoconf (as e.g. in autoconf 2.59).
-m4_ifndef([AC_PROG_SED],
-          [AC_DEFUN([AC_PROG_SED],
-                    [AC_ARG_VAR([SED])
-                     AC_CHECK_PROGS([SED],[gsed sed])])])
 AC_PROG_SED
 
 AC_DEFUN([AC_PROG_SHA256SUM],
@@ -110,16 +95,8 @@ AC_PATH_PROG(PERL, perl)
 AC_PATH_PROG(GDB, gdb, "/no/gdb/was/found/at/configure/time")
 AC_DEFINE_UNQUOTED(GDB_PATH, "$GDB", [path to GDB])
 
-# some older automake's don't have it so try something on our own
-ifdef([AM_PROG_AS],[AM_PROG_AS],
-[
-AS="${CC}"
-AC_SUBST(AS)
-
-ASFLAGS=""
-AC_SUBST(ASFLAGS)
-])
-
+# figure out how to compile assembler sources
+AM_PROG_AS
 
 # Check if 'diff' supports -u (universal diffs) and use it if possible.
 
@@ -325,7 +302,18 @@ case "${host_cpu}" in
         ARCH_MAX="nanomips"
         ;;
 
+<<<<<<< HEAD
      *)
+||||||| fcdaa4742
+     *)
+=======
+     riscv64)
+       AC_MSG_RESULT([ok (${host_cpu})])
+       ARCH_MAX="riscv64"
+       ;;
+
+     *)
+>>>>>>> VALGRIND_3_25_1
 	AC_MSG_RESULT([no (${host_cpu})])
 	AC_MSG_ERROR([Unsupported host architecture. Sorry])
 	;;
@@ -897,6 +885,17 @@ case "$ARCH_MAX-$VGCONF_OS" in
         valt_load_address_sec_inner="0xUNSET"
         AC_MSG_RESULT([ok (${ARCH_MAX}-${VGCONF_OS})])
         ;;
+     riscv64-linux)
+        VGCONF_ARCH_PRI="riscv64"
+        VGCONF_ARCH_SEC=""
+        VGCONF_PLATFORM_PRI_CAPS="RISCV64_LINUX"
+        VGCONF_PLATFORM_SEC_CAPS=""
+        valt_load_address_pri_norml="0x58000000"
+        valt_load_address_pri_inner="0x38000000"
+        valt_load_address_sec_norml="0xUNSET"
+        valt_load_address_sec_inner="0xUNSET"
+        AC_MSG_RESULT([ok (${ARCH_MAX}-${VGCONF_OS})])
+        ;;
      x86-solaris)
         VGCONF_ARCH_PRI="x86"
         VGCONF_ARCH_SEC=""
@@ -990,6 +989,8 @@ AM_CONDITIONAL(VGCONF_ARCHS_INCLUDE_MIPS64,
                test x$VGCONF_PLATFORM_PRI_CAPS = xMIPS64_LINUX )
 AM_CONDITIONAL(VGCONF_ARCHS_INCLUDE_NANOMIPS,
                test x$VGCONF_PLATFORM_PRI_CAPS = xNANOMIPS_LINUX )
+AM_CONDITIONAL(VGCONF_ARCHS_INCLUDE_RISCV64,
+               test x$VGCONF_PLATFORM_PRI_CAPS = xRISCV64_LINUX )
 
 # Set up VGCONF_PLATFORMS_INCLUDE_<platform>.  Either one or two of these
 # become defined.
@@ -1020,6 +1021,8 @@ AM_CONDITIONAL(VGCONF_PLATFORMS_INCLUDE_MIPS64_LINUX,
                test x$VGCONF_PLATFORM_PRI_CAPS = xMIPS64_LINUX)
 AM_CONDITIONAL(VGCONF_PLATFORMS_INCLUDE_NANOMIPS_LINUX,
                test x$VGCONF_PLATFORM_PRI_CAPS = xNANOMIPS_LINUX)
+AM_CONDITIONAL(VGCONF_PLATFORMS_INCLUDE_RISCV64_LINUX,
+               test x$VGCONF_PLATFORM_PRI_CAPS = xRISCV64_LINUX)
 AM_CONDITIONAL(VGCONF_PLATFORMS_INCLUDE_X86_FREEBSD,
                test x$VGCONF_PLATFORM_PRI_CAPS = xX86_FREEBSD \
                  -o x$VGCONF_PLATFORM_SEC_CAPS = xX86_FREEBSD)
@@ -1053,7 +1056,8 @@ AM_CONDITIONAL(VGCONF_OS_IS_LINUX,
                  -o x$VGCONF_PLATFORM_PRI_CAPS = xS390X_LINUX \
                  -o x$VGCONF_PLATFORM_PRI_CAPS = xMIPS32_LINUX \
                  -o x$VGCONF_PLATFORM_PRI_CAPS = xMIPS64_LINUX \
-                 -o x$VGCONF_PLATFORM_PRI_CAPS = xNANOMIPS_LINUX)
+                 -o x$VGCONF_PLATFORM_PRI_CAPS = xNANOMIPS_LINUX \
+                 -o x$VGCONF_PLATFORM_PRI_CAPS = xRISCV64_LINUX)
 AM_CONDITIONAL(VGCONF_OS_IS_FREEBSD,
                test x$VGCONF_PLATFORM_PRI_CAPS = xX86_FREEBSD \
                  -o x$VGCONF_PLATFORM_PRI_CAPS = xAMD64_FREEBSD \
@@ -1076,20 +1080,6 @@ AM_CONDITIONAL(VGCONF_OS_IS_DARWIN_OR_FREEBSD,
 # there is a secondary target.
 AM_CONDITIONAL(VGCONF_HAVE_PLATFORM_SEC,
                test x$VGCONF_PLATFORM_SEC_CAPS != x)
-
-dnl automake-1.10 does not have AM_COND_IF (added in 1.11), so we supply a
-dnl fallback definition
-dnl The macro is courtesy of Dave Hart:
-dnl   https://lists.gnu.org/archive/html/automake/2010-12/msg00045.html
-m4_ifndef([AM_COND_IF], [AC_DEFUN([AM_COND_IF], [
-if test -z "$$1_TRUE"; then :
-  m4_n([$2])[]dnl
-m4_ifval([$3],
-[else
-  $3
-])dnl
-fi[]dnl
-])])
 
 #----------------------------------------------------------------------------
 # Inner Valgrind?
@@ -2127,6 +2117,40 @@ AC_MSG_RESULT([no])
 
 AM_CONDITIONAL(HAVE_NR_MEMBARRIER, [test x$ac_have_nr_membarrier = xyes])
 
+AC_MSG_CHECKING([for __NR_io_pgetevents])
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+#include <linux/unistd.h>
+]], [[
+return __NR_io_pgetevents
+]])], [
+ac_have_nr_io_pgetevents=yes
+AC_MSG_RESULT([yes])
+], [
+ac_have_nr_io_pgetevents=no
+AC_MSG_RESULT([no])
+])
+
+AM_CONDITIONAL(HAVE_NR_IO_PGETEVENTS, [test x$ac_have_nr_io_pgetevents = xyes])
+
+safe_LIBS="$LIBS"
+LIBS="-laio"
+AC_MSG_CHECKING([for libaio])
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+#include <libaio.h>
+]], [[
+io_context_t ctx;
+io_submit(ctx, 1, NULL);
+]])], [
+ac_have_libaio=yes
+AC_MSG_RESULT([yes])
+], [
+ac_have_libaio=no
+AC_MSG_RESULT([no])
+])
+
+AM_CONDITIONAL(HAVE_LIBAIO, [test x$ac_have_libaio = xyes])
+LIBS=$safe_LIBS
+
 #----------------------------------------------------------------------------
 # Checking for supported compiler flags.
 #----------------------------------------------------------------------------
@@ -2880,6 +2904,26 @@ AM_CONDITIONAL(GZ_ZLIB_GNU, test x$ac_have_gz_zlib_gnu = xyes)
 CFLAGS=$safe_CFLAGS
 
 
+# does this compiler support -g -gz=zstd ?
+
+AC_MSG_CHECKING([if gcc accepts -g -gz=zstd])
+
+safe_CFLAGS=$CFLAGS
+CFLAGS="-g -gz=zstd"
+
+AC_LINK_IFELSE([AC_LANG_PROGRAM([[ ]], [[
+  return 0;
+]])], [
+ac_have_gz_zstd=yes
+AC_MSG_RESULT([yes])
+], [
+ac_have_gz_zstd=no
+AC_MSG_RESULT([no])
+])
+AM_CONDITIONAL(GZ_ZSTD, test x$ac_have_gz_zstd = xyes)
+CFLAGS=$safe_CFLAGS
+
+
 # does this compiler support nested functions ?
 
 AC_MSG_CHECKING([if gcc accepts nested functions])
@@ -3079,6 +3123,22 @@ AC_LINK_IFELSE(
 ])
 CFLAGS=$safe_CFLAGS
 fi
+
+# check if linker accepts --no-warn-execstack
+AC_MSG_CHECKING([if the linker accepts -Wl,--no-warn-execstack])
+safe_CFLAGS=$CFLAGS
+CFLAGS="-Wl,--no-warn-execstack"
+
+AC_LINK_IFELSE(
+[AC_LANG_PROGRAM([ ], [return 0;])],
+[
+  AC_SUBST([FLAG_NO_WARN_EXECSTACK], ["-Wl,--no-warn-execstack"])
+  AC_MSG_RESULT([yes])
+], [
+  AC_SUBST([FLAG_NO_WARN_EXECSTACK], [""])
+  AC_MSG_RESULT([no])
+])
+CFLAGS=$safe_CFLAGS
 
 # does the ppc assembler support "mtocrf" et al?
 AC_MSG_CHECKING([if ppc32/64 as supports mtocrf/mfocrf])
@@ -3755,18 +3815,13 @@ AC_CHECK_HEADERS([sys/lgrp_user_impl.h])
 # C-level symbol: none
 # Automake-level symbol: SOLARIS_SUN_STUDIO_AS
 #
-AC_MSG_CHECKING([if x86/amd64 assembler speaks cmovl.l (Solaris-specific)])
-AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
-]], [[
-  __asm__ __volatile__("cmovl.l %edx, %eax");
-]])], [
-solaris_have_sun_studio_as=yes
-AC_MSG_RESULT([yes])
-], [
-solaris_have_sun_studio_as=no
-AC_MSG_RESULT([no])
-])
-AM_CONDITIONAL(SOLARIS_SUN_STUDIO_AS, test x$solaris_have_sun_studio_as = xyes)
+
+# This was using a AC_COMPILE_IFELSE with "cmovl.l %edx, %eax"
+# which at some time in the past was Sun Studio specific.
+# GNU as now understands it, so the test was misidentifying
+# the assembler. Now we ask the compiler directly.
+with_gnu_as=$(${CC} -v 2>&1 | tr ' ' '\n' | grep with-gnu-as)
+AM_CONDITIONAL(SOLARIS_SUN_STUDIO_AS, test x$with_gnu_as = x)
 
 # Solaris-specific check determining if symbols __xpg4 and __xpg6
 # are present in linked shared libraries when gcc is invoked with -std=gnu99.
@@ -4893,6 +4948,7 @@ AC_FUNC_MMAP
 
 AC_CHECK_LIB([pthread], [pthread_create])
 AC_CHECK_LIB([rt], [clock_gettime])
+AC_CHECK_LIB([rt], [timer_delete])
 
 AC_CHECK_FUNCS([     \
         aligned_alloc \
@@ -4955,7 +5011,11 @@ AC_CHECK_FUNCS([     \
         sem_timedwait \
         sem_clockwait_np \
         fdatasync    \
-        getrandom
+        getrandom    \
+        getrlimitusage \
+        timer_delete \
+        fchroot      \
+        setcred
         ])
 
 # AC_CHECK_LIB adds any library found to the variable LIBS, and links these
@@ -5009,6 +5069,14 @@ AM_CONDITIONAL([HAVE_FDATASYNC],
                [test x$ac_cv_func_fdatasync = xyes])
 AM_CONDITIONAL([HAVE_GETRANDOM],
                [test x$ac_cv_func_getrandom = xyes])
+AM_CONDITIONAL([HAVE_GETRLIMITUSAGE],
+               [test x$ac_cv_func_getrlimitusage = xyes])
+AM_CONDITIONAL([HAVE_TIMER_DELETE],
+               [test x$ac_cv_func_timer_delete = xyes])
+AM_CONDITIONAL([HAVE_FCHROOT],
+               [test x$ac_cv_func_fchroot = xyes])
+AM_CONDITIONAL([HAVE_SETCRED],
+               [test x$ac_cv_func_setcred = xyes])
 
 if test x$VGCONF_PLATFORM_PRI_CAPS = xMIPS32_LINUX \
      -o x$VGCONF_PLATFORM_PRI_CAPS = xMIPS64_LINUX \
@@ -5043,7 +5111,8 @@ elif test x$VGCONF_PLATFORM_PRI_CAPS = xAMD64_LINUX \
        -o x$VGCONF_PLATFORM_PRI_CAPS = xARM64_LINUX \
        -o x$VGCONF_PLATFORM_PRI_CAPS = xARM64_FREEBSD \
        -o x$VGCONF_PLATFORM_PRI_CAPS = xMIPS64_LINUX \
-       -o x$VGCONF_PLATFORM_PRI_CAPS = xS390X_LINUX ; then
+       -o x$VGCONF_PLATFORM_PRI_CAPS = xS390X_LINUX \
+       -o x$VGCONF_PLATFORM_PRI_CAPS = xRISCV64_LINUX ; then
   mflag_primary=$FLAG_M64
 elif test x$VGCONF_PLATFORM_PRI_CAPS = xX86_DARWIN ; then
   mflag_primary="$FLAG_M32 -arch i386"
@@ -5651,6 +5720,7 @@ AC_CONFIG_FILES([
    memcheck/tests/amd64-linux/Makefile
    memcheck/tests/arm64-linux/Makefile
    memcheck/tests/x86-linux/Makefile
+   memcheck/tests/riscv64-linux/Makefile
    memcheck/tests/amd64-solaris/Makefile
    memcheck/tests/x86-solaris/Makefile
    memcheck/tests/amd64-freebsd/Makefile
@@ -5693,9 +5763,11 @@ AC_CONFIG_FILES([
    none/tests/arm/Makefile
    none/tests/arm64/Makefile
    none/tests/s390x/Makefile
+   none/tests/s390x/disasm-test/Makefile
    none/tests/mips32/Makefile
    none/tests/mips64/Makefile
    none/tests/nanomips/Makefile
+   none/tests/riscv64/Makefile
    none/tests/linux/Makefile
    none/tests/darwin/Makefile
    none/tests/solaris/Makefile

@@ -537,8 +537,13 @@ void VG_(redir_notify_new_DebugInfo)( DebugInfo* newdi )
           * For Ada demangling, the language doesn't use a regular
           * prefix like _Z or _R, so look for a common symbol and
           * set a global flag.
+          *
+          * https://bugs.kde.org/show_bug.cgi?id=497723 but not for
+          * callgrind because demangled overloaded manes get
+          * incorrectly counted together.
           */
-         if (!isText && VG_(strcmp)(*names, "__gnat_ada_main_program_name") == 0) {
+         if (!isText && VG_(strcmp)(*names, "__gnat_ada_main_program_name") == 0 &&
+             VG_(strcmp)(VG_(clo_toolname), "callgrind") != 0)  {
             VG_(lang_is_ada) = True;
          }
          isGlobal = False;
@@ -1248,6 +1253,7 @@ Bool VG_(is_soname_ld_so) (const HChar *soname)
    if (VG_STREQ(soname, VG_U_LD_LINUX_AARCH64_SO_1)) return True;
    if (VG_STREQ(soname, VG_U_LD_LINUX_ARMHF_SO_3))   return True;
    if (VG_STREQ(soname, VG_U_LD_LINUX_MIPSN8_S0_1))  return True;
+   if (VG_STREQ(soname, VG_U_LD_LINUX_RISCV64_SO_1)) return True;
 #  elif defined(VGO_freebsd)
    if (VG_STREQ(soname, VG_U_LD_ELF_SO_1))   return True;
    if (VG_STREQ(soname, VG_U_LD_ELF32_SO_1))   return True;
@@ -1421,6 +1427,15 @@ void VG_(redir_initialise) ( void )
       add_hardwired_spec(
          "ld-linux-x86-64.so.2", "strcmp",
          (Addr)&VG_(amd64_linux_REDIR_FOR_strcmp),
+#        ifndef GLIBC_MANDATORY_STRLEN_REDIRECT
+         NULL
+#        else
+         complain_about_stripped_glibc_ldso
+#        endif
+      );
+      add_hardwired_spec(
+         "ld-linux-x86-64.so.2", "memcmp",
+         (Addr)&VG_(amd64_linux_REDIR_FOR_memcmp),
 #        ifndef GLIBC_MANDATORY_STRLEN_REDIRECT
          NULL
 #        else
@@ -1692,6 +1707,25 @@ void VG_(redir_initialise) ( void )
       add_hardwired_spec(
          "ld.so.1", "index",
          (Addr)&VG_(nanomips_linux_REDIR_FOR_index),
+         complain_about_stripped_glibc_ldso
+      );
+   }
+
+#  elif defined(VGP_riscv64_linux)
+   if (0==VG_(strcmp)("Memcheck", VG_(details).name)) {
+      add_hardwired_spec(
+         "ld-linux-riscv64-lp64d.so.1", "strlen",
+         (Addr)&VG_(riscv64_linux_REDIR_FOR_strlen),
+         complain_about_stripped_glibc_ldso
+      );
+      add_hardwired_spec(
+         "ld-linux-riscv64-lp64d.so.1", "index",
+         (Addr)&VG_(riscv64_linux_REDIR_FOR_index),
+         complain_about_stripped_glibc_ldso
+      );
+      add_hardwired_spec(
+         "ld-linux-riscv64-lp64d.so.1", "strcmp",
+         (Addr)&VG_(riscv64_linux_REDIR_FOR_strcmp),
          complain_about_stripped_glibc_ldso
       );
    }

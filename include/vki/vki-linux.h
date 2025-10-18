@@ -97,6 +97,8 @@
 #  include "vki-posixtypes-mips64-linux.h"
 #elif defined(VGA_nanomips)
 #  include "vki-posixtypes-nanomips-linux.h"
+#elif defined(VGA_riscv64)
+#  include "vki-posixtypes-riscv64-linux.h"
 #else
 #  error Unknown platform
 #endif
@@ -225,6 +227,8 @@ typedef unsigned int	        vki_uint;
 #  include "vki-mips64-linux.h"
 #elif defined(VGA_nanomips)
 #  include "vki-nanomips-linux.h"
+#elif defined(VGA_riscv64)
+#  include "vki-riscv64-linux.h"
 #else
 #  error Unknown platform
 #endif
@@ -3226,6 +3230,9 @@ struct vki_getcpu_cache {
 
 #define VKI_EVIOCGBIT(ev,len)	_VKI_IOC(_VKI_IOC_READ, 'E', 0x20 + ev, len)	/* get event bits */
 
+#define VKI_EVIOCGRAB		_VKI_IOW('E', 0x90, int)
+/* grab device */
+
 /*
  * Event types
  */
@@ -5476,6 +5483,11 @@ struct vki_open_how {
 //----------------------------------------------------------------------
 
 #define VKI_BTRFS_SUPER_MAGIC    0x9123683E
+
+struct vki__aio_sigset {
+   const vki_sigset_t __user	*sigmask;
+   vki_size_t		sigsetsize;
+};
 
 /*--------------------------------------------------------------------*/
 /*--- end                                                          ---*/

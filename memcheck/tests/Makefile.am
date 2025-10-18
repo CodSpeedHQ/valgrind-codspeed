@@ -53,6 +53,9 @@ endif
 if VGCONF_PLATFORMS_INCLUDE_ARM64_LINUX
 SUBDIRS += arm64-linux
 endif
+if VGCONF_PLATFORMS_INCLUDE_RISCV64_LINUX
+SUBDIRS += riscv64-linux
+endif
 if VGCONF_PLATFORMS_INCLUDE_X86_SOLARIS
 SUBDIRS += x86-solaris
 endif
@@ -67,7 +70,7 @@ SUBDIRS += amd64-freebsd
 endif
 
 DIST_SUBDIRS = x86 amd64 arm64 ppc32 ppc64 s390x linux \
-		darwin solaris x86-linux amd64-linux arm64-linux \
+		darwin solaris x86-linux amd64-linux arm64-linux riscv64-linux \
 		x86-solaris amd64-solaris mips32 mips64 \
 		freebsd amd64-freebsd x86-freebsd \
 		common .
@@ -83,6 +86,7 @@ dist_noinst_SCRIPTS = \
 	filter_varinfo3 \
 	filter_memcheck \
 	filter_malloc_free \
+	filter_sendmsg \
 	filter_size_t \
 	filter_stanza \
 	filter_stanza.awk \
@@ -129,6 +133,7 @@ EXTRA_DIST = \
 	bug472219.stderr.exp bug472219.vgtest \
 	bug484002.stderr.exp bug484002.stdout.exp bug484002.vgtest \
 	calloc-overflow.stderr.exp calloc-overflow.vgtest\
+	cdebug_zstd.vgtest cdebug_zstd.stderr.exp \
 	cdebug_zlib.stderr.exp cdebug_zlib.vgtest \
 	cdebug_zlib_gnu.stderr.exp cdebug_zlib_gnu.vgtest \
 	client-msg.stderr.exp client-msg.vgtest \
@@ -377,7 +382,6 @@ EXTRA_DIST = \
 	sem.stderr.exp sem.vgtest \
 	sendmsg.stderr.exp sendmsg.stderr.exp-solaris sendmsg.vgtest \
 	    sendmsg.stderr.exp-freebsd \
-	    sendmsg.stderr.exp-freebsd-x86 \
 	sh-mem.stderr.exp sh-mem.vgtest \
 	sh-mem-random.stderr.exp sh-mem-random.stdout.exp64 \
 	sh-mem-random.stdout.exp sh-mem-random.vgtest \
@@ -442,9 +446,11 @@ EXTRA_DIST = \
 	vcpu_fbench.stdout.exp vcpu_fbench.stderr.exp vcpu_fbench.vgtest \
 	vcpu_fnfns.stdout.exp vcpu_fnfns.stdout.exp-glibc28-amd64 \
 	vcpu_fnfns.stdout.exp-darwin vcpu_fnfns.stdout.exp-solaris \
+	vcpu_fnfns.stdout.exp-illumos \
 	vcpu_fnfns.stderr.exp vcpu_fnfns.vgtest \
 	wcpncpy.stderr.exp wcpncpy.vgtest \
 	wcs.vgtest wcs.stderr.exp wcs.stdout.exp \
+	wcscat.vgtest wcscat.stderr.exp wcscat.stdout.exp \
 	wcsncpy.vgtest wcsncpy.stderr.exp \
 	wmemcmp.vgtest wmemcmp.stderr.exp \
 	wrap1.vgtest wrap1.stdout.exp wrap1.stderr.exp \
@@ -551,6 +557,7 @@ check_PROGRAMS = \
 	varinforestrict \
 	vcpu_fbench vcpu_fnfns \
 	wcs \
+	wcscat \
 	xml1 \
 	wmemcmp \
 	wrap1 wrap2 wrap3 wrap4 wrap5 wrap6 wrap7 wrap7so.so wrap8 \
@@ -585,6 +592,12 @@ if GZ_ZLIB_GNU
 check_PROGRAMS += cdebug_zlib_gnu
 cdebug_zlib_gnu_SOURCES = cdebug.c
 cdebug_zlib_gnu_CFLAGS = $(AM_CFLAGS) -g -gz=zlib-gnu @FLAG_W_NO_UNINITIALIZED@
+endif
+
+if GZ_ZSTD
+check_PROGRAMS += cdebug_zstd
+cdebug_zstd_SOURCES = cdebug.c
+cdebug_zstd_CFLAGS = $(AM_CFLAGS) -g -gz=zstd @FLAG_W_NO_UNINITIALIZED@
 endif
 
 if HAVE_SBRK

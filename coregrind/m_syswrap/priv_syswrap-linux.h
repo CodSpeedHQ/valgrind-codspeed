@@ -49,6 +49,7 @@ DECL_TEMPLATE(linux, sys_preadv);
 DECL_TEMPLATE(linux, sys_preadv2);
 DECL_TEMPLATE(linux, sys_pwritev);
 DECL_TEMPLATE(linux, sys_pwritev2);
+DECL_TEMPLATE(linux, sys_io_pgetevents);
 DECL_TEMPLATE(linux, sys_sendmmsg);
 DECL_TEMPLATE(linux, sys_recvmmsg);
 DECL_TEMPLATE(linux, sys_dup3);
@@ -309,6 +310,9 @@ DECL_TEMPLATE(linux, sys_execveat);
 // Linux-specific (new in Linux 4.11)
 DECL_TEMPLATE(linux, sys_statx);
 
+// Linux-specific (new in Linux 4.3)
+DECL_TEMPLATE(linux, sys_userfaultfd);
+
 // Linux-specific memory protection key syscalls (since Linux 4.9)
 DECL_TEMPLATE(linux, sys_pkey_alloc);
 DECL_TEMPLATE(linux, sys_pkey_free);
@@ -321,12 +325,25 @@ DECL_TEMPLATE(linux, sys_io_uring_setup);
 DECL_TEMPLATE(linux, sys_io_uring_enter);
 DECL_TEMPLATE(linux, sys_io_uring_register);
 
+// open_tree and friends (shared linux syscalls)
+DECL_TEMPLATE(linux, sys_open_tree);
+DECL_TEMPLATE(linux, sys_move_mount);
+DECL_TEMPLATE(linux, sys_fsopen);
+DECL_TEMPLATE(linux, sys_fsconfig);
+DECL_TEMPLATE(linux, sys_fsmount);
+DECL_TEMPLATE(linux, sys_fspick);
+
 // Linux-specific (new in Linux 5.3)
 DECL_TEMPLATE(linux, sys_pidfd_open);
 
 // Linux-specific (new in Linux 5.9)
 DECL_TEMPLATE(linux, sys_close_range);
 DECL_TEMPLATE(linux, sys_openat2);
+
+// Linux-specific (new in Linux 5.13)
+DECL_TEMPLATE(linux, sys_landlock_create_ruleset)
+DECL_TEMPLATE(linux, sys_landlock_add_rule)
+DECL_TEMPLATE(linux, sys_landlock_restrict_self)
 
 // Linux-specific (new in Linux 5.14)
 DECL_TEMPLATE(linux, sys_memfd_secret);
@@ -515,6 +532,13 @@ extern UInt do_syscall_clone_nanomips_linux ( Word (*fn) (void *),  /* a0 - 4 */
                                               Int*  child_tid,      /* a4 - 8 */
                                               Int*  parent_tid,     /* a5 - 9 */
                                               void* tls_ptr);       /* a6 - 10 */
+extern UInt do_syscall_clone_riscv64_linux ( Word (*fn) (void *),
+                                             void* stack,
+                                             Int   flags,
+                                             void* arg,
+                                             Int*  child_tid,
+                                             Int*  parent_tid,
+                                             void* tls_ptr);
 #endif   // __PRIV_SYSWRAP_LINUX_H
 
 /*--------------------------------------------------------------------*/
