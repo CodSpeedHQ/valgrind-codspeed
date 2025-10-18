@@ -2,6 +2,8 @@
 
 This file documents changes made to Valgrind for CodSpeed integration, beyond the baseline Valgrind distribution.
 
+## Features
+
 
 ### Callgrind: Inline Function Tracking
 
@@ -80,4 +82,23 @@ fe=main.c               ← Returning to original file
 cfni=???                ← Leaving inlined function
 +1 3
 cfn=printf
+```
+
+### Callgrind: Object-Level Function Skipping
+
+**Feature**: Added `--obj-skip=<object>` command-line option to exclude entire objects (shared libraries or executables) from profiling.
+
+**Motivation**: When profiling applications, it's often necessary to focus on specific parts of the codebase while excluding standard libraries or third-party dependencies. The existing `--fn-skip=<function>` option works at the function level, but requires listing every function individually. For large libraries with hundreds of functions, this becomes impractical. The `--obj-skip` option allows skipping all functions from a given object file in one command.
+
+**Usage**:
+```bash
+valgrind --tool=callgrind --obj-skip=/lib/x86_64-linux-gnu/libc.so.6 ./your_program
+```
+
+Multiple objects can be skipped by repeating the option:
+```bash
+valgrind --tool=callgrind \
+    --obj-skip=/lib/x86_64-linux-gnu/libc.so.6 \
+    --obj-skip=/lib/x86_64-linux-gnu/libpthread.so.0 \
+    ./your_program
 ```
