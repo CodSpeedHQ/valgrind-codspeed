@@ -1,4 +1,13 @@
 #include <stdio.h>
+#include <unistd.h>
+
+// Non-inlinable output function to prevent any stdio inlining issues
+__attribute__((noinline))
+static void my_output(int n, int fib_iter, int fib_rec) {
+    char buf[100];
+    int len = snprintf(buf, sizeof(buf), "Iterative fib(%d): %d, Recursive fib(10): %d\n", n, fib_iter, fib_rec);
+    write(STDOUT_FILENO, buf, len);
+}
 
 // Function 1: Iterative fibonacci - WILL be inlined
 static inline int fibonacci_iterative(int n) {
@@ -34,7 +43,7 @@ int main(int argc, char **argv) {
     // Call the recursive fibonacci (should NOT be inlined)
     int fib_rec = fibonacci_recursive(10);
 
-    printf("Iterative fib(%d): %d, Recursive fib(10): %d\n", n, fib_iter, fib_rec);
+    my_output(n, fib_iter, fib_rec);
 
     return 0;
 }

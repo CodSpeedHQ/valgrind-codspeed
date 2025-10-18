@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  test-callgrind:
+    strategy:
+      matrix:
+        runner:
+          - platform: ubuntu-22.04
+            ubuntu-version: 22.04
+          - platform: ubuntu-24.04
+            ubuntu-version: 24.04
+
+    runs-on: ${{ matrix.runner.platform }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update apt-get cache
+        run: sudo apt-get update
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get install -y \
+            build-essential \
+            automake \
+            autoconf \
+            libc6-dev \
+            gcc-multilib \
+            libc6-dev-i386 \
+            gdb \
+            docbook \
+            docbook-xsl \
+            docbook-xml \
+            xsltproc
+
+      - name: Run autogen
+        run: ./autogen.sh
+
+      - name: Configure
+        run: ./configure
+
+      - name: Build Valgrind
+        run: make -j$(nproc)
+
+      - name: Build test dependencies
+        run: |
+          make -C tests arch_test os_test true
+          make -C callgrind/tests check
+
+      - name: Run Callgrind tests
+        run: |
+          cd callgrind/tests
+          TESTS=$(ls *.vgtest | grep -v bug497723.vgtest)
+          perl ../../tests/vg_regtest --valgrind=../../vg-in-place $TESTS
+
+      - name: Upload test logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: callgrind-test-logs-${{ matrix.runner.ubuntu-version }}
+          path: callgrind/tests/*.log

@@ -33,6 +33,10 @@ in_main {
         else if (/^cfn=0x/) {
             # Skip
         }
+        # Skip my_output wrapper function calls
+        else if (/^cfn=my_output/) {
+            # Skip
+        }
         else {
             print $0
         }
