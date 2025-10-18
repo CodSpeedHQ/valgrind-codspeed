@@ -2374,6 +2374,32 @@ Bool VG_(get_fnname_w_offset) ( DiEpoch ep, Addr a, const HChar** buf )
                          /*offsetP*/NULL );
 }
 
+/* Get the inline function name by directly searching the inline table.
+   Returns the actual inlined function name (not the call site function).
+   This is much simpler than using InlIPCursor which requires iteration. */
+Bool VG_(get_inline_fnname) ( DiEpoch ep, Addr a, const HChar** inl_fnname )
+{
+   DebugInfo* si;
+   Word locno;
+
+   /* Find the DebugInfo for this address */
+   search_all_loctabs(ep, a, &si, &locno);
+   if (si == NULL || si->inltab == NULL)
+      return False;
+
+   /* Search the inline table for an entry containing this address */
+   /* We search from the end backwards to find the innermost inline function first */
+   for (Word i = si->inltab_used - 1; i >= 0; i--) {
+      if (si->inltab[i].addr_lo <= a && a < si->inltab[i].addr_hi) {
+         /* Found it! Return the inline function name */
+         *inl_fnname = si->inltab[i].inlinedfn;
+         return True;
+      }
+   }
+
+   return False;
+}
+
 /* This is available to tools... always demangle C++ names,
    only succeed if 'a' matches first instruction of function,
    and don't show offsets.

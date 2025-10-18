@@ -214,6 +214,14 @@ extern void VG_(delete_IIPC)(InlIPCursor *iipc);
 extern Bool VG_(get_fnname_inl)   ( DiEpoch ep, Addr a, const HChar** fnname,
                                    const InlIPCursor* iipc );
 
+/* Get the inline function name for an address by searching the inline table.
+   Returns True if the address is in inlined code, False otherwise.
+   If True, *inl_fnname will be set to the name of the inlined function.
+   This directly accesses the DWARF inline location table to get the actual
+   inlined function name (not the call site). */
+extern Bool VG_(get_inline_fnname) ( DiEpoch ep, Addr a,
+                                      /*OUT*/const HChar** inl_fnname );
+
 /* Get an XArray of StackBlock which describe the stack (auto) blocks
    for this ip.  The caller is expected to free the XArray at some
    point.  If 'arrays_only' is True, only array-typed blocks are

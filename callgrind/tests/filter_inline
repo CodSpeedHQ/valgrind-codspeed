@@ -1,0 +1,41 @@
+#!/bin/sh
+
+# Filter script to extract inline function markers (cfni=) from callgrind output
+# Usage: filter_inline <callgrind.out.file> <test_name>
+
+CGout=$1
+test_name=$2
+
+# Extract the main function section and show the cfni= markers along with file context
+awk '
+/^fn=main$/ {
+    in_main = 1
+    print "=== Main Function Inline Markers ==="
+    next
+}
+
+in_main && /^fn=/ && !/^fn=main$/ {
+    in_main = 0
+}
+
+in_main {
+    # Print file context markers (fi=, fe=), inline markers (cfni=), and function calls (cfn=)
+    if (/^fi=/ || /^fe=/ || /^cfni=/ || /^cfn=/) {
+        # Extract just the filename from file paths for readability
+        if (/^fi=/ || /^fe=/) {
+            marker = substr($0, 1, 3)
+            path = substr($0, 4)
+            # Get basename
+            n = split(path, parts, "/")
+            print marker parts[n]
+        }
+        # Skip address-only cfn= entries (not related to inline tracking)
+        else if (/^cfn=0x/) {
+            # Skip
+        }
+        else {
+            print $0
+        }
+    }
+}
+' "$CGout"
