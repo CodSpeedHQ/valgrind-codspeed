@@ -1,0 +1,133 @@
+From 37d454721a6e3c2c54303bbcb35f0124de9bb51e Mon Sep 17 00:00:00 2001
+From: Mark Wielaard <mark@klomp.org>
+Date: Mon, 18 Aug 2025 15:30:47 +0200
+Subject: [PATCH] Add ppc64le linux hardwire for ld64.so.2 strcmp
+
+When dlopen is used we might end up in an assembly powerpc/strcmp.S
+variant that is optimized in a way memcheck cannot proof correct. We
+try to intercept strcmp in ld.so, but might fail when strcmp is called
+before our interception code is loaded. Having an hardwire for ld.so
+strcmp (earlier intercept) would solve this.
+
+https://bugs.kde.org/show_bug.cgi?id=508145
+
+(cherry picked from commit 78fe3625f6b8ed4de28527d71c4a98d70e5b3035)
+---
+ NEWS                            |  1 +
+ coregrind/m_redir.c             |  6 +++++
+ coregrind/m_trampoline.S        | 45 +++++++++++++++++++++++++++++++++
+ coregrind/pub_core_trampoline.h |  1 +
+ 4 files changed, 53 insertions(+)
+
+diff --git a/coregrind/m_redir.c b/coregrind/m_redir.c
+index 63172b971..857f910cb 100644
+--- a/coregrind/m_redir.c
++++ b/coregrind/m_redir.c
+@@ -1504,14 +1504,20 @@ void VG_(redir_initialise) ( void )
+ 
+       add_hardwired_spec(
+          "ld64.so.2", "index",
+          (Addr)&VG_(ppc64_linux_REDIR_FOR_strchr),
+          NULL /* not mandatory - so why bother at all? */
+          /* glibc-2.5 (FC6, ppc64) seems fine without it */
+       );
++
++      add_hardwired_spec(
++         "ld64.so.2", "strcmp",
++         (Addr)&VG_(ppc64_linux_REDIR_FOR_strcmp),
++         NULL
++      );
+    }
+ 
+ #  elif defined(VGP_arm_linux)
+    /* If we're using memcheck, use these intercepts right from the
+       start, otherwise ld.so makes a lot of noise.  In most ARM-linux
+       distros, ld.so's soname is ld-linux.so.3, but Ubuntu 14.04 on
+       Odroid uses ld-linux-armhf.so.3 for some reason. */
+diff --git a/coregrind/m_trampoline.S b/coregrind/m_trampoline.S
+index 2c2cc0dc2..af25c8f7a 100644
+--- a/coregrind/m_trampoline.S
++++ b/coregrind/m_trampoline.S
+@@ -600,14 +600,59 @@ VG_(ppc64_linux_REDIR_FOR_strchr):
+         li 3,0
+         blr
+         .long 0
+         .byte 0,0,0,0,0,0,0,0
+ .L1end:
+ 
+ 	
++	/* this function is written using the "dotless" ABI convention */
++	.align 2
++	.globl VG_(ppc64_linux_REDIR_FOR_strcmp)
++#if !defined VGP_ppc64be_linux || _CALL_ELF == 2
++        /* Little Endian uses ELF version 2 */
++        .type VG_(ppc64_linux_REDIR_FOR_strcmp),@function
++VG_(ppc64_linux_REDIR_FOR_strcmp):
++#else
++        /* Big Endian uses ELF version 1 */
++	.section        ".opd","aw"
++	.align 3
++VG_(ppc64_linux_REDIR_FOR_strcmp):
++	.quad   .L.VG_(ppc64_linux_REDIR_FOR_strcmp),.TOC.@tocbase,0
++	.previous
++	.size	VG_(ppc64_linux_REDIR_FOR_strcmp), \
++			.LFE0-.L.VG_(ppc64_linux_REDIR_FOR_strcmp)
++	.type	VG_(ppc64_linux_REDIR_FOR_strcmp), @function
++
++.L.VG_(ppc64_linux_REDIR_FOR_strcmp):
++#endif
++#if _CALL_ELF == 2
++0:      addis        2,12,.TOC.-0b@ha
++        addi         2,2,.TOC.-0b@l
++        .localentry  VG_(ppc64_linux_REDIR_FOR_strcmp), .-VG_(ppc64_linux_REDIR_FOR_strcmp)
++#endif
++.LFB0:
++        .cfi_startproc
++        li 10,0
++.L3:
++        lbzx 8,3,10
++        lbzx 9,4,10
++        cmpwi 0,8,0
++        beq 0,.L2
++        cmpw 0,8,9
++        addi 10,10,1
++        beq 0,.L3
++.L2:
++        subf 3,9,8
++        extsw 3,3
++        blr
++        .long 0
++        .byte 0,0,0,0,0,0,0,0
++        .cfi_endproc
++.LFE0:
++
+ .global VG_(trampoline_stuff_end)
+ VG_(trampoline_stuff_end):
+ 
+ 	/* and a trailing page of unexecutable code */
+ 	UD2_PAGE
+ 
+ #	undef UD2_16
+diff --git a/coregrind/pub_core_trampoline.h b/coregrind/pub_core_trampoline.h
+index 11d791df7..92b4fc67b 100644
+--- a/coregrind/pub_core_trampoline.h
++++ b/coregrind/pub_core_trampoline.h
+@@ -93,14 +93,15 @@ extern UInt  VG_(ppc32_linux_REDIR_FOR_strlen)( void* );
+ extern UInt  VG_(ppc32_linux_REDIR_FOR_strcmp)( void*, void* );
+ extern void* VG_(ppc32_linux_REDIR_FOR_strchr)( void*, Int );
+ #endif
+ 
+ #if defined(VGP_ppc64be_linux) || defined(VGP_ppc64le_linux)
+ extern Addr  VG_(ppc64_linux_SUBST_FOR_rt_sigreturn);
+ extern UInt  VG_(ppc64_linux_REDIR_FOR_strlen)( void* );
++extern UInt  VG_(ppc64_linux_REDIR_FOR_strcmp)( void*, void* );
+ extern void* VG_(ppc64_linux_REDIR_FOR_strchr)( void*, Int );
+ /* A label (sans dot) marking the ultra-magical return stub via which
+    all redirected and wrapped functions are made to "return" on
+    ppc64-linux.  The one insn at this label is never really
+    translated.  Instead, m_translate generates IR to restore the
+    thread's LR and R2 registers from a small stack in the ppc64 guest
+    state structure, and then branch to LR.  Convoluted?  Confusing?
+-- 
+2.51.0
+

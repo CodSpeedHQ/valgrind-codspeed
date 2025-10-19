@@ -3,6 +3,7 @@
 08_fix-spelling-in-manpage.patch
 10_mpi-pkg-config.patch
 13_fix-path-to-vgdb.patch
-armv7-illegal-opcode.patch
-adjust_armhf_cases.patch
+14_fix-armhf-ftbfs.patch
+armhf_neon.patch
+16_Add-ppc64le-linux-hardwire-for-ld64.so.2-strcmp.patch
 use-mpich-if-mpic-not-found.patch

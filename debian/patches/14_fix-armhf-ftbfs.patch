@@ -1,0 +1,17 @@
+Description: Fix FTBFS on armhf
+Origin: vendor
+Author: Michael Stapelberg <stapelberg@debian.org>
+
+diff --git i/configure.ac w/configure.ac
+index 095659ac..aab98ce3 100755
+--- i/configure.ac
++++ w/configure.ac
+@@ -287,7 +287,7 @@ case "${host_cpu}" in
+ 
+      arm*)
+         AC_MSG_RESULT([ok (${host_cpu})])
+-        VGCONF_PLATFORM_ARM_ARCH="-march=armv6"
++        VGCONF_PLATFORM_ARM_ARCH="-marm"
+         ARCH_MAX="arm"
+         ;;
+ 

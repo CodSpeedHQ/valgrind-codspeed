@@ -1,0 +1,24 @@
+Description: Do not require neon on armhf
+Author: Richard Earnshaw <Richard.Earnshaw@arm.com>
+Bug-Debian: https://bugs.debian.org/928224
+Reviewed-By: Mathieu Malaterre <malat@debian.org>
+Last-Update: 2025-01-21
+
+--- valgrind-3.24.0.orig/configure.ac
++++ valgrind-3.24.0/configure.ac
+@@ -275,13 +275,13 @@ case "${host_cpu}" in
+ 
+      armv8*)
+         AC_MSG_RESULT([ok (${host_cpu})])
+-        VGCONF_PLATFORM_ARM_ARCH="-marm -mcpu=cortex-a8"
++        VGCONF_PLATFORM_ARM_ARCH="-marm -mcpu=generic-armv7-a"
+         ARCH_MAX="arm"
+         ;;
+ 
+      armv7*)
+         AC_MSG_RESULT([ok (${host_cpu})])
+-        VGCONF_PLATFORM_ARM_ARCH="-marm -mcpu=cortex-a8"
++        VGCONF_PLATFORM_ARM_ARCH="-marm -mcpu=generic-armv7-a"
+         ARCH_MAX="arm"
+         ;;
+ 
