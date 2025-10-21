@@ -1,0 +1,6 @@
+Starting plt_sec_test
+String length: 11
+Allocated and initialized 10 ints
+Direct printf call
+Sum result: 4950
+plt_sec_test completed

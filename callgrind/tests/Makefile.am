@@ -4,7 +4,7 @@ include $(top_srcdir)/Makefile.tool-tests.am
 SUBDIRS = .
 DIST_SUBDIRS = .
 
-dist_noinst_SCRIPTS = filter_stderr filter_inline
+dist_noinst_SCRIPTS = filter_stderr filter_inline filter_plt_sec
 
 EXTRA_DIST = \
 	ann1.post.exp ann1.stderr.exp ann1.vgtest \
@@ -26,9 +26,10 @@ EXTRA_DIST = \
 	find-source.vgtest find-source.stderr.exp find-source.post.exp \
 	inline-samefile.vgtest inline-samefile.stderr.exp inline-samefile.stdout.exp inline-samefile.post.exp \
 	inline-crossfile.vgtest inline-crossfile.stderr.exp inline-crossfile.stdout.exp inline-crossfile.post.exp \
-	inline-crossfile-helper1.h inline-crossfile-helper2.h filter_inline
+	inline-crossfile-helper1.h inline-crossfile-helper2.h filter_inline \
+	plt-sec-skip.vgtest plt-sec-skip.stderr.exp plt-sec-skip.stdout.exp plt-sec-skip.post.exp
 
-check_PROGRAMS = clreq simwork threads inline-samefile inline-crossfile
+check_PROGRAMS = clreq simwork threads inline-samefile inline-crossfile plt_sec_test
 
 AM_CFLAGS   += $(AM_FLAG_M3264_PRI)
 AM_CXXFLAGS += $(AM_FLAG_M3264_PRI)
@@ -36,5 +37,8 @@ AM_CXXFLAGS += $(AM_FLAG_M3264_PRI)
 # Inline tests need -O2 to enable inlining and -g for debug info
 inline_samefile_CFLAGS = $(AM_CFLAGS) -O2 -g
 inline_crossfile_CFLAGS = $(AM_CFLAGS) -O2 -g
+
+# We need to generate .plt.sec sections by enabling control flow protection
+plt_sec_test_CFLAGS = $(AM_CFLAGS) -fcf-protection=full -O2
 
 threads_LDADD = -lpthread

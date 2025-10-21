@@ -1,0 +1,4 @@
+prog: plt_sec_test
+vgopts: --tool=callgrind --skip-plt=yes
+post: ./filter_plt_sec callgrind.out.* plt-sec-skip
+cleanup: rm callgrind.out.*

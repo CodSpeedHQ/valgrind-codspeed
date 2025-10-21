@@ -1,0 +1,61 @@
+#!/bin/sh
+
+CGout=$1
+
+# This is a wrong output of `puts` which includes a call to the .plt.sec section:
+# ```
+# fn=(408) puts
+# 0 9
+# cob=(3)
+# cfi=(3)
+# cfn=(410) 0x0000000004869530
+# calls=1 0 
+# 0 16
+# 0 18
+# cfn=(414)
+# calls=1 0 
+# 0 179
+# 0 46
+# cfn=(452)
+# calls=1 0 
+# 0 183
+# 0 2
+#
+# ```
+
+# We should expect this:
+# ```
+# fn=(408) puts
+# 0 9
+# cfn=(412) __strlen_avx2
+# calls=1 0 
+# 0 14
+# 0 2
+# 0 18
+# cfn=(414) _IO_file_xsputn@@GLIBC_2.2.5
+# calls=1 0 
+# 0 179
+# 0 46
+# cfn=(452) __overflow
+# calls=1 0 
+# 0 183
+# 0 2
+# 
+# ```
+# 
+# Then just print the cfn lines
+
+awk '
+    /^fn=\([0-9]+\) puts$/ { in_puts = 1 }
+    in_puts && /^fn=/ && !/^fn=\([0-9]+\) puts$/ { exit }
+    in_puts {
+        # Only print cfn lines (partial match, only check if we start with cfn=()
+        if (/^cfn=\(/) {
+            # Extract the function name (just split by space and take second part)
+            split($0, parts, " ")
+            print parts[2]
+        } else {
+            next
+        }
+    }
+' "$CGout"
