@@ -905,6 +905,10 @@ struct _DebugInfo {
    Bool   plt_present;
    Addr	  plt_avma;
    SizeT  plt_size;
+   /* .plt.sec */
+   Bool   pltsec_present;
+   Addr   pltsec_avma;
+   SizeT  pltsec_size;
    /* .got */
    Bool   got_present;
    Addr   got_avma;

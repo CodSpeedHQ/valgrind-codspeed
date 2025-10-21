@@ -663,7 +663,7 @@ fn_node* CLG_(get_fn_node)(BB* bb)
       pure[1] = fn;
       fn->pure_cxt = CLG_(get_cxt)(pure+1);
 
-      if (bb->sect_kind == Vg_SectPLT)	
+      if (bb->sect_kind == Vg_SectPLT || bb->sect_kind == Vg_SectPLTSEC)	
 	fn->skip = CLG_(clo).skip_plt;
 
       if (VG_(strncmp)(fn->name, "_dl_runtime_resolve", 19)==0) {

@@ -4975,6 +4975,16 @@ SizeT VG_(DebugInfo_get_plt_size)(const DebugInfo* di)
    return di->plt_present ? di->plt_size : 0; 
 }
 
+Addr VG_(DebugInfo_get_pltsec_avma)(const DebugInfo* di)
+{
+   return di->pltsec_present ? di->pltsec_avma : 0;
+}
+
+SizeT VG_(DebugInfo_get_pltsec_size)(const DebugInfo* di)
+{
+   return di->pltsec_present ? di->pltsec_size : 0;
+}
+
 Addr VG_(DebugInfo_get_gotplt_avma)(const DebugInfo* di)
 {
    return di->gotplt_present ? di->gotplt_avma : 0; 
@@ -5053,6 +5063,7 @@ const HChar* VG_(pp_SectKind)( VgSectKind kind )
       case Vg_SectPLT:     return "PLT";
       case Vg_SectOPD:     return "OPD";
       case Vg_SectGOTPLT:  return "GOTPLT";
+      case Vg_SectPLTSEC:  return "PLTSEC";
       default:             vg_assert(0);
    }
 }
@@ -5113,6 +5124,12 @@ VgSectKind VG_(DebugInfo_sect_kind)( /*OUT*/const HChar** objname, Addr a)
           && di->plt_size > 0
           && a >= di->plt_avma && a < di->plt_avma + di->plt_size) {
          res = Vg_SectPLT;
+         break;
+      }
+      if (di->pltsec_present
+          && di->pltsec_size > 0
+          && a >= di->pltsec_avma && a < di->pltsec_avma + di->pltsec_size) {
+         res = Vg_SectPLTSEC;
          break;
       }
       if (di->got_present

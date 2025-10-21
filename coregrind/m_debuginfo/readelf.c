@@ -2734,6 +2734,17 @@ Bool ML_(read_elf_object) ( struct _DebugInfo* di )
             BAD(".plt");
          }
       }
+      /* Accept .plt.sec where mapped as rx (code) - hardened PLT section */
+      if (0 == VG_(strcmp)(name, ".plt.sec")) {
+         if (inrx && !di->pltsec_present) {
+            di->pltsec_present = True;
+            di->pltsec_avma = svma + inrx->bias;
+            di->pltsec_size = size;
+            TRACE_SYMTAB("acquiring .plt.sec avma = %#lx\n", di->pltsec_avma);
+         } else {
+            BAD(".plt.sec");
+         }
+      }
 #     elif defined(VGP_ppc32_linux)
       /* Accept .plt where mapped as rw (data) */
       if (0 == VG_(strcmp)(name, ".plt")) {
@@ -2744,6 +2755,17 @@ Bool ML_(read_elf_object) ( struct _DebugInfo* di )
             TRACE_SYMTAB("acquiring .plt avma = %#lx\n", di->plt_avma);
          } else {
             BAD(".plt");
+         }
+      }
+      /* Accept .plt.sec where mapped as rw (data) - hardened PLT section */
+      if (0 == VG_(strcmp)(name, ".plt.sec")) {
+         if (inrw1 && !di->pltsec_present) {
+            di->pltsec_present = True;
+            di->pltsec_avma = svma + inrw1->bias;
+            di->pltsec_size = size;
+            TRACE_SYMTAB("acquiring .plt.sec avma = %#lx\n", di->pltsec_avma);
+         } else {
+            BAD(".plt.sec");
          }
       }
 #     elif defined(VGP_ppc64be_linux) || defined(VGP_ppc64le_linux)
@@ -2764,6 +2786,25 @@ Bool ML_(read_elf_object) ( struct _DebugInfo* di )
             di->plt_size = 0;
          } else {
             BAD(".plt");
+         }
+      }
+      /* Accept .plt.sec where mapped as rw (data), or unmapped - hardened PLT section */
+      if (0 == VG_(strcmp)(name, ".plt.sec")) {
+         if (inrw1 && !di->pltsec_present) {
+            di->pltsec_present = True;
+            di->pltsec_avma = svma + inrw1->bias;
+            di->pltsec_size = size;
+            TRACE_SYMTAB("acquiring .plt.sec avma = %#lx\n", di->pltsec_avma);
+         } else
+         if ((!inrw1) && (!inrx) && size > 0 && !di->pltsec_present) {
+            /* File contains a .plt.sec, but it didn't get mapped.
+               Presumably it is not required on this platform.  At
+               least don't reject the situation as invalid. */
+            di->pltsec_present = True;
+            di->pltsec_avma = 0;
+            di->pltsec_size = 0;
+         } else {
+            BAD(".plt.sec");
          }
       }
 #     else

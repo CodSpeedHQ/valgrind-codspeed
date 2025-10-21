@@ -282,6 +282,8 @@ Addr          VG_(DebugInfo_get_bss_avma)    ( const DebugInfo *di );
 SizeT         VG_(DebugInfo_get_bss_size)    ( const DebugInfo *di );
 Addr          VG_(DebugInfo_get_plt_avma)    ( const DebugInfo *di );
 SizeT         VG_(DebugInfo_get_plt_size)    ( const DebugInfo *di );
+Addr          VG_(DebugInfo_get_pltsec_avma) ( const DebugInfo *di );
+SizeT         VG_(DebugInfo_get_pltsec_size) ( const DebugInfo *di );
 Addr          VG_(DebugInfo_get_gotplt_avma) ( const DebugInfo *di );
 SizeT         VG_(DebugInfo_get_gotplt_size) ( const DebugInfo *di );
 Addr          VG_(DebugInfo_get_got_avma)    ( const DebugInfo *di );
@@ -310,7 +312,8 @@ typedef
       Vg_SectGOT,
       Vg_SectPLT,
       Vg_SectGOTPLT,
-      Vg_SectOPD
+      Vg_SectOPD,
+      Vg_SectPLTSEC
    }
    VgSectKind;
 
