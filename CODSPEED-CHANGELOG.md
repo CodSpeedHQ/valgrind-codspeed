@@ -4,6 +4,17 @@ This file documents changes made to Valgrind for CodSpeed integration, beyond th
 
 ## Features
 
+### Skip `.plt.sec` in `--skip-plt`
+
+**Feature**: Added support for skipping `.plt.sec` sections when using the `--skip-plt` option.
+
+**Motivation**: The `.plt.sec` section is a specialized variant of the Procedure Linkage Table (PLT) used in systems with Intel Control-flow Enforcement Technology (CET). When profiling applications using libraries compiled with it (e.g. libpython), symbols in `.plt.sec` were not skipped by the `--skip-plt` option, causing unresolved addresses to appear in profiling data (e.g., `_PySequence_Tuple` at 0x48ce4a0). Both `.plt` and `.plt.sec` sections contain only jumps to the actual function implementations, and do not have any symbols associated with those wrapper functions.
+
+**How it works**:
+- Extends the existing PLT-skipping logic to also recognize and skip `.plt.sec` sections
+- Whenever we see a function inside the `.plt.sec` section, skip it
+
+**Usage**: Enable `--skip-plt=yes` and both `.plt` and `.plt.sec` will be skipped.
 
 ### Callgrind: Inline Function Tracking
 
