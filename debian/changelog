@@ -1,6 +1,14 @@
-valgrind (1:3.25.1-3-codspeed1) UNRELEASED; urgency=medium
+valgrind (1:3.25.1-3codspeed2) UNRELEASED; urgency=medium
+
+  * Skip `.plt.sec` with `--skip-plt`
+
+ -- Arthur Pastel <arthur@codspeed.io>  Tue, 22 Oct 2025 11:47:13 +0000
+
+
+valgrind (1:3.25.1-3codspeed1) UNRELEASED; urgency=medium
 
   * Merge 3.25.1 from valgrind upstream and debian patches
+  * Callgrind: add Inline Function Tracking
 
  -- Arthur Pastel <arthur@codspeed.io>  Tue, 18 Oct 2025 20:37:13 +0000
 
