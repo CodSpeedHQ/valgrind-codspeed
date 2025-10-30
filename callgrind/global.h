@@ -244,6 +244,7 @@ struct _jCC {
   UInt jmp;         /* jump no. in source */
 
   ULong call_counter; /* no wraparound with 64 bit */
+  ULong creation_seq; /* creation order sequence number for correct dump order */
 
   FullCost cost; /* simulator + user counters */
 };

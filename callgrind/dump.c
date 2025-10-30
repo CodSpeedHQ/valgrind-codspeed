@@ -739,6 +739,53 @@ static void fprint_jcc(VgFile *fp, jCC* jcc, AddrPos* curr, AddrPos* last,
 static AddrCost ccSum[2];
 static int currSum;
 
+/* Merge two sorted jCC lists.
+ * Assumes both input lists are sorted by creation_seq.
+ * Returns a new merged list that is also sorted by creation_seq.
+ */
+static jCC* merge_jcc_lists(jCC* left, jCC* right) {
+    jCC dummy;
+    dummy.next_from = NULL;
+    jCC* tail = &dummy;
+
+    while (left && right) {
+        if (left->creation_seq <= right->creation_seq) {
+            tail->next_from = left;
+            left = left->next_from;
+        } else {
+            tail->next_from = right;
+            right = right->next_from;
+        }
+        tail = tail->next_from;
+    }
+
+    tail->next_from = left ? left : right;
+    return dummy.next_from;
+}
+
+/* Merge sort for jCC lists to ensure chronological dump order.
+ * Sorts by creation_seq field to preserve execution order.
+ */
+static jCC* sort_jcc_list(jCC* head) {
+    if (!head || !head->next_from) return head;
+
+    /* Split list into two halves using slow/fast pointer technique */
+    jCC* slow = head;
+    jCC* fast = head->next_from;
+
+    while (fast && fast->next_from) {
+        slow = slow->next_from;
+        fast = fast->next_from->next_from;
+    }
+
+    /* Split at midpoint */
+    jCC* mid = slow->next_from;
+    slow->next_from = NULL;
+
+    /* Recursively sort both halves and merge */
+    return merge_jcc_lists(sort_jcc_list(head), sort_jcc_list(mid));
+}
+
 /*
  * Print all costs of a BBCC:
  * - FCCs of instructions
@@ -818,6 +865,9 @@ static Bool fprint_bbcc(VgFile *fp, BBCC* bbcc, AddrPos* last)
 	    get_debug_pos(bbcc, bb_addr(bb)+instr_info->instr_offset, &(currCost->p));
 	    fprint_apos(fp, &(currCost->p), last, bbcc->cxt->fn[0]->file, bbcc);
 	    something_written = True;
+
+        /* Sort jcc_list by creation sequence to ensure chronological order */
+        bbcc->jmp[jmp].jcc_list = sort_jcc_list(bbcc->jmp[jmp].jcc_list);
 	    for(jcc=bbcc->jmp[jmp].jcc_list; jcc; jcc=jcc->next_from) {
 		if (((jcc->jmpkind != jk_Call) && (jcc->call_counter >0)) ||
 		    (!CLG_(is_zero_cost)( CLG_(sets).full, jcc->cost )))
@@ -868,14 +918,17 @@ static Bool fprint_bbcc(VgFile *fp, BBCC* bbcc, AddrPos* last)
       fprint_fcost(fp, currCost, last);
     }
 
-    if (jcc_count > 0)
+    if (jcc_count > 0) {
+	/* Sort jcc_list by creation sequence to ensure chronological order */
+	bbcc->jmp[jmp].jcc_list = sort_jcc_list(bbcc->jmp[jmp].jcc_list);
 	for(jcc=bbcc->jmp[jmp].jcc_list; jcc; jcc=jcc->next_from) {
 	    CLG_ASSERT(jcc->jmp == jmp);
 	    if ( ((jcc->jmpkind != jk_Call) && (jcc->call_counter >0)) ||
 		 (!CLG_(is_zero_cost)( CLG_(sets).full, jcc->cost )))
-	  
+
 		fprint_jcc(fp, jcc, &(currCost->p), last, ecounter);
 	}
+    }
   }
 
   if (CLG_(clo).dump_bbs || CLG_(clo).dump_bb) {

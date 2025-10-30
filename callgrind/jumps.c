@@ -34,6 +34,9 @@
 
 static jcc_hash current_jccs;
 
+/* Global counter for jCC creation sequence to preserve chronological order */
+static ULong jcc_creation_counter = 0;
+
 void CLG_(init_jcc_hash)(jcc_hash* jccs)
 {
    Int i;
@@ -148,6 +151,7 @@ static jCC* new_jcc(BBCC* from, UInt jmp, BBCC* to)
    jcc->to        = to;
    jcc->jmpkind   = jk_Call;
    jcc->call_counter = 0;
+   jcc->creation_seq = jcc_creation_counter++;
    jcc->cost = 0;
 
    /* insert into JCC chain of calling BBCC.
