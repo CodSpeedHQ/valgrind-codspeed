@@ -1,0 +1,100 @@
+name: CodSpeed Benchmarks
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  benchmarks:
+    runs-on: codspeed-macro
+    timeout-minutes: 20
+    strategy:
+      matrix:
+        # IMPORTANT: The binary has to match the architecture of the runner!
+        cmd:
+          - testdata/take_strings-aarch64 varbinview_non_null
+          - echo Hello, World!
+          - ls bench.py
+          - python3 testdata/test.py
+          - stress-ng --cpu 1 --timeout 1s
+          - stress-ng --cpu 4 --timeout 1s
+        valgrind:
+          - "3.26.0"
+          - "3.25.1"
+          - "local"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - uses: extractions/setup-just@v3
+
+      # Skip installing package docs to avoid wasting time when installing build dependencies
+      # See: https://github.com/actions/runner-images/issues/10977#issuecomment-2810713336
+      - name: Skip installing package docs
+        if: runner.os == 'Linux'
+        run: |
+          sudo tee /etc/dpkg/dpkg.cfg.d/01_nodoc > /dev/null << 'EOF'
+          path-exclude /usr/share/doc/*
+          path-exclude /usr/share/man/*
+          path-exclude /usr/share/info/*
+          EOF
+
+      - name: Cache Valgrind build
+        uses: actions/cache@v4
+        id: valgrind-cache
+        with:
+          path: /tmp/valgrind-build
+          key: valgrind-${{ matrix.valgrind }}-${{ runner.os }}-${{ matrix.valgrind == 'local' && hashFiles('coregrind/**', 'include/**', 'VEX/**', 'cachegrind/**', 'callgrind/**', 'dhat/**', 'drd/**', 'helgrind/**', 'lackey/**', 'massif/**', 'memcheck/**', 'none/**', 'exp-bbv/**', 'auxprogs/**', '*.ac', '*.am', '*.in', 'autogen.sh', 'configure*') || 'build' }}
+
+      # Build and install Valgrind
+      - name: Update apt-get cache
+        if: steps.valgrind-cache.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update
+
+          # Remove existing Valgrind installation
+          sudo apt-get remove -y valgrind || true
+
+      - name: Install build dependencies
+        if: steps.valgrind-cache.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get install -y \
+            build-essential \
+            automake \
+            autoconf \
+            gdb \
+            docbook \
+            docbook-xsl \
+            docbook-xml \
+            xsltproc
+
+      - name: Build Valgrind (${{ matrix.valgrind }})
+        if: steps.valgrind-cache.outputs.cache-hit != 'true'
+        run: just build ${{ matrix.valgrind }}
+
+      - name: Install Valgrind (${{ matrix.valgrind }})
+        run: |
+          just install ${{ matrix.valgrind }}
+
+          # Ensure libc6-dev is installed for Valgrind to work properly
+          sudo apt-get update
+          sudo apt-get install -y libc6-dev stress-ng
+
+      - name: Verify Valgrind build
+        run: /usr/local/bin/valgrind --version
+
+      # Setup benchmarks and run them
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Run the benchmarks
+        uses: CodSpeedHQ/action@main
+        env:
+          CODSPEED_PERF_ENABLED: false
+        with:
+          working-directory: bench
+          mode: walltime
+          run: ./bench.py --cmd "${{ matrix.cmd }}" --valgrind-path /usr/local/bin/valgrind
