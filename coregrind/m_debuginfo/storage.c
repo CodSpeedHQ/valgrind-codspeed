@@ -51,6 +51,7 @@
 #include "priv_d3basics.h"     /* ML_(pp_GX) */
 #include "priv_tytypes.h"
 #include "priv_storage.h"      /* self */
+#include "priv_inltab_lookup.h"
 
 
 /*------------------------------------------------------------*/
@@ -2164,6 +2165,10 @@ static void canonicaliseInltab ( struct _DebugInfo* di )
 
    /* Free up unused space at the end of the table. */
    shrinkInlTab(di);
+
+   if (di->inltab_lookup == NULL) {
+      di->inltab_lookup = VG_(inltab_lookup_new)();
+   }
 }
 
 

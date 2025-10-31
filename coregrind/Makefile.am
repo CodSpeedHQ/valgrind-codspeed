@@ -363,6 +363,7 @@ COREGRIND_SOURCES_COMMON = \
 	m_debuginfo/d3basics.c \
 	m_debuginfo/debuginfo.c \
 	m_debuginfo/image.c \
+	m_debuginfo/inltab_lookup.c \
 	m_debuginfo/minilzo-inl.c \
 	m_debuginfo/readdwarf.c \
 	m_debuginfo/readdwarf3.c \
