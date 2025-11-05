@@ -94,7 +94,7 @@ void VG_(inltab_lookup_insert)(VgHashTable *ht, Addr addr, Word inl_idx) {
 Bool VG_(inltab_lookup_get)(VgHashTable *ht, Addr addr, Word *inl_idx,
                             const DebugInfo* di) {
    if (ht == NULL)
-      return False;
+      ht = VG_(inltab_lookup_new)();
 
    /* Try hash table lookup first */
    InlLookupNode *node = VG_(HT_lookup)(ht, (UWord)addr);
