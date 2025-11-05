@@ -12,7 +12,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -350,15 +350,14 @@ void do_syscall_for_client ( Int syscallno,
 {
    vki_sigset_t saved;
    UWord err;
-#  if defined(VGO_freebsd)
-   Word real_syscallno;
-#  endif
 #  if defined(VGO_linux)
    err = ML_(do_syscall_for_client_WRK)(
             syscallno, &tst->arch.vex, 
             syscall_mask, &saved, sizeof(vki_sigset_t)
          );
 #  elif defined(VGO_freebsd)
+   Word real_syscallno;
+   VG_(sigemptyset)(&saved);
    if (tst->arch.vex.guest_SC_CLASS == VG_FREEBSD_SYSCALL0)
       real_syscallno = __NR_syscall;
    else if (tst->arch.vex.guest_SC_CLASS == VG_FREEBSD_SYSCALL198)
@@ -2512,7 +2511,7 @@ void VG_(client_syscall) ( ThreadId tid, UInt trc )
 
          /* do_syscall_for_client may not return if the syscall was
             interrupted by a signal.  In that case, flow of control is
-            first to m_signals.async_sighandler, which calls
+            first to m_signals.async_signalhandler, which calls
             VG_(fixup_guest_state_after_syscall_interrupted), which
             fixes up the guest state, and possibly calls
             VG_(post_syscall).  Once that's done, control drops back
@@ -2723,9 +2722,9 @@ void VG_(post_syscall) (ThreadId tid)
 
    However, the syscall may get interrupted by an async-signal.  In
    that case do_syscall_for_client/VG_(do_syscall6) do not
-   return.  Instead we wind up in m_signals.async_sighandler.  We need
+   return.  Instead we wind up in m_signals.async_signalhandler.  We need
    to fix up the guest state to make it look like the syscall was
-   interrupted for guest.  So async_sighandler calls here, and this
+   interrupted for guest.  So async_signalhandler calls here, and this
    does the fixup.  Note that from here we wind up calling
    VG_(post_syscall) too.
 */

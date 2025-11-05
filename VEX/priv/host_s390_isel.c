@@ -13,7 +13,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -1243,10 +1243,17 @@ s390_isel_int_expr_wrk(ISelEnv *env, IRExpr *expr)
       s390_opnd_RMI op2, value, opnd;
       s390_insn *insn;
       Bool is_commutative, is_signed_multiply, is_signed_divide;
+      Bool is_single_multiply = False;
 
       is_commutative = True;
 
       switch (expr->Iex.Binop.op) {
+      case Iop_Mul8:
+      case Iop_Mul16:
+      case Iop_Mul32:
+      case Iop_Mul64:
+         is_single_multiply = True;
+         /* fall through */
       case Iop_MullU8:
       case Iop_MullU16:
       case Iop_MullU32:
@@ -1254,14 +1261,24 @@ s390_isel_int_expr_wrk(ISelEnv *env, IRExpr *expr)
          goto do_multiply;
 
       case Iop_MullS8:
+         arg1 = IRExpr_Unop(Iop_8Sto32, arg1);
+         arg2 = IRExpr_Unop(Iop_8Sto32, arg2);
+         is_signed_multiply = True;
+         goto do_multiply;
+
       case Iop_MullS16:
+         arg1 = IRExpr_Unop(Iop_16Sto32, arg1);
+         arg2 = IRExpr_Unop(Iop_16Sto32, arg2);
+         is_signed_multiply = True;
+         goto do_multiply;
+
       case Iop_MullS32:
          is_signed_multiply = True;
          goto do_multiply;
 
       do_multiply: {
             HReg r10, r11;
-            UInt arg_size = size / 2;
+            UInt arg_size = is_single_multiply ? size : size / 2;
 
             order_commutative_operands(arg1, arg2);
 
@@ -1278,9 +1295,22 @@ s390_isel_int_expr_wrk(ISelEnv *env, IRExpr *expr)
             /* Multiply */
             addInstr(env, s390_insn_mul(arg_size, r10, r11, op2, is_signed_multiply));
 
+            res  = newVRegI(env);
+            if (arg_size == 1 || arg_size == 2) {
+               /* For 8-bit and 16-bit multiplication the result is in
+                  r11[32:63] */
+               addInstr(env, s390_insn_move(size, res, r11));
+               return res;
+            }
+
+            /* For Iop_Mul64 the result is in r11[0:63] */
+            if (expr->Iex.Binop.op == Iop_Mul64) {
+               addInstr(env, s390_insn_move(size, res, r11));
+               return res;
+            }
+
             /* The result is in registers r10 and r11. Combine them into a SIZE-bit
                value into the destination register. */
-            res  = newVRegI(env);
             addInstr(env, s390_insn_move(arg_size, res, r10));
             value = s390_opnd_imm(arg_size * 8);
             addInstr(env, s390_insn_alu(size, S390_ALU_LSH, res, value));
@@ -3621,6 +3651,7 @@ s390_isel_cc(ISelEnv *env, IRExpr *cond)
 
       case Iop_CmpNE8:
       case Iop_CasCmpNE8:
+      case Iop_ExpCmpNE8:
          op     = S390_ZERO_EXTEND_8;
          result = S390_CC_NE;
          goto do_compare_ze;
@@ -3633,6 +3664,7 @@ s390_isel_cc(ISelEnv *env, IRExpr *cond)
 
       case Iop_CmpNE16:
       case Iop_CasCmpNE16:
+      case Iop_ExpCmpNE16:
          op     = S390_ZERO_EXTEND_16;
          result = S390_CC_NE;
          goto do_compare_ze;
@@ -4471,27 +4503,27 @@ s390_isel_vec_expr_wrk(ISelEnv *env, IRExpr *expr)
 
       case Iop_MullEven8Sx16:
          size = 1;
-         vec_binop = S390_VEC_INT_MUL_EVENS;
+         vec_binop = S390_VEC_INT_MUL_ODDS;
          goto Iop_VV_wrk;
       case Iop_MullEven8Ux16:
          size = 1;
-         vec_binop = S390_VEC_INT_MUL_EVENU;
+         vec_binop = S390_VEC_INT_MUL_ODDU;
          goto Iop_VV_wrk;
       case Iop_MullEven16Sx8:
          size = 2;
-         vec_binop = S390_VEC_INT_MUL_EVENS;
+         vec_binop = S390_VEC_INT_MUL_ODDS;
          goto Iop_VV_wrk;
       case Iop_MullEven16Ux8:
          size = 2;
-         vec_binop = S390_VEC_INT_MUL_EVENU;
+         vec_binop = S390_VEC_INT_MUL_ODDU;
          goto Iop_VV_wrk;
       case Iop_MullEven32Sx4:
          size = 4;
-         vec_binop = S390_VEC_INT_MUL_EVENS;
+         vec_binop = S390_VEC_INT_MUL_ODDS;
          goto Iop_VV_wrk;
       case Iop_MullEven32Ux4:
          size = 4;
-         vec_binop = S390_VEC_INT_MUL_EVENU;
+         vec_binop = S390_VEC_INT_MUL_ODDU;
          goto Iop_VV_wrk;
 
       case Iop_Shl8x16:

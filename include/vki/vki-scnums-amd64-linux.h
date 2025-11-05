@@ -13,7 +13,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -414,6 +414,7 @@
 #define __NR_statx              332
 #define __NR_io_pgetevents	333
 #define __NR_rseq		334
+#define __NR_futex_waitv	449
 
 #endif /* __VKI_SCNUMS_AMD64_LINUX_H */
 

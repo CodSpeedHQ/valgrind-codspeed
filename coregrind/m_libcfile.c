@@ -13,7 +13,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -674,12 +674,23 @@ Int VG_(fstat) ( Int fd, struct vg_stat* vgbuf )
 #  endif
 }
 
-#if defined(VGO_freebsd)
 /* extend this to other OSes as and when needed */
 SysRes VG_(lstat) ( const HChar* file_name, struct vg_stat* vgbuf )
 {
    SysRes res;
    VG_(memset)(vgbuf, 0, sizeof(*vgbuf));
+
+#if defined(VGO_linux)
+
+struct vki_stat buf;
+
+#if defined(__NR_newfstatat)
+   res = VG_(do_syscall4)(__NR_newfstatat, VKI_AT_FDCWD, (UWord)file_name, (UWord)&buf, VKI_AT_SYMLINK_NOFOLLOW);
+#else
+   res = VG_(do_syscall2)(__NR_lstat, (UWord)file_name, (UWord)&buf);
+#endif
+
+#elif defined(VGO_freebsd)
 
 #if (__FreeBSD_version < 1200031)
    struct vki_freebsd11_stat buf;
@@ -688,12 +699,31 @@ SysRes VG_(lstat) ( const HChar* file_name, struct vg_stat* vgbuf )
    struct vki_stat buf;
    res = VG_(do_syscall4)(__NR_fstatat, VKI_AT_FDCWD, (UWord)file_name, (UWord)&buf, VKI_AT_SYMLINK_NOFOLLOW);
 #endif
+
+#elif defined(VGO_solaris)
+
+   struct vki_stat buf;
+#if defined(SOLARIS_OLD_SYSCALLS)
+   // illumos
+   res = VG_(do_syscall2)(__NR_lstat, (UWord)file_name, (UWord)&buf);
+#else
+   // Solaris 11+
+   res = VG_(do_syscall4)(__NR_fstatat, VKI_AT_FDCWD, (UWord)file_name, (UWord)&buf, VKI_AT_SYMLINK_NOFOLLOW);
+#endif
+
+#else
+
+   /* check this on Darwin */
+   struct vki_stat buf;
+   res = VG_(do_syscall2)(__NR_lstat, (UWord)file_name, (UWord)&buf);
+
+#endif
+
    if (!sr_isError(res)) {
       TRANSLATE_TO_vg_stat(vgbuf, &buf);
    }
    return res;
 }
-#endif
 
 #undef TRANSLATE_TO_vg_stat
 #undef TRANSLATE_statx_TO_vg_stat
@@ -1803,7 +1833,6 @@ const HChar *VG_(dirname)(const HChar *path)
    return buf;
 }
 
-#if defined(VGO_freebsd)
 /*
  * I did look at nicking this from FreeBSD, it's fairly easy to port
  * but I was put off by the copyright and 3-clause licence
@@ -1819,7 +1848,7 @@ Bool VG_(realpath)(const HChar *path, HChar *resolved)
 {
    vg_assert(path);
    vg_assert(resolved);
-#if (__FreeBSD_version >= 1300080)
+#if defined(VGO_freebsd) && (__FreeBSD_version >= 1300080)
    return !sr_isError(VG_(do_syscall5)(__NR___realpathat, VKI_AT_FDCWD, (RegWord)path, (RegWord)resolved, VKI_PATH_MAX, 0));
 #else
    // poor man's realpath
@@ -1847,7 +1876,13 @@ Bool VG_(realpath)(const HChar *path, HChar *resolved)
       if (resolved_name[0] == '.' && resolved_name[1] == '/') {
          resolved_name += 2;
       }
-      VG_(snprintf)(resolved, VKI_PATH_MAX, "%s/%s", VG_(get_startup_wd)(), resolved_name);
+      HChar wd[VKI_PATH_MAX];
+#if defined(VGO_linux) || defined(VGO_solaris)
+      res = VG_(do_syscall2)(__NR_getcwd, (UWord)wd, VKI_PATH_MAX);
+#elif defined(VGO_freebsd)
+      res = VG_(do_syscall2)(__NR___getcwd, (UWord)wd, VKI_PATH_MAX);
+#endif
+      VG_(snprintf)(resolved, VKI_PATH_MAX, "%s/%s", wd, resolved_name);
    } else {
       VG_(snprintf)(resolved, VKI_PATH_MAX, "%s", resolved_name);
    }
@@ -1855,7 +1890,6 @@ Bool VG_(realpath)(const HChar *path, HChar *resolved)
    return True;
 #endif
 }
-#endif
 
 
 /*--------------------------------------------------------------------*/

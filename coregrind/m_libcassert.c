@@ -12,7 +12,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -498,6 +498,10 @@ static void report_and_quit ( const HChar* report,
                           True,  // stack_usage
                           False, // exited_threads
                           startRegsIN);
+
+   if (VG_(clo_xml)) // After flushing outputs
+      VG_(printf_xml)("</valgrindoutput>\n");
+
    VG_(printf)(
       "\n"
       "Note: see also the FAQ in the source distribution.\n"
@@ -535,9 +539,6 @@ void VG_(assert_fail) ( Bool isCore, const HChar* expr, const HChar* file,
       bugs_to   = VG_(details).bug_reports_to;
    }
 
-   if (VG_(clo_xml))
-      VG_(printf_xml)("</valgrindoutput>\n");
-
    // Treat vg_assert2(0, "foo") specially, as a panicky abort
    if (VG_STREQ(expr, "0")) {
       VG_(printf)("\n%s: %s:%d (%s): the 'impossible' happened.\n",
@@ -567,8 +568,6 @@ __attribute__ ((noreturn))
 static void panic ( const HChar* name, const HChar* report, const HChar* str,
                     const UnwindStartRegs* startRegs )
 {
-   if (VG_(clo_xml))
-      VG_(printf_xml)("</valgrindoutput>\n");
    VG_(printf)("\n%s: the 'impossible' happened:\n   %s\n", name, str);
    report_and_quit(report, startRegs);
 }

@@ -12,7 +12,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -21285,7 +21285,7 @@ dis_vector_logical_mask_bits ( UInt prefix, UInt theInstr, UInt opc2,
                                   ) ) ) );
 
          assign( clz[0],
-                 unop( Iop_Clz64,
+                 unop( Iop_ClzNat64,
                        mkexpr( extracted_bits[0] ) ) );
 
          assign( extracted_bits[1],
@@ -21300,7 +21300,7 @@ dis_vector_logical_mask_bits ( UInt prefix, UInt theInstr, UInt opc2,
                                       mkexpr( cnt_extract_bits[1] )
                                   ) ) ) );
          assign( clz[1],
-                 unop( Iop_Clz64,
+                 unop( Iop_ClzNat64,
                        mkexpr( extracted_bits[1] ) ) );
 
          putVReg( vRT_addr, binop( Iop_64HLtoV128,

@@ -12,7 +12,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -100,6 +100,7 @@ typedef uint32_t vki_u32;
 
 #include <fcntl.h>
 #define VKI_SEEK_SET SEEK_SET
+#define VKI_AT_SYMLINK_NOFOLLOW AT_SYMLINK_NOFOLLOW
 
 
 #include <limits.h>

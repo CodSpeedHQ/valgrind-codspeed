@@ -12,7 +12,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -632,9 +632,9 @@ UInt vex_sprintf ( HChar* buf, const HChar *format, ... )
 /*--- Misaligned memory access support                  ---*/
 /*---------------------------------------------------------*/
 
-UInt read_misaligned_UInt_LE ( void* addr )
+UInt read_misaligned_UInt_LE ( const void* addr )
 {
-   UChar* p = (UChar*)addr;
+   const UChar* p = addr;
    UInt   w = 0;
    w = (w << 8) | p[3];
    w = (w << 8) | p[2];
@@ -643,9 +643,9 @@ UInt read_misaligned_UInt_LE ( void* addr )
    return w;
 }
 
-ULong read_misaligned_ULong_LE ( void* addr )
+ULong read_misaligned_ULong_LE ( const void* addr )
 {
-   UChar* p = (UChar*)addr;
+   const UChar* p = addr;
    ULong  w = 0;
    w = (w << 8) | p[7];
    w = (w << 8) | p[6];

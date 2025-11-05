@@ -8,7 +8,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -250,6 +250,10 @@ static __inline__ unsigned bitsof_irtype(IRType type)
    return type == Ity_I1 ? 1 : sizeof_irtype(type) * 8;
 }
 
+static __inline__ int host_is_big_endian(void)
+{
+   return ((*(UShort *)(&(UInt){ 0x11223344 })) == 0x1122);
+}
 
 /* Exported variables */
 extern int verbose;

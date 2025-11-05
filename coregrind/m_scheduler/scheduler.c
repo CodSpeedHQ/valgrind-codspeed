@@ -12,7 +12,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -1982,7 +1982,7 @@ Int print_client_message( ThreadId tid, const HChar *format,
       VG_(get_and_pp_StackTrace)( tid, VG_(clo_backtrace_size) );
    
    if (VG_(clo_xml))
-      VG_(printf_xml)( "</clientmsg>\n" );
+      VG_(printf_xml)( "</clientmsg>\n\n" );
 
    return count;
 }
@@ -2145,8 +2145,12 @@ void do_client_request ( ThreadId tid )
 	 info->tl___builtin_vec_delete = VG_(tdict).tool___builtin_vec_delete;
 	 info->tl___builtin_vec_delete_aligned = VG_(tdict).tool___builtin_vec_delete_aligned;
 	 info->tl_malloc_usable_size   = VG_(tdict).tool_malloc_usable_size;
-
+#if defined(VGO_linux) || defined(VGO_solaris)
 	 info->mallinfo                = VG_(mallinfo);
+#endif
+#if defined(VGO_linux)
+	 info->mallinfo2               = VG_(mallinfo2);
+#endif
 	 info->clo_trace_malloc        = VG_(clo_trace_malloc);
          info->clo_realloc_zero_bytes_frees    = VG_(clo_realloc_zero_bytes_frees);
 

@@ -12,7 +12,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -37,7 +37,7 @@
 #include "libvex_basictypes.h"
 
 /* VEX can sometimes generate code which returns to the dispatcher
-   with the guest state pointer set to VEX_TRC_JMP_EMWARN or 
+   with the guest state pointer set to VEX_TRC_JMP_EMWARN or
    VEX_TRC_JMP_EMFAIL.  This means that VEX is trying to tell Valgrind
    something noteworthy about emulation progress. For example, that Valgrind
    is doing imprecise emulation in some sense.  The guest's pseudo-register
@@ -67,16 +67,16 @@ typedef
 
       /* unmasking SSE FP exceptions is not supported */
       EmWarn_X86_sseExns,
-      
+
       /* setting mxcsr.fz is not supported */
       EmWarn_X86_fz,
-      
+
       /* setting mxcsr.daz is not supported */
       EmWarn_X86_daz,
 
       /* settings to %eflags.ac (alignment check) are noted but ignored */
       EmWarn_X86_acFlag,
-      
+
       /* unmasking PPC32/64 FP exceptions is not supported */
       EmWarn_PPCexns,
 
@@ -88,6 +88,16 @@ typedef
          which requires the floating point extension facility. But that
          facility is not available on this host */
       EmWarn_S390X_fpext_rounding,
+
+      /* Various BFP insns have an M4 field containing the
+         IEEE-inexact-exception (XxC) control bit. That bit cannot me modelled
+         in VEX and is expected to be zero. */
+      EmWarn_S390X_XxC_not_zero,
+
+      /* Various DFP insns have an M4 field containing the
+         IEEE-invalid-operation (XiC) control bit. That bit cannot me modelled
+         in VEX and is expected to be zero. */
+      EmWarn_S390X_XiC_not_zero,
 
       /* stfle insn is not supported on this host */
       EmFail_S390X_stfle,

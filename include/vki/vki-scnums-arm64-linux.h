@@ -13,7 +13,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -325,6 +325,7 @@
 #define __NR_statx 291
 #define __NR_io_pgetevents 292
 #define __NR_rseq 293
+#define __NR_futex_waitv 449
 
 #undef __NR_syscalls
 #define __NR_syscalls 294

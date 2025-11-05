@@ -1,23 +1,221 @@
-Release 3.25.1 (20 May 2025)
+Release 3.26.0 (24 Oct 2025)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-This point release contains only bug fixes.
+This release supports X86/Linux, AMD64/Linux, ARM32/Linux, ARM64/Linux,
+PPC32/Linux, PPC64BE/Linux, PPC64LE/Linux, S390X/Linux, MIPS32/Linux,
+MIPS64/Linux, RISCV64/Linux, ARM/Android, ARM64/Android, MIPS32/Android,
+X86/Android, X86/Solaris, AMD64/Solaris, AMD64/MacOSX 10.12, X86/FreeBSD,
+AMD64/FreeBSD and ARM64/FreeBSD There is also preliminary support for
+X86/macOS 10.13, AMD64/macOS 10.13 and nanoMIPS/Linux.
+
+* ==================== CORE CHANGES ===================
+
+* Upgrade to the GNU General Public License version 3.
+
+* Control building documentation. When using make dist set the
+  Makefile BUILD_DOCS to none, all or html. none, does not build any
+  documentation.  all, builds all documentation. html, builds HTML
+  docs but skips building PDFs. See also README_DEVELOPERS.
+
+* New VEX API function LibVEX_set_VexControl
+
+* The deprecated IROps: Iop_Clz32/64 and Iop_Ctz32/64 have been removed
+
+* The Linux Test Project (LTP) integration has been updated to
+  v20250930. The test output has been made compatible with bunsen.
+  Various issues with the linux syscall wrappers have been fixed.
+
+  New Linux syscall wrappers for: cachestat, futex_waitv, listmount,
+  mount_setattr, mseal, quotactl_fd, remap_file_pages, setdomainname,
+  statmount, swapoff, swapon, sysfs and ustat.
+
+* --modify-fds=yes has been added. It acts like --modify-fds=high (the
+  highest available file descriptor is returned first) except when
+  when the lowers stdin/stdout/stderr (file descriptors 0, 1, 2) are
+  available. With --modify-fds=yes 0, 1 or 2 are always returned first
+  when still available before higher file descriptor numbers are.
+
+* With --xml=yes log output protocol 6 is now always used (unlike
+  protocol 5 which was only used with--track-fds). The main difference
+  is that the xml output now contains error summaries. See also
+  xml-output-protocol6.txt.
+
+* Add "bad" option for --track-fds. When --track-fds=bad is specified,
+  do not produce errors about unclosed file descriptors at program
+  exit. Only produce errors for bad file descriptor usage, either
+  double close or use of file descriptor that is (no longer) valid.
+
+* vgdb will now handle the qExecAndArgs packet.
+
+* DWARF inlined subroutine handling has been rewritten to work cross
+  compile units. This should get rid of backtraces with
+  "UnknownInlinedFun".
+
+* ================== PLATFORM CHANGES =================
+
+FreeBSD 15 (which is expected to ship in December 2025, after
+Valgrind 3.26 is released) contains a change to ptrace that affects
+use of Valgrind with vgdb. This impacts the mechanism that vgdb
+uses to interrupt Valgrind if all threads are blocked and you want
+to get back to the gdb prompt by hitting ctrl-c. This mechanism
+is no longer reliable. On arm64 Valgrind will crash with an assert.
+On amd64 syscalls may give spurious and incorrect return codes.
+
+There is a workaround. Run the following command (as root).
+
+ sysctl debug.ptrace_attach_transparent=0
+
+ See also
+ https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=290008
+
+* ==================== TOOL CHANGES ===================
+
+* There is a new utility script, "vgstack". It has two
+  option, -h for minimal help, and -v for the version information.
+  In normal use pass it the PID of a running Valgrind process
+  and it will perform a vgdb attach and print the backtrace(s)
+  of the guest executable.
+
+* Memcheck handling of aligned allocation functions with a
+  size of zero has changed.
+
+  Firstly, 'free_aligned_sized' with a size of
+  zero is no longer considered an error. This was intended so
+  that deallocation had the same behaviour as allocation. In
+  practice, platforms that allow aligned allocation with a
+  size of zero will already generate an error at allocation.
+  Other platforms will get an 'Invalid free' error. The case
+  where the allocation and deallocation sizes are different
+  with the deallocation size being zero is already covered by
+  "Mismatched [alloc/dealloc] size" errors.
+
+  Secondly, the three C aligned allocation functions memalign,
+  aligned_alloc and posix_memalign have a different error
+  message if used with a size of zero. Previously the error
+  was "[function] invalid size value: [number]". This was an
+  overstatement of the issue. The problem is that such usage
+  is not portable across platforms. memalign and aligned_alloc
+  are poorly documented, saying things like "Behavior is undefined
+  if size is not an integral multiple of alignment.". Clearly
+  this does not include negative integers though it does not say
+  so explicitly. Does that include zero?  posix_memalign is well documented
+  but says that using a size of 0 is implementation-defined. These
+  functions now produce an error
+  "Unsafe allocation with size of zero is implementation-defined".
+
+  The associated suppression name has also changed from "BadSize" to
+  "UnsafeZeroSize".
+
+  Checks for C23 free_sized and free_aligned_sized have been added to
+  Linux. Almost no libraries support these functions yet, with
+  the exception being Google tcmalloc.
 
 * ==================== FIXED BUGS ====================
 
-The following bugs have been fixed or resolved in this point release.
+The following bugs have been fixed or resolved.  Note that "n-i-bz"
+stands for "not in bugzilla" -- that is, a bug that was reported to us
+but never got a bugzilla entry.  We encourage you to file bugs in
+bugzilla (https://bugs.kde.org/enter_bug.cgi?product=valgrind) rather
+than mailing the developers (or mailing lists) directly -- bugs that
+are not entered into bugzilla tend to get forgotten about or ignored.
 
+286849  [PATCH] Interceptors for new/delete on Darwin were erroneously
+        commented out in r12043
+306098  s390x: Alternate opcode form for convert to/from fixed and friends
+309100  s390x: Testcases for extended BFP
+309554  Wrap syscall remap_file_pages (216)
+331311  Valgrind shows open files in /proc/self/fd that don't work for the process
+338803  Handling of dwz debug alt files or cross-CU is broken
+368791  Handle swapon and swapoff syscalls as linux generic
+369030  Wrap linux syscall: 171 (setdomainname)
+388526  Inconsistent severity in message text: "WARNING: Serious error"
+418756  MAP_FIXED_NOREPLACE mmap flag unsupported
+454276  Some IPC syscalls is missing for x86 linux
+476465  AArch64 ARMv8.3 LDAPR/LDAPRH/LDAPRB instructions not supported
+493430  Review all syscalls that use or return (new) file descriptors
+493434  Add --track-fds=bad mode (no "leak" tracking)
+501741  syscall cachestat not wrapped
+502359  Add --modify-fds=yes option
+502968  Wrap linux specific syscalls 457 (listmount) and 458 (statmount)
 503098  Incorrect NAN-boxing for float registers in RISC-V
+503241  s390x: Support z17 changes to the NNPA instruction
 503641  close_range syscalls started failing with 3.25.0
+503677  duplicated-cond compiler warning in dis_RV64M
+503817  s390x: fix 'ordered comparison of pointer with integer zero' compiler warnings
 503914  mount syscall param filesystemtype may be NULL
+503969  Make test results of make ltpchecks compatible with bunsen
+504101  Add a "vgstack" script
 504177  FILE DESCRIPTORS banner shows when closing some inherited fds
 504265  FreeBSD: missing syscall wrappers for fchroot and setcred
+504341  Valgrind killed by LTP syscall testcase setrlimit05
 504466  Double close causes SEGV
+504904  Hide "bad act handler address" warnings when -q (quiet) flag is set
+504909  Hide "Bad oldset address" warnings when -q (quiet) flag is set
+504919  Hide "client tried to modify addresses" warnings when -q (quiet) set
+504936  Add FreeBSD amd64 sysarch subcommands AMD64_SET_TLSBASE and
+        AMD64_GET_TLSBASE
+505228  Wrap linux specific mseal syscall
+505673  Valgrind crashes with an internal error and SIGBUS when
+        the guest tries to open its own file with O_WRONLY|O_CREAT|O_TRUNC
+506076  unimplemented fcntl command: 1028 (F_CREATED_QUERY)
+506499  Unhandled syscall 592 (exterrctl - FreeBSD
+506795  Better report which clone flags are problematic
+506806  Fix execveat() with AT_FDCWD and relative path
+506813  The execveat wrapper needs to do more checking
+506816  futex2, futex_waitv WARNING: unhandled amd64-linux syscall: 449
+506910  openat2 with RESOLVE_NO_MAGICLINKS succeeds on /proc/self/exe
+506928  Wrap (deprecated) linux specific ustat syscall
+506929  Wrap (deprecated) linux sysfs syscall
+506930  valgrind allows SIGKILL being reset to SIG_DFL
+506967  Implement and override mallinfo2
+506970  mmap needs an EBADF fd_allowed check
+507033  Remove deprecated Iop_Clz32/64 and Iop_Ctz32/64
+507173  s390x: Crash when constant folding is disabled
+507188  memcheck with track-fds=yes on x86 with popen: Assertion
+507720  Review syscalls returning file descriptors (other platforms)
+507721  Wire up illumos and Solaris mallinfo
+507853  faccessat and faccessat2 should handle AT_FDCWD and absolute paths
+507866  fanotify_mark dirfd isn't checked
+507867  perf_event_open group_fd isn't checked
+507868  futimesat doesn't handle AT_FDCWD
+507869  Various at syscalls don't check dirfd argument
+507873  Make fchmodat and fchmodat2 syscall wrappers accept AT_FDCWD
+507897  Allow for patching LTP sources
+507970  -Wcalloc-transposed-args warnings in valgrind-di-server.c
+508027  Fix mips32 FTBFS
+508029  Review the vmsplice syscall wrapper
+508030  Add several missing syscall hooks to ppc64-linux
+508093  VALGRIND_CLO_CHANGE does not update vex_control
+508145  ppc64le needs ld.so hardwire for strcmp
+508154  PRE(sys_fchownat) not handling VKI_AT_FDCWD
+508638  Self-hosting not working on FreeBSD
+508777  amd64-linux: add minimal scalar test
+508778  syscall-wrapper waitid warns about infop=null
+508779  PRE(sys_prlimit64): reorder check for memory validity
+508869  x86-linux: simplify scalar test output
+508958  FreeBSD: add getgroups and setgroups wrappers
+509103  Fix tests/arm64/bug484935.c build with "-O2 -flto -ffat-lto-objects"
+509107  memcheck/tests/duplicate_align_size_errors.cpp fails
+509139  Update BadSize error messages
+509258  FreeBSD: add jail_attach_jd and jail_remove_jd syscall wrappers
+509406  FreeBSD 15 issues
+509517  s390x: Even/odd lane confusion in various vector insns
+509566  Wrap amd64-linux syscall: 442 (mount_setattr)
+509572  s390x: Overhaul BFP testsuite
+509590  Run the LTP tests with LTP_QUIET
+509567  unhandled amd64-linux syscall: 443 (quotactl_fd)
+509642  Add missing ppc64-linux syswraps
+509643  Add missing s390x-linux syswraps
+510169  Update the LTP version in valgrind testsuite to 20250930
+510292  Silence false positive failure of LTP munmap01
+510436  Don't warn about fcntl F_GETFD with --track-fds
+510694  Handle qExecAndArgs remote protocol packet
 
 To see details of a given bug, visit
   https://bugs.kde.org/show_bug.cgi?id=XXXXXX
 where XXXXXX is the bug number as listed above.
 
+(3.26.0.RC1: 17 Oct 2025)
 
 Release 3.25.0 (25 Apr 2025)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -466,7 +664,7 @@ are not entered into bugzilla tend to get forgotten about or ignored.
 471311  gdb --multi mode stdout redirecting to stderr
 471807  Add support for lazy reading and downloading of DWARF debuginfo
 472219  Syscall param ppoll(ufds.events) points to uninitialised byte(s)
-472875  none/tests/s390x/dfp-1 failure 
+472875  none/tests/s390x/dfp-1 failure
 472963  Broken regular expression in configure.ac
 473604  Fix bug472219.c compile failure with Clang 16
 473677  make check compile failure with Clang 16 based on GCC 13.x
@@ -656,7 +854,7 @@ are not entered into bugzilla tend to get forgotten about or ignored.
 444568  drd/tests/pth_barrier_thr_cr fails on Fedora 38
 445743  "The impossible happened: mutex is locked simultaneously by two threads"
         while using mutexes with priority inheritance and signals
-449309  Missing loopback device ioctl(s) 
+449309  Missing loopback device ioctl(s)
 459476  vgdb: allow address reuse to avoid "address already in use" errorsuse" errors
 460356  s390: Sqrt32Fx4 -- cannot reduce tree
 462830  WARNING: unhandled amd64-freebsd syscall: 474
@@ -733,7 +931,7 @@ are not entered into bugzilla tend to get forgotten about or ignored.
 453055  shared_timed_mutex drd test fails with "Lock shared failed" message
 453602  Missing command line option to enable/disable debuginfod
 452802  Handle lld 9+ split RW PT_LOAD segments correctly
-454040  s390x: False-positive memcheck:cond in memmem on arch13 systems 
+454040  s390x: False-positive memcheck:cond in memmem on arch13 systems
 456171  [PATCH] FreeBSD: Don't record address errors when accessing the 'kern.ps_strings' sysctl struct
 n-i-bz  Implement vgdb invoker on FreeBSD
 458845  PowerPC: The L field for the dcbf and sync instruction should be
@@ -852,6 +1050,10 @@ are not entered into bugzilla tend to get forgotten about or ignored.
 451626  Syscall param bpf(attr->raw_tracepoint.name) points to unaddressable byte(s)
 451827  [ppc64le] VEX temporary storage exhausted with several vbpermq instructions
 451843  valgrind fails to start on a FreeBSD system which enforces W^X
+495483  Control building documentation via BUILD_DOCS
+506211  Constant folding improvements
+506453  Unexpected behaviour with IR injection and vex-guest-chase=yes
+509157  riscv64: Shift instructions can behave wrong
 
 To see details of a given bug, visit
   https://bugs.kde.org/show_bug.cgi?id=XXXXXX

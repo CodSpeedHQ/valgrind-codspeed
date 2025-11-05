@@ -11,7 +11,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -20,9 +20,7 @@
    General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
-   02110-1301, USA.
+   along with this program; if not, see <http://www.gnu.org/licenses/>.
 
    The GNU General Public License is contained in the file COPYING.
 */
@@ -815,7 +813,7 @@ static HReg iselWordExpr_R_wrk(ISelEnv * env, IRExpr * e)
                return r_dst;
             }
 
-            case Iop_Clz32: {
+            case Iop_ClzNat32: {
                HReg r_dst = newVRegI(env);
                HReg r_src = iselWordExpr_R(env, e->Iex.Unop.arg);
                addInstr(env, NANOMIPSInstr_Unary(NMun_CLZ, r_dst, r_src));

@@ -13,7 +13,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -1118,8 +1118,10 @@ s390_insn_map_regs(HRegRemap *m, s390_insn *insn)
       break;
 
    case S390_INSN_COND_MOVE:
-      insn->variant.cond_move.dst = lookupHRegRemap(m, insn->variant.cond_move.dst);
-      s390_opnd_RMI_map_regs(m, &insn->variant.cond_move.src);
+      if (insn->variant.cond_move.cond != S390_CC_NEVER) {
+         insn->variant.cond_move.dst = lookupHRegRemap(m, insn->variant.cond_move.dst);
+         s390_opnd_RMI_map_regs(m, &insn->variant.cond_move.src);
+      }
       break;
 
    case S390_INSN_LOAD_IMMEDIATE:
@@ -5813,7 +5815,6 @@ static UChar*
 s390_emit_VCEQ(UChar *p, UChar v1, UChar v2, UChar v3, UChar m4)
 {
    if (UNLIKELY(vex_traceflags & VEX_TRACE_ASM))
-      /* fixs390: m5 = 0  --> condition code not set */
       S390_DISASM(XMNM("vceq", vch_like_disasm), VR(v1), VR(v2), VR(v3), MASK(m4), MASK(0));
 
    return emit_VRR_VVVM(p, 0xE700000000f8ULL, v1, v2, v3, m4);
@@ -5844,7 +5845,6 @@ static UChar *
 s390_emit_VPKS(UChar *p, UChar v1, UChar v2, UChar v3, UChar m4)
 {
    if (UNLIKELY(vex_traceflags & VEX_TRACE_ASM))
-      /* fixs390: m5 = 0  --> condition code not set */
       S390_DISASM(XMNM("vpks", vch_like_disasm), VR(v1), VR(v2), VR(v3), MASK(m4), MASK(0));
 
    return emit_VRR_VVVM(p, 0xE70000000097ULL, v1, v2, v3, m4);
@@ -5855,7 +5855,6 @@ static UChar *
 s390_emit_VPKLS(UChar *p, UChar v1, UChar v2, UChar v3, UChar m4)
 {
    if (UNLIKELY(vex_traceflags & VEX_TRACE_ASM))
-      /* fixs390: m5 = 0  --> condition code not set */
       S390_DISASM(XMNM("vpkls", vch_like_disasm), VR(v1), VR(v2), VR(v3), MASK(m4), MASK(0));
 
    return emit_VRR_VVVM(p, 0xE70000000095ULL, v1, v2, v3, m4);
@@ -5952,7 +5951,6 @@ static UChar *
 s390_emit_VCH(UChar *p, UChar v1, UChar v2, UChar v3, UChar m4)
 {
    if (UNLIKELY(vex_traceflags & VEX_TRACE_ASM))
-      /* fixs390: m5 = 0  --> condition code not set */
       S390_DISASM(XMNM("vch", vch_like_disasm), VR(v1), VR(v2), VR(v3), MASK(m4), MASK(0));
 
    return emit_VRR_VVVM(p, 0xE700000000fbULL, v1, v2, v3, m4);
@@ -5962,7 +5960,6 @@ static UChar *
 s390_emit_VCHL(UChar *p, UChar v1, UChar v2, UChar v3, UChar m4)
 {
    if (UNLIKELY(vex_traceflags & VEX_TRACE_ASM))
-      /* fixs390: m5 = 0  --> condition code not set */
       S390_DISASM(XMNM("vchl", vch_like_disasm), VR(v1), VR(v2), VR(v3), MASK(m4), MASK(0));
 
    return emit_VRR_VVVM(p, 0xE700000000f9ULL, v1, v2, v3, m4);
@@ -6086,21 +6083,21 @@ s390_emit_VML(UChar *p, UChar v1, UChar v2, UChar v3, UChar m4)
 }
 
 static UChar *
-s390_emit_VME(UChar *p, UChar v1, UChar v2, UChar v3, UChar m4)
+s390_emit_VMO(UChar *p, UChar v1, UChar v2, UChar v3, UChar m4)
 {
    if (UNLIKELY(vex_traceflags & VEX_TRACE_ASM))
-      S390_DISASM(XMNM("vme", va_like_disasm), VR(v1), VR(v2), VR(v3), MASK(m4));
+      S390_DISASM(XMNM("vmo", va_like_disasm), VR(v1), VR(v2), VR(v3), MASK(m4));
 
-   return emit_VRR_VVVM(p, 0xE700000000a6ULL, v1, v2, v3, m4);
+   return emit_VRR_VVVM(p, 0xE700000000a7ULL, v1, v2, v3, m4);
 }
 
 static UChar *
-s390_emit_VMLE(UChar *p, UChar v1, UChar v2, UChar v3, UChar m4)
+s390_emit_VMLO(UChar *p, UChar v1, UChar v2, UChar v3, UChar m4)
 {
    if (UNLIKELY(vex_traceflags & VEX_TRACE_ASM))
-      S390_DISASM(XMNM("vmle", va_like_disasm), VR(v1), VR(v2), VR(v3), MASK(m4));
+      S390_DISASM(XMNM("vmlo", va_like_disasm), VR(v1), VR(v2), VR(v3), MASK(m4));
 
-   return emit_VRR_VVVM(p, 0xE700000000a4ULL, v1, v2, v3, m4);
+   return emit_VRR_VVVM(p, 0xE700000000a5ULL, v1, v2, v3, m4);
 }
 
 static UChar *
@@ -8211,8 +8208,8 @@ s390_insn_as_string(const s390_insn *insn)
       case S390_VEC_INT_MUL_HIGHS:    op = "v-vintmulhis"; break;
       case S390_VEC_INT_MUL_HIGHU:    op = "v-vintmulhiu"; break;
       case S390_VEC_INT_MUL_LOW:      op = "v-vintmullo"; break;
-      case S390_VEC_INT_MUL_EVENS:    op = "v-vintmulevens"; break;
-      case S390_VEC_INT_MUL_EVENU:    op = "v-vintmulevenu"; break;
+      case S390_VEC_INT_MUL_ODDS:     op = "v-vintmulodds"; break;
+      case S390_VEC_INT_MUL_ODDU:     op = "v-vintmuloddu"; break;
       case S390_VEC_ELEM_SHL_V:       op = "v-velemshl"; break;
       case S390_VEC_ELEM_SHRA_V:      op = "v-vshrav"; break;
       case S390_VEC_ELEM_SHRL_V:      op = "v-vshrlv"; break;
@@ -9261,7 +9258,10 @@ s390_widen_emit(UChar *buf, const s390_insn *insn, UInt from_size,
 
       case 2:
          if (insn->size == 4) {  /* 16 --> 32 */
-            return s390_emit_LHI(buf, r1, value);
+            if (sign_extend)
+               return s390_emit_LHI(buf, r1, value);
+            else
+               return s390_emit_IILF(buf, r1, value);
          }
          if (insn->size == 8) {  /* 16 --> 64 */
             if (sign_extend)
@@ -11523,10 +11523,10 @@ s390_insn_vec_binop_emit(UChar *buf, const s390_insn *insn)
          return s390_emit_VMLH(buf, v1, v2, v3, s390_getM_from_size(size));
       case S390_VEC_INT_MUL_LOW:
          return s390_emit_VML(buf, v1, v2, v3, s390_getM_from_size(size));
-      case S390_VEC_INT_MUL_EVENS:
-         return s390_emit_VME(buf, v1, v2, v3, s390_getM_from_size(size));
-      case S390_VEC_INT_MUL_EVENU:
-         return s390_emit_VMLE(buf, v1, v2, v3, s390_getM_from_size(size));
+      case S390_VEC_INT_MUL_ODDS:
+         return s390_emit_VMO(buf, v1, v2, v3, s390_getM_from_size(size));
+      case S390_VEC_INT_MUL_ODDU:
+         return s390_emit_VMLO(buf, v1, v2, v3, s390_getM_from_size(size));
       case S390_VEC_ELEM_SHL_V:
          return s390_emit_VESLV(buf, v1, v2, v3, s390_getM_from_size(size));
       case S390_VEC_ELEM_SHRA_V:

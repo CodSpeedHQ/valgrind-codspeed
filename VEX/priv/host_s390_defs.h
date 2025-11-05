@@ -12,7 +12,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -100,13 +100,10 @@ typedef enum {
 } s390_opnd_t;
 
 
-/* Naming convention for operand locations:
-   R    - GPR
-   I    - immediate value
-   M    - memory (any Amode may be used)
-*/
-
-/* An operand that is either in a GPR or is addressable via a BX20 amode */
+/* An operand that is either
+   R  located in a GPR   or
+   M  located in memory and addressable via any amode   or
+   I  an immediate integer constant */
 typedef struct {
    s390_opnd_t tag;
    union {
@@ -385,8 +382,8 @@ typedef enum {
    S390_VEC_INT_MUL_HIGHS,
    S390_VEC_INT_MUL_HIGHU,
    S390_VEC_INT_MUL_LOW,
-   S390_VEC_INT_MUL_EVENS,
-   S390_VEC_INT_MUL_EVENU,
+   S390_VEC_INT_MUL_ODDS,
+   S390_VEC_INT_MUL_ODDU,
    S390_VEC_ELEM_SHL_V,
    S390_VEC_ELEM_SHRA_V,
    S390_VEC_ELEM_SHRL_V,
@@ -706,8 +703,18 @@ typedef struct {
          s390_amode   *guest_IA;
       } xassisted;
       struct {
-         /* fixs390: I don't think these are really needed
-            as the gsp and the offset are fixed  no ? */
+         /* Note: these fields are needed. Here's why:
+            These fields are amodes for accessing the host_EvC_COUNTER and
+            host_EvC_FAILADDR fields in the guest state.
+            When guest and host architecture are both s390x then we know that
+            the displacement in evcheck::counter is
+            offsetof(VexGuestS390XState, host_EvC_COUNTER) and likewise for
+            the displacement in evcheck::fail_addr. There would be no point
+            to build these amodes in the first place because we could just
+            hardwire the displacements in s390_insn_evcheck_emit.
+            However in a multi-arch setting the amodes point to the
+            host_EvC_COUNTER/FAILADDR fields in a *different* guest state and
+            those offsets are not known. So we do need to build the amodes. */
          s390_amode   *counter;    /* dispatch counter */
          s390_amode   *fail_addr;
       } evcheck;

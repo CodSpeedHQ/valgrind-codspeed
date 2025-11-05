@@ -12,7 +12,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -110,9 +110,8 @@ extern Int VG_(mkstemp) ( const HChar* part_of_name, /*OUT*/HChar* fullname );
    return if the working directory couldn't be found.  */
 extern void VG_(record_startup_wd) ( void );
 
-#if defined(VGO_freebsd)
+/* Resolves a path to a canonical absolute path */
 extern Bool VG_(realpath)(const HChar *path, HChar *resolved);
-#endif
 
 #endif   // __PUB_CORE_LIBCFILE_H
 

@@ -12,7 +12,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -170,8 +170,11 @@ typedef
          been interrupted by a signal. */
       ULong guest_IP_AT_SYSCALL;
 
-      /* Padding to make it have an 16-aligned size */
-      ULong pad3;
+      /* Used on FreeBSD as part of a mechanism to allow signal handlers
+           to use TLS. */
+      ULong guest_TLSBASE;
+
+      /* Add padding here to make it have an 16-aligned size */
    }
    VexGuestAMD64State;
 

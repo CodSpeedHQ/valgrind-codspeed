@@ -24,7 +24,7 @@ if VGCONF_ARCHS_INCLUDE_ARM64
 SUBDIRS += arm64
 endif
 if VGCONF_ARCHS_INCLUDE_S390X
-SUBDIRS += s390x
+SUBDIRS += s390x s390x/disasm-test
 endif
 if VGCONF_ARCHS_INCLUDE_MIPS32
 SUBDIRS += mips32
@@ -77,7 +77,8 @@ if VGCONF_PLATFORMS_INCLUDE_X86_FREEBSD
 SUBDIRS += x86-freebsd
 endif
 
-DIST_SUBDIRS = x86 amd64 ppc32 ppc64 arm arm64 s390x mips32 mips64 nanomips \
+DIST_SUBDIRS = x86 amd64 ppc32 ppc64 arm arm64 s390x s390x/disasm-test \
+               mips32 mips64 nanomips \
                riscv64 linux darwin solaris freebsd amd64-linux x86-linux \
                amd64-darwin x86-darwin amd64-solaris x86-solaris x86-freebsd \
                scripts .
@@ -91,7 +92,8 @@ dist_noinst_SCRIPTS = \
 	filter_stderr \
 	filter_timestamp \
 	filter_xml \
-	allexec_prepare_prereq
+	allexec_prepare_prereq \
+	filter_sort
 
 noinst_HEADERS = fdleak.h
 
@@ -158,6 +160,7 @@ EXTRA_DIST = \
 	fdleak_fcntl.stderr.exp fdleak_fcntl.vgtest \
 	fdleak_fcntl_xml.stderr.exp fdleak_fcntl_xml.vgtest \
 	fdleak_ipv4.stderr.exp fdleak_ipv4.stdout.exp fdleak_ipv4.vgtest \
+	fdleak_ipv4_xml.stderr.exp-ppc64be \
 	fdleak_ipv4_xml.stderr.exp-ppc64le \
 	fdleak_ipv4_xml.stderr.exp fdleak_ipv4_xml.stdout.exp \
 	fdleak_ipv4_xml.vgtest fdleak_ipv4_xml.stderr.exp-nomain \
@@ -272,8 +275,10 @@ EXTRA_DIST = \
 	fdbaduse.stderr.exp fdbaduse.vgtest \
 	use_after_close.stderr.exp use_after_close.vgtest \
 	track_new.stderr.exp track_new.stdout.exp \
-	track_new.vgtest track_new.stderr.exp-illumos
-
+	track_new.vgtest track_new.stderr.exp-illumos \
+	track_yes.vgtest track_high.vgtest \
+	track_yes.stderr.exp track_high.stderr.exp \
+	track_bad.vgtest track_bad.stderr.exp
 
 check_PROGRAMS = \
 	args \
@@ -331,7 +336,9 @@ check_PROGRAMS = \
 	file_dclose \
 	fdbaduse \
         use_after_close \
-	track_new
+	track_new \
+	track_std \
+	track_bad
 
 if HAVE_STATIC_LIBC
 if ! VGCONF_OS_IS_LINUX

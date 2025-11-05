@@ -13,7 +13,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -409,6 +409,11 @@
 #define __NR_pkey_mprotect	386
 #define __NR_rseq		387
 #define __NR_io_pgetevents	388
+#define __NR_semtimedop		392
+#define __NR_semctl		394
+#define __NR_shmctl		396
+#define __NR_msgctl		402
+#define __NR_futex_waitv	449
 
 #endif /* __VKI_SCNUMS_PPC64_LINUX_H */
 

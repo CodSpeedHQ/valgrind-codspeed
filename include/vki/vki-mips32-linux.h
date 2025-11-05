@@ -11,7 +11,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -300,6 +300,7 @@ struct vki_sigcontext {
 #define VKI_MAP_LOCKED      0x8000          /* pages are locked */
 #define VKI_MAP_POPULATE    0x10000         /* populate (prefault) pagetables */
 #define VKI_MAP_NONBLOCK    0x20000         /* do not block on IO */
+#define VKI_MAP_FIXED_NOREPLACE	0x100000    /* fail EEXIST if fixed map fails */
 
 
 //----------------------------------------------------------------------

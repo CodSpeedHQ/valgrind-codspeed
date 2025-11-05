@@ -11,7 +11,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -2155,13 +2155,13 @@ static HReg iselWordExpr_R_wrk(ISelEnv * env, IRExpr * e)
             return r_dst;
          }
 
-         case Iop_Clz64:
+         case Iop_ClzNat64:
             vassert(mode64);
 	    /* fallthrough */
-         case Iop_Clz32: {
+         case Iop_ClzNat32: {
             HReg r_dst = newVRegI(env);
             HReg r_src = iselWordExpr_R(env, e->Iex.Unop.arg);
-            MIPSUnaryOp op = (op_unop == Iop_Clz64) ? Mun_DCLZ : Mun_CLZ;
+            MIPSUnaryOp op = (op_unop == Iop_ClzNat64) ? Mun_DCLZ : Mun_CLZ;
             addInstr(env, MIPSInstr_Unary(op, r_dst, r_src));
             return r_dst;
          }

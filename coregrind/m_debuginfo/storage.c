@@ -11,10 +11,12 @@
 
    Copyright (C) 2000-2017 Julian Seward 
       jseward@acm.org
+   Copyright (C) 2025 Mark J. Wielaard
+      mark@klomp.org
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -67,19 +69,12 @@ void ML_(symerr) ( const DebugInfo* di, Bool serious, const HChar* msg )
       return;
 
    if (serious) {
-
-      VG_(message)(Vg_DebugMsg, "WARNING: Serious error when "
-                                "reading debug info\n");
-      if (True || VG_(clo_verbosity) < 2) {
-         /* Need to show what the file name is, at verbosity levels 2
-            or below, since that won't already have been shown */
-         VG_(message)(Vg_DebugMsg, 
-                      "When reading debug info from %s:\n",
-                      (di && di->fsm.filename) ? di->fsm.filename
-                                               : "???");
-      }
+      VG_(message)(Vg_DebugMsg,
+                   "WARNING: Serious problem when reading debug info from %s:\n",
+                   (di && di->fsm.filename) ? di->fsm.filename : "???");
+      VG_(message)(Vg_DebugMsg,
+                   "WARNING: Valgrind will continue to execute but error messages may be degraded.\n");
       VG_(message)(Vg_DebugMsg, "%s\n", msg);
-
    } else { /* !serious */
 
       if (VG_(clo_verbosity) >= 2)
@@ -697,7 +692,7 @@ static void shrinkInlTab ( struct _DebugInfo* di )
 /* Top-level place to call to add a addr-to-inlined fn info. */
 void ML_(addInlInfo) ( struct _DebugInfo* di, 
                        Addr addr_lo, Addr addr_hi,
-                       const HChar* inlinedfn,
+                       UWord subprog,
                        UInt fndn_ix,
                        Int lineno, UShort level)
 {
@@ -705,9 +700,9 @@ void ML_(addInlInfo) ( struct _DebugInfo* di,
 
 #  define SHOWLINEINFO                                                  \
    VG_(message) (Vg_DebugMsg,                                           \
-                 "addInlInfo: fn %s inlined as addr_lo %#lx,addr_hi %#lx," \
+                 "addInlInfo: fn %lx inlined as addr_lo %#lx,addr_hi %#lx," \
                  "caller fndn_ix %u %s:%d\n",                           \
-                 inlinedfn, addr_lo, addr_hi, fndn_ix,                  \
+                 subprog, addr_lo, addr_hi, fndn_ix,                  \
                  ML_(fndn_ix2filename) (di, fndn_ix), lineno)
 
    /* Similar paranoia as in ML_(addLineInfo). Unclear if needed. */
@@ -737,7 +732,7 @@ void ML_(addInlInfo) ( struct _DebugInfo* di,
    // code resulting from inlining of inlinedfn:
    inl.addr_lo   = addr_lo;
    inl.addr_hi   = addr_hi;
-   inl.inlinedfn = inlinedfn;
+   inl.inlined.subprog = subprog;
    // caller:
    inl.fndn_ix   = fndn_ix;
    inl.lineno    = lineno;
@@ -747,6 +742,29 @@ void ML_(addInlInfo) ( struct _DebugInfo* di,
 
    addInl ( di, &inl );
 #  undef SHOWLINEINFO
+}
+
+void ML_(addSubprogram) ( struct _DebugInfo* di, DiSubprogram* sub )
+{
+   UInt          new_sz, i;
+   DiSubprogram* new_tab;
+
+   if (di->subtab_used == di->subtab_size) {
+      new_sz = 2 * di->subtab_size;
+      if (new_sz == 0) new_sz = 2560;
+      new_tab = ML_(dinfo_zalloc)( "di.storage.addSubprogram.1",
+                                   new_sz * sizeof(DiSubprogram) );
+      if (di->subtab != NULL) {
+         for (i = 0; i < di->subtab_used; i++)
+            new_tab[i] = di->subtab[i];
+         ML_(dinfo_free)(di->subtab);
+      }
+      di->subtab = new_tab;
+      di->subtab_size = new_sz;
+   }
+
+   di->subtab[di->subtab_used] = *sub;
+   di->subtab_used++;
 }
 
 DiCfSI_m* ML_(get_cfsi_m) (const DebugInfo* di, UInt pos)

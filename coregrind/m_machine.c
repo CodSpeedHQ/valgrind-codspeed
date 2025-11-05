@@ -11,7 +11,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -624,6 +624,7 @@ static UInt VG_(get_machine_model)(void)
       { "8562", VEX_S390X_MODEL_Z15 },
       { "3931", VEX_S390X_MODEL_Z16 },
       { "3932", VEX_S390X_MODEL_Z16 },
+      { "9175", VEX_S390X_MODEL_Z17 },
    };
 
    Int    model, n, fh;

@@ -16,11 +16,11 @@ AC_PREREQ(2.69)
 # Also set the (expected/last) release date here.
 # Do not forget to rerun ./autogen.sh
 m4_define([v_major_ver], [3])
-m4_define([v_minor_ver], [25])
-m4_define([v_micro_ver], [1])
+m4_define([v_minor_ver], [26])
+m4_define([v_micro_ver], [0])
 m4_define([v_suffix_ver], [])
 m4_define([v_suffix_ver], [codspeed])
-m4_define([v_rel_date], ["18 Oct 2025"])
+m4_define([v_rel_date], ["5 Nov 2025"])
 m4_define([v_version],
 	  m4_if(v_suffix_ver, [],
 		[v_major_ver.v_minor_ver.v_micro_ver],
@@ -36,7 +36,7 @@ AC_SUBST(VG_DATE, v_rel_date)
 
 AC_CONFIG_SRCDIR(coregrind/m_main.c)
 AC_CONFIG_HEADERS([config.h])
-AM_INIT_AUTOMAKE([foreign dist-bzip2 subdir-objects])
+AM_INIT_AUTOMAKE([foreign dist-bzip2 no-dist-gzip tar-ustar subdir-objects])
 
 AM_MAINTAINER_MODE
 
@@ -1994,6 +1994,54 @@ AC_LANG(C)
 
 AM_CONDITIONAL(HAVE_CXX17, test x$ac_have_cxx_17 = xyes)
 
+# Compiler may announce C++17 support as above but may lack
+# some features
+AC_MSG_CHECKING([that C++ compiler supports constexpr if])
+AC_LANG(C++)
+safe_CXXFLAGS=$CXXFLAGS
+CXXFLAGS=-std=c++17
+
+AC_COMPILE_IFELSE([AC_LANG_SOURCE([
+void f()
+{
+   if constexpr (true)
+      ;
+}
+])],
+[
+ac_have_constexpr_if=yes
+AC_MSG_RESULT([yes])
+], [
+ac_have_constexpr_if=no
+AC_MSG_RESULT([no])
+			])
+CXXFLAGS=$safe_CXXFLAGS
+AC_LANG(C)
+
+AM_CONDITIONAL(HAVE_CONSTEXPR_IF, test x$ac_have_constexpr_if = xyes)
+
+AC_MSG_CHECKING([that C++ compiler supports std::align_val_t])
+AC_LANG(C++)
+safe_CXXFLAGS=$CXXFLAGS
+CXXFLAGS=-std=c++17
+
+AC_COMPILE_IFELSE([AC_LANG_SOURCE([
+#include <new>
+std::align_val_t a;
+])],
+[
+ac_have_align_val_t=yes
+AC_MSG_RESULT([yes])
+], [
+ac_have_align_val_t=no
+AC_MSG_RESULT([no])
+			])
+CXXFLAGS=$safe_CXXFLAGS
+AC_LANG(C)
+
+AM_CONDITIONAL(HAVE_ALIGN_VAL_T, test x$ac_have_align_val_t = xyes)
+
+
 AC_MSG_CHECKING([that C++ compiler can include <thread> header file])
 AC_LANG(C++)
 safe_CXXFLAGS=$CXXFLAGS
@@ -2125,25 +2173,6 @@ AC_MSG_RESULT([no])
 ])
 
 AM_CONDITIONAL(HAVE_NR_IO_PGETEVENTS, [test x$ac_have_nr_io_pgetevents = xyes])
-
-safe_LIBS="$LIBS"
-LIBS="-laio"
-AC_MSG_CHECKING([for libaio])
-AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
-#include <libaio.h>
-]], [[
-io_context_t ctx;
-io_submit(ctx, 1, NULL);
-]])], [
-ac_have_libaio=yes
-AC_MSG_RESULT([yes])
-], [
-ac_have_libaio=no
-AC_MSG_RESULT([no])
-])
-
-AM_CONDITIONAL(HAVE_LIBAIO, [test x$ac_have_libaio = xyes])
-LIBS=$safe_LIBS
 
 #----------------------------------------------------------------------------
 # Checking for supported compiler flags.
@@ -2519,20 +2548,6 @@ AC_DEFUN([AC_GCC_WARNING_SUBST_NO],[
   CFLAGS=$safe_CFLAGS
 ])
 
-# A variation of the above for arguments that
-# take a value
-AC_DEFUN([AC_GCC_WARNING_SUBST_NO_VAL],[
-  AC_MSG_CHECKING([if gcc accepts -W$1=$2])
-  safe_CFLAGS=$CFLAGS
-  CFLAGS="-W$1=$2 -Werror"
-  AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[]], [[;]])], [
-  AC_SUBST([$3], [-Wno-$1])
-  AC_MSG_RESULT([yes])], [
-  AC_SUBST([$3], [])
-  AC_MSG_RESULT([no])])
-  CFLAGS=$safe_CFLAGS
-])
-
 # Convenience function. Like AC_GCC_WARNING_SUBST_NO, except it substitutes
 # -W$1  (instead of -Wno-$1).
 AC_DEFUN([AC_GCC_WARNING_SUBST],[
@@ -2576,8 +2591,9 @@ AC_GCC_WARNING_SUBST_NO([attributes], [FLAG_W_NO_ATTRIBUTES])
 AC_GCC_WARNING_SUBST_NO([unused-result], [FLAG_W_NO_UNUSED_RESULT])
 AC_GCC_WARNING_SUBST_NO([infinite-recursion], [FLAG_W_NO_INFINITE_RECURSION])
 AC_GCC_WARNING_SUBST_NO([deprecated], [FLAG_W_NO_DEPRECATED])
-
-AC_GCC_WARNING_SUBST_NO_VAL([alloc-size-larger-than], [1677216], [FLAG_W_NO_ALLOC_SIZE_LARGER_THAN])
+# OK for 32 and 64 bit
+AC_GCC_WARNING_SUBST_NO([alloc-size-larger-than=18446744073709551615], [FLAG_W_NO_ALLOC_SIZE_LARGER_THAN])
+AC_GCC_WARNING_SUBST_NO([alloc-size], [FLAG_W_NO_ALLOC_SIZE])
 
 AC_GCC_WARNING_SUBST([write-strings], [FLAG_W_WRITE_STRINGS])
 AC_GCC_WARNING_SUBST([empty-body], [FLAG_W_EMPTY_BODY])
@@ -2590,6 +2606,24 @@ AC_GCC_WARNING_SUBST([missing-parameter-type], [FLAG_W_MISSING_PARAMETER_TYPE])
 AC_GCC_WARNING_SUBST([logical-op], [FLAG_W_LOGICAL_OP])
 AC_GCC_WARNING_SUBST([enum-conversion], [FLAG_W_ENUM_CONVERSION])
 AC_GCC_WARNING_SUBST([implicit-fallthrough=2], [FLAG_W_IMPLICIT_FALLTHROUGH])
+
+# as above, C++ flags
+AC_DEFUN([AC_GXX_WARNING_SUBST_NO],[
+  AC_MSG_CHECKING([if g++ accepts -W$1])
+  safe_CXXFLAGS=$CXXFLAGS
+  CXXFLAGS="-W$1 -Werror"
+  AC_LANG_PUSH(C++)
+  AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[]], [[;]])], [
+                    AC_SUBST([$2], [-Wno-$1])
+  AC_LANG_POP()
+  AC_MSG_RESULT([yes])], [
+                AC_SUBST([$2], [])
+                AC_MSG_RESULT([no])])
+  CXXFLAGS=$safe_CXXFLAGS
+])
+
+AC_GXX_WARNING_SUBST_NO([missing-exception-spec], [FLAG_W_NO_MISSING_EXCEPTION_SPEC])
+AC_GXX_WARNING_SUBST_NO([implicit-exception-spec-mismatch], [FLAG_W_NO_IMPLICIT_EXCEPTION_SPEC_MISMATCH])
 
 # Does this compiler support -Wformat-security ?
 # Special handling is needed, because certain GCC versions require -Wformat
@@ -4944,6 +4978,12 @@ AC_CHECK_LIB([pthread], [pthread_create])
 AC_CHECK_LIB([rt], [clock_gettime])
 AC_CHECK_LIB([rt], [timer_delete])
 
+if test "$VGCONF_OS" = "solaris" ; then
+# for mallinfo
+saved_LDFLAGS="$LDFLAGS"
+LDFLAGS="$saved_LDFLAGS -lmalloc"
+fi
+
 AC_CHECK_FUNCS([     \
         aligned_alloc \
         clock_gettime\
@@ -4953,6 +4993,7 @@ AC_CHECK_FUNCS([     \
         getaddrinfo  \
         klogctl      \
         mallinfo     \
+        mallinfo2    \
         memchr       \
         memfd_create \
         memset       \
@@ -5009,8 +5050,13 @@ AC_CHECK_FUNCS([     \
         getrlimitusage \
         timer_delete \
         fchroot      \
-        setcred
+        setcred      \
+        exterrctl
         ])
+
+if test "$VGCONF_OS" = "solaris" ; then
+LDFLAGS="$saved_LDFLAGS"
+fi
 
 # AC_CHECK_LIB adds any library found to the variable LIBS, and links these
 # libraries with any shared object and/or executable. This is NOT what we
@@ -5071,6 +5117,8 @@ AM_CONDITIONAL([HAVE_FCHROOT],
                [test x$ac_cv_func_fchroot = xyes])
 AM_CONDITIONAL([HAVE_SETCRED],
                [test x$ac_cv_func_setcred = xyes])
+AM_CONDITIONAL([HAVE_EXTERRCTL],
+               [test x$ac_cv_func_exterrctl = xyes])
 
 if test x$VGCONF_PLATFORM_PRI_CAPS = xMIPS32_LINUX \
      -o x$VGCONF_PLATFORM_PRI_CAPS = xMIPS64_LINUX \
@@ -5327,6 +5375,28 @@ CFLAGS=$safe_CFLAGS
 
 AM_CONDITIONAL([HAVE_OPENMP], [test x$ac_have_openmp = xyes])
 
+safe_CFLAGS=$CFLAGS
+CFLAGS="$mflag_primary"
+safe_LIBS="$LIBS"
+LIBS="-laio"
+AC_MSG_CHECKING([for libaio])
+AC_LINK_IFELSE([AC_LANG_PROGRAM([[
+#include <libaio.h>
+]], [[
+io_context_t ctx;
+io_submit(ctx, 1, NULL);
+]])], [
+ac_have_libaio=yes
+AC_MSG_RESULT([yes])
+], [
+ac_have_libaio=no
+AC_MSG_RESULT([no])
+])
+
+AM_CONDITIONAL(HAVE_LIBAIO, [test x$ac_have_libaio = xyes])
+LIBS=$safe_LIBS
+CFLAGS=$safe_CFLAGS
+
 
 # Check for __builtin_popcount
 AC_MSG_CHECKING([for __builtin_popcount()])
@@ -5493,6 +5563,8 @@ AM_CONDITIONAL([HAVE_OPENAT2],
 
 # check for crypto
 
+safe_CFLAGS=$CFLAGS
+CFLAGS="$mflag_primary"
 safe_LIBS="$LIBS"
 LIBS="-lcrypto"
 AC_MSG_CHECKING([if platform has openssl crypto])
@@ -5509,6 +5581,7 @@ AC_LINK_IFELSE([AC_LANG_PROGRAM([[
   AC_MSG_RESULT([no])
 ])
 LIBS=$safe_LIBS
+CFLAGS=$safe_CFLAGS
 
 AM_CONDITIONAL([HAVE_OPENSSL],
                [test x$ac_have_openssl = xyes])
@@ -5691,9 +5764,7 @@ AC_CONFIG_FILES([
    docs/Makefile
    docs/xml/vg-entities.xml
    tests/Makefile
-   tests/vg_regtest
    perf/Makefile
-   perf/vg_perf
    gdbserver_tests/Makefile
    gdbserver_tests/solaris/Makefile
    include/Makefile
@@ -5718,6 +5789,7 @@ AC_CONFIG_FILES([
    memcheck/tests/amd64-solaris/Makefile
    memcheck/tests/x86-solaris/Makefile
    memcheck/tests/amd64-freebsd/Makefile
+   memcheck/tests/arm64-freebsd/Makefile
    memcheck/tests/x86-freebsd/Makefile
    memcheck/tests/ppc32/Makefile
    memcheck/tests/ppc64/Makefile
@@ -5758,6 +5830,7 @@ AC_CONFIG_FILES([
    none/tests/arm64/Makefile
    none/tests/s390x/Makefile
    none/tests/s390x/disasm-test/Makefile
+   none/tests/iropt-test/Makefile
    none/tests/mips32/Makefile
    none/tests/mips64/Makefile
    none/tests/nanomips/Makefile
@@ -5791,10 +5864,16 @@ AC_CONFIG_FILES([coregrind/link_tool_exe_darwin],
                 [chmod +x coregrind/link_tool_exe_darwin])
 AC_CONFIG_FILES([coregrind/link_tool_exe_solaris],
                 [chmod +x coregrind/link_tool_exe_solaris])
+AC_CONFIG_FILES([coregrind/vgstack],
+                [chmod +x coregrind/vgstack])
 AC_CONFIG_FILES([tests/filter_stderr_basic],
                 [chmod +x tests/filter_stderr_basic])
 AC_CONFIG_FILES([tests/filter_discards],
                 [chmod +x tests/filter_discards])
+AC_CONFIG_FILES([tests/vg_regtest],
+                [chmod +x tests/vg_regtest])
+AC_CONFIG_FILES([perf/vg_perf],
+                [chmod +x perf/vg_perf])
 AC_CONFIG_FILES([memcheck/tests/filter_stderr],
                 [chmod +x memcheck/tests/filter_stderr])
 AC_CONFIG_FILES([memcheck/tests/filter_dw4],

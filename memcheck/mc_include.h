@@ -13,7 +13,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -559,7 +559,7 @@ void MC_(record_illegal_mempool_error) ( ThreadId tid, Addr a );
 void MC_(record_freemismatch_error)    ( ThreadId tid, MC_Chunk* mc );
 void MC_(record_realloc_size_zero)     ( ThreadId tid, Addr a );
 void MC_(record_bad_alignment)         ( ThreadId tid, SizeT align, SizeT size, const HChar *msg);
-void MC_(record_bad_size)              ( ThreadId tid, SizeT align, const HChar *function);
+void MC_(record_unsafe_zero_size)      ( ThreadId tid);
 
 void MC_(record_overlap_error)  ( ThreadId tid, const HChar* function,
                                   Addr src, Addr dst, SizeT szB );

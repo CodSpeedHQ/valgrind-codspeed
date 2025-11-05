@@ -9,7 +9,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -48,12 +48,18 @@
 
 #define __NR_epoll_pwait2		441
 
+#define __NR_mount_setattr		442
+#define __NR_quotactl_fd                443
 #define __NR_landlock_create_ruleset	444
 #define __NR_landlock_add_rule		445
 #define __NR_landlock_restrict_self	446
 
 #define __NR_memfd_secret		447
 
+#define __NR_cachestat		451
 #define __NR_fchmodat2		452
+#define __NR_statmount		457
+#define __NR_listmount		458
+#define __NR_mseal		462
 
 #endif

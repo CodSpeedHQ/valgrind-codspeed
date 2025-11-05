@@ -8,7 +8,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -965,6 +965,7 @@ static const char *opcodes[] = {
    "pfpo",                         // pfpo
    "srnm   d12(b2)",
    "srnmb  d12(b2)",               // fpext
+   "srnmt  d12(b2)",
    "sfpc   r1",
    // sfasr  not implemented
    "ste    f1,d12(x2,b2)",
@@ -976,6 +977,8 @@ static const char *opcodes[] = {
    // Chapter 10: Control Instructions                      not implemented
    // Chapter 14: I/O Instructions                          not implemented
    // Chapter 18: Hexadecimal-Floating-Point Instructions   not implemented
+   "lder    f1,f2",
+   "lde     f1,d12(x2,b2)",
 
    // Chapter 19: Binary-Floating-Point Instructions
    // Register pairs: 0-2 1-3 4-6 5-7 8-10 9-11 12-14 13-15
@@ -1154,12 +1157,12 @@ static const char *opcodes[] = {
    "dxtr    f1:{0,1,4,5,8,9,12,13},f2:{0,1,4,5,8,9,12,13},f3:{0,1,4,5,8,9,12,13}",
    "ddtra   f1,f2,f3,m4",
    "dxtra   f1:{0,1,4,5,8,9,12,13},f2:{0,1,4,5,8,9,12,13},f3:{0,1,4,5,8,9,12,13},m4",
-   "eedtr   f1,f2",
-   "eextr   f1,f2:{0,1,4,5,8,9,12,13}",
-   "esdtr   f1,f2",
-   "esxtr   f1,f2:{0,1,4,5,8,9,12,13}",
-   "iedtr   f1,f3,f2",
-   "iextr   f1:{0,1,4,5,8,9,12,13},f3:{0,1,4,5,8,9,12,13},f2",
+   "eedtr   r1,f2",
+   "eextr   r1,f2:{0,1,4,5,8,9,12,13}",
+   "esdtr   r1,f2",
+   "esxtr   r1,f2:{0,1,4,5,8,9,12,13}",
+   "iedtr   f1,f3,r2",
+   "iextr   f1:{0,1,4,5,8,9,12,13},f3:{0,1,4,5,8,9,12,13},r2",
    "ltdtr   f1,f2",
    "ltxtr   f1:{0,1,4,5,8,9,12,13},f2:{0,1,4,5,8,9,12,13}",
    // fidtr  not implemented
@@ -1174,8 +1177,8 @@ static const char *opcodes[] = {
    "mxtra   f1:{0,1,4,5,8,9,12,13},f2:{0,1,4,5,8,9,12,13},f3:{0,1,4,5,8,9,12,13},m4",
    "qadtr   f1,f3,f2,m4",
    "qaxtr   f1:{0,1,4,5,8,9,12,13},f3:{0,1,4,5,8,9,12,13},f2:{0,1,4,5,8,9,12,13},m4",
-   "rrdtr   f1,f3,f2,m4",
-   "rrxtr   f1:{0,1,4,5,8,9,12,13},f3:{0,1,4,5,8,9,12,13},f2,m4",
+   "rrdtr   f1,f3,r2,m4",
+   "rrxtr   f1:{0,1,4,5,8,9,12,13},f3:{0,1,4,5,8,9,12,13},r2,m4",
    "sldt    f1,f3,d12(x2,b2)",
    "slxt    f1:{0,1,4,5,8,9,12,13},f3:{0,1,4,5,8,9,12,13},d12(x2,b2)",
    "srdt    f1,f3,d12(x2,b2)",
@@ -1408,11 +1411,11 @@ parse_int(const char *p, int is_unsigned, long long *val)
       error("integer expected\n");
       return p;
    }
-   if (is_unsigned && val < 0) {
+   if (is_unsigned && *val < 0) {
       error("unsigned value expected\n");
       return p;
    }
-   return skip_digits(val < 0 ? p + 1 : p);
+   return skip_digits(*val < 0 ? p + 1 : p);
 }
 
 
@@ -1834,7 +1837,7 @@ get_opcode_by_name(const char *name)
 {
    unsigned len = strlen(name);
 
-   for (int i = 0; i < num_opcodes; ++i) {
+   for (unsigned i = 0; i < num_opcodes; ++i) {
       const char *op = opcodes[i];
       if (strncmp(op, name, len) == 0 &&
           (op[len] == ' ' || op[len] == '\0'))
@@ -1966,9 +1969,9 @@ parse_opcode(const char *spec)
 
    if (debug) {
       printf("opcode: |%s|\n", opc->name);
-      for (int i = 0; i < opc->num_opnds; ++i) {
+      for (unsigned i = 0; i < opc->num_opnds; ++i) {
          const opnd *d = opc->opnds + i;
-         printf("opnd %2d: %-8s  type: %-5s", i, d->name,
+         printf("opnd %2u: %-8s  type: %-5s", i, d->name,
                 opnd_kind_as_string(d->kind));
          if (d->kind != OPND_D12XB && d->kind != OPND_D12B &&
              d->kind != OPND_D20XB && d->kind != OPND_D20B &&
@@ -1977,7 +1980,7 @@ parse_opcode(const char *spec)
          if (d->allowed_values) {
             printf("  values:");
             unsigned nval = d->allowed_values[0];
-            for (int j = 1; j <= nval; ++j) {
+            for (unsigned j = 1; j <= nval; ++j) {
                if (d->is_unsigned)
                   printf(" %u", (unsigned)d->allowed_values[j]);
                else
@@ -2005,7 +2008,7 @@ get_opcode_by_index(unsigned ix)
 void
 release_opcode(opcode *opc)
 {
-   for (int i = 0; i < opc->num_opnds; ++i) {
+   for (unsigned i = 0; i < opc->num_opnds; ++i) {
       const opnd *q = opc->opnds + i;
       free(q->name);
       free(q->allowed_values);
@@ -2026,7 +2029,7 @@ static const char *unit_tests[] = {
    "err1 m", "err2 m2:", "err3 m3:s", "err4 m4:s5",
    "err5 m5{", "err6 m6:{", "err7 m7:{}", "err8 m8:{1", "err9 m9:{1,",
    "err10 m0:{2..}", "err11 m11:{2..1}", "err12 m11:u{1,2}",
-   "err13 m13:r", "err14 m14:u"
+   "err13 m13:r", "err14 m14:u", "err15 q1:u5{-1},q2:u8{3..1}"
 };
 
 
@@ -2037,6 +2040,6 @@ run_unit_tests(void)
 
    debug = 1;
 
-   for (int i = 0; i < num_tests; ++i)
+   for (unsigned i = 0; i < num_tests; ++i)
       parse_opcode(unit_tests[i]);
 }

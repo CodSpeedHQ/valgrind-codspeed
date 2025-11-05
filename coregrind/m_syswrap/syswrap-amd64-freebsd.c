@@ -14,7 +14,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -128,13 +128,18 @@ PRE(sys_sysarch)
    PRE_REG_READ2(int, "sysarch", int, number, void *, args);
    switch (ARG1) {
    case VKI_AMD64_SET_FSBASE:
-      PRINT("sys_amd64_set_fsbase ( %#lx )", ARG2);
+   case VKI_AMD64_SET_TLSBASE:
+      PRINT("sys_amd64_set_%ssbase ( %#lx )", (ARG1 == VKI_AMD64_SET_FSBASE ? "f" : "tl"), ARG2);
 
       if (ML_(safe_to_deref)((void**)ARG2, sizeof(void*))) {
          /* On FreeBSD, the syscall loads the %gs selector for us, so do it now. */
          tst = VG_(get_ThreadState)(tid);
          p = (void**)ARG2;
          tst->arch.vex.guest_FS_CONST = (UWord)*p;
+         if (ARG1 == VKI_AMD64_SET_TLSBASE) {
+            tst->arch.vex.guest_TLSBASE = (UWord)*p;
+            // kernel also calls "set_pcb_flags(pcb, PCB_TLSBASE);"
+         }
          /* "do" the syscall ourselves; the kernel never sees it */
          SET_STATUS_Success2((ULong)*p, tst->arch.vex.guest_RDX );
       } else {
@@ -165,6 +170,19 @@ PRE(sys_sysarch)
       tst = VG_(get_ThreadState)(tid);
       SET_STATUS_Success2( tst->arch.vex.guest_FPTAG[0], tst->arch.vex.guest_FPTAG[0] );
       break;
+   //case VKI_AMD64_SET_PKRU:
+   //case VKI_AMD64_CLEAR_PKRU:
+   case VKI_AMD64_GET_TLSBASE:
+      PRINT("sys_amd64_get_tlsbase ( %#lx )", ARG2);
+      PRE_MEM_WRITE( "amd64_get_fsbase(basep)", ARG2, sizeof(void *) );
+      if (ML_(safe_to_deref)((void**)ARG2, sizeof(void*))) {
+         /* "do" the syscall ourselves; the kernel never sees it */
+         tst = VG_(get_ThreadState)(tid);
+         SET_STATUS_Success2( tst->arch.vex.guest_TLSBASE, tst->arch.vex.guest_RDX );
+      } else {
+         SET_STATUS_Failure( VKI_EINVAL );
+      }
+      break;
    default:
       VG_(message) (Vg_UserMsg, "unhandled sysarch cmd %lu", ARG1);
       VG_(unimplemented) ("unhandled sysarch cmd");
@@ -179,6 +197,7 @@ POST(sys_sysarch)
       break;
    case VKI_AMD64_GET_FSBASE:
    case VKI_AMD64_GET_XFPUSTATE:
+   case VKI_AMD64_GET_TLSBASE:
       POST_MEM_WRITE( ARG2, sizeof(void *) );
       break;
    default:
@@ -249,17 +268,16 @@ PRE(sys_preadv)
                  int, iovcnt, vki_off_t, offset);
    if (!ML_(fd_allowed)(ARG1, "preadv", tid, False)) {
       SET_STATUS_Failure( VKI_EBADF );
-   } else {
-      if ((Int)ARG3 > 0) {
-         PRE_MEM_READ( "preadv(iov)", ARG2, ARG3 * sizeof(struct vki_iovec) );
-      }
+   }
+   if ((Int)ARG3 > 0) {
+      PRE_MEM_READ( "preadv(iov)", ARG2, ARG3 * sizeof(struct vki_iovec) );
+   }
 
-      if (ML_(safe_to_deref)((struct vki_iovec *)ARG2, ARG3 * sizeof(struct vki_iovec))) {
-         vec = (struct vki_iovec *)(Addr)ARG2;
-         for (i = 0; i < (Int)ARG3; i++) {
-            VG_(sprintf)(buf, "preadv(iov[%d])", i);
-            PRE_MEM_WRITE(buf, (Addr)vec[i].iov_base, vec[i].iov_len);
-         }
+   if (ML_(safe_to_deref)((struct vki_iovec *)ARG2, ARG3 * sizeof(struct vki_iovec))) {
+      vec = (struct vki_iovec *)(Addr)ARG2;
+      for (i = 0; i < (Int)ARG3; i++) {
+         VG_(sprintf)(buf, "preadv(iov[%d])", i);
+         PRE_MEM_WRITE(buf, (Addr)vec[i].iov_base, vec[i].iov_len);
       }
    }
 }
@@ -304,16 +322,15 @@ PRE(sys_pwritev)
                  vki_off_t, offset);
    if (!ML_(fd_allowed)(ARG1, "pwritev", tid, False)) {
       SET_STATUS_Failure( VKI_EBADF );
-   } else {
-      if ((Int)ARG3 >= 0) {
-         PRE_MEM_READ( "pwritev(vector)", ARG2, ARG3 * sizeof(struct vki_iovec) );
-      }
-      if (ML_(safe_to_deref)((struct vki_iovec *)ARG2, ARG3 * sizeof(struct vki_iovec))) {
-         vec = (struct vki_iovec *)(Addr)ARG2;
-         for (i = 0; i < (Int)ARG3; i++) {
-            VG_(sprintf)(buf, "pwritev(iov[%d])", i);
-            PRE_MEM_READ(buf, (Addr)vec[i].iov_base, vec[i].iov_len );
-         }
+   }
+   if ((Int)ARG3 >= 0) {
+      PRE_MEM_READ( "pwritev(vector)", ARG2, ARG3 * sizeof(struct vki_iovec) );
+   }
+   if (ML_(safe_to_deref)((struct vki_iovec *)ARG2, ARG3 * sizeof(struct vki_iovec))) {
+      vec = (struct vki_iovec *)(Addr)ARG2;
+      for (i = 0; i < (Int)ARG3; i++) {
+         VG_(sprintf)(buf, "pwritev(iov[%d])", i);
+         PRE_MEM_READ(buf, (Addr)vec[i].iov_base, vec[i].iov_len );
       }
    }
 }
@@ -330,7 +347,8 @@ PRE(sys_sendfile)
    PRE_REG_READ7(int, "sendfile",
                  int, fd, int, s, vki_off_t, offset, size_t, nbytes,
                  void *, hdtr, vki_off_t *, sbytes, int, flags);
-
+   if (!ML_(fd_allowed)(ARG1, "sendfile", tid, False))
+      SET_STATUS_Failure( VKI_EBADF );
    if (ARG5 != 0) {
       PRE_MEM_READ("sendfile(hdtr)", ARG5, sizeof(struct vki_sf_hdtr));
    }
@@ -742,6 +760,8 @@ PRE(sys_lseek)
    PRE_REG_READ3(long, "lseek",
                  unsigned int, fd, unsigned long, offset,
                  unsigned int, whence);
+   if (!ML_(fd_allowed)(ARG1, "lseek", tid, False))
+      SET_STATUS_Failure(VKI_EBADF);
 }
 
 // SYS_truncate   479
@@ -763,6 +783,8 @@ PRE(sys_ftruncate)
    PRINT("sys_ftruncate ( %" FMT_REGWORD "u, %" FMT_REGWORD "u )", ARG1,ARG2);
    PRE_REG_READ2(long, "ftruncate", unsigned int, fd,
                  unsigned long, length);
+   if (!ML_(fd_allowed)(ARG1, "ftruncate", tid, False))
+      SET_STATUS_Failure(VKI_EBADF);
 }
 
 // SYS_cpuset_setid  485
@@ -836,6 +858,8 @@ PRE(sys_posix_fallocate)
    PRE_REG_READ3(long, "posix_fallocate",
                  int, fd, vki_off_t, offset,
                  vki_off_t, len);
+   if (!ML_(fd_allowed)(ARG1, "posix_fallocate", tid, False))
+      SET_STATUS_Failure(VKI_EBADF);
 }
 
 // SYS_posix_fadvise 531
@@ -848,7 +872,8 @@ PRE(sys_posix_fadvise)
                  int, fd, off_t, offset,
                  off_t, len,
                  int, advice);
-   // @todo PJF advice can be 0 to 5 inclusive
+   if (!ML_(fd_allowed)(ARG1, "posix_fadvise", tid, False))
+      SET_STATUS_Failure(VKI_EBADF);
 }
 
 // SYS_wait6   532
@@ -962,6 +987,7 @@ PRE(sys_mknodat)
    PRE_REG_READ4(long, "mknodat",
                  int, fd, const char *, path, vki_mode_t, mode, vki_dev_t, dev);
    PRE_MEM_RASCIIZ( "mknodat(pathname)", ARG2 );
+   ML_(fd_at_check_allowed)(SARG1, (const HChar*)ARG2, "mknodat", tid, status);
 }
 
 // SYS_cpuset_getdomain 561

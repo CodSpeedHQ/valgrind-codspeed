@@ -12,7 +12,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -61,7 +61,7 @@ extern Int VG_(args_for_valgrind_noexecpass);
 
 /* The name of the client executable, as specified on the command
    line. */
-extern const HChar* VG_(args_the_exename);
+extern HChar* VG_(args_the_exename);
 
 extern const HChar* VG_(resolved_exename);
 

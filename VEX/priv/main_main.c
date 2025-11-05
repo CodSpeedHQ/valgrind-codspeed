@@ -13,7 +13,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -204,6 +204,12 @@ void LibVEX_default_VexControl ( /*OUT*/ VexControl* vcon )
    vcon->guest_max_insns                = 60;
    vcon->guest_chase                    = True;
    vcon->regalloc_version               = 3;
+   vcon->iropt_fold_expr                = True;
+}
+
+void LibVEX_set_VexControl ( VexControl vcon )
+{
+   __builtin_memcpy(&vex_control, &vcon, sizeof vex_control);
 }
 
 
@@ -713,7 +719,7 @@ IRSB* LibVEX_FrontEnd ( /*MOD*/ VexTranslateArgs* vta,
                               vta->guest_extents,
                               &vta->archinfo_host,
                               guest_word_type, host_word_type);
-      
+
    if (vex_traceflags & VEX_TRACE_INST) {
       vex_printf("\n------------------------" 
                    " After instrumentation "
@@ -1535,6 +1541,14 @@ const HChar* LibVEX_EmNote_string ( VexEmNote ew )
                "  feature requires the floating point extension facility\n"
                "  which is not available on this host. Continuing using\n"
                "  the rounding mode from FPC. Results may differ!";
+     case EmWarn_S390X_XxC_not_zero:
+        return "Encountered an insn with the IEEE-inexact-exception control\n"
+               "  (XxC) bit set to 1. This is not supported. Continuing anyway.\n"
+               "  IEEE-inexact exceptions will not be suppressed.";
+     case EmWarn_S390X_XiC_not_zero:
+        return "Encountered an insn with the IEEE-invalid-operation-exception\n"
+               "  control (XiC) bit set to 1. This is not supported. Continuing anyway.\n"
+               "  IEEE-invalid-operation exceptions will not be suppressed.";
      case EmFail_S390X_stfle:
         return "Instruction stfle is not supported on this host";
      case EmFail_S390X_stckf:
@@ -1675,7 +1689,8 @@ void LibVEX_default_VexAbiInfo ( /*OUT*/VexAbiInfo* vbi )
 }
 
 
-static IRType arch_word_size (VexArch arch) {
+static IRType arch_word_size (VexArch arch)
+{
    switch (arch) {
       case VexArchX86:
       case VexArchARM:

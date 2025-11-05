@@ -12,7 +12,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -97,6 +97,7 @@ extern void* VG_(ppc32_linux_REDIR_FOR_strchr)( void*, Int );
 #if defined(VGP_ppc64be_linux) || defined(VGP_ppc64le_linux)
 extern Addr  VG_(ppc64_linux_SUBST_FOR_rt_sigreturn);
 extern UInt  VG_(ppc64_linux_REDIR_FOR_strlen)( void* );
+extern UInt  VG_(ppc64_linux_REDIR_FOR_strcmp)( void*, void* );
 extern void* VG_(ppc64_linux_REDIR_FOR_strchr)( void*, Int );
 /* A label (sans dot) marking the ultra-magical return stub via which
    all redirected and wrapped functions are made to "return" on

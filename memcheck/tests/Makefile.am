@@ -68,11 +68,14 @@ endif
 if VGCONF_PLATFORMS_INCLUDE_AMD64_FREEBSD
 SUBDIRS += amd64-freebsd
 endif
+if VGCONF_PLATFORMS_INCLUDE_ARM64_FREEBSD
+SUBDIRS += arm64-freebsd
+endif
 
 DIST_SUBDIRS = x86 amd64 arm64 ppc32 ppc64 s390x linux \
 		darwin solaris x86-linux amd64-linux arm64-linux riscv64-linux \
 		x86-solaris amd64-solaris mips32 mips64 \
-		freebsd amd64-freebsd x86-freebsd \
+		freebsd amd64-freebsd arm64-freebsd x86-freebsd \
 		common .
 
 dist_noinst_SCRIPTS = \
@@ -82,6 +85,7 @@ dist_noinst_SCRIPTS = \
 	filter_leak_cpp_interior \
 	filter_libc_variants \
 	filter_xml \
+	filter_xml_leak \
 	filter_strchr \
 	filter_varinfo3 \
 	filter_memcheck \
@@ -161,6 +165,9 @@ EXTRA_DIST = \
 	cxx17_aligned_new.stderr.exp cxx17_aligned_new.vgtest \
 		cxx17_aligned_new.stderr.exp_32 \
 		cxx17_aligned_new.stdout.exp \
+	duplicate_align_size_errors.stderr.exp \
+		duplicate_align_size_errors.stderr.exp-memalign \
+		duplicate_align_size_errors.vgtest \
 	sized_aligned_new_delete_args.stderr.exp \
 		sized_aligned_new_delete_args.vgtest \
 	sized_aligned_new_delete_misaligned1.stderr.exp \
@@ -257,9 +264,10 @@ EXTRA_DIST = \
 	leak-segv-jmp.vgtest leak-segv-jmp.stderr.exp \
 	lks.vgtest lks.stdout.exp lks.supp lks.stderr.exp \
 	long_namespace_xml.vgtest long_namespace_xml.stdout.exp \
-	long_namespace_xml.stderr.exp \
+	long_namespace_xml.stderr.exp long_namespace_xml.stderr.exp-freebsd \
 	long-supps.vgtest long-supps.stderr.exp long-supps.supp \
 	mallinfo.stderr.exp mallinfo.vgtest \
+	mallinfo2.stderr.exp mallinfo2.vgtest \
 	malloc_free_fill.vgtest \
 	malloc_free_fill.stderr.exp \
 	malloc_usable.stderr.exp malloc_usable.vgtest \
@@ -354,6 +362,10 @@ EXTRA_DIST = \
 	realloc_size_zero.stderr.exp realloc_size_zero.stdout.exp-glibc \
 		realloc_size_zero.stdout.exp-other \
 		realloc_size_zero.vgtest \
+	realloc_size_zero_xml.stderr.exp \
+		realloc_size_zero_xml.stdout.exp \
+		realloc_size_zero_xml.stdout.exp-glibc \
+		realloc_size_zero_xml.vgtest \
 	realloc_size_zero_yes.stderr.exp realloc_size_zero_yes.stdout.exp \
 		realloc_size_zero_yes.vgtest \
 	realloc_size_zero_again_yes.stderr.exp \
@@ -516,6 +528,7 @@ check_PROGRAMS = \
 	leak-segv-jmp \
 	long-supps \
 	mallinfo \
+	mallinfo2 \
 	malloc_free_fill \
 	malloc_usable malloc1 malloc2 malloc3 manuel1 manuel2 manuel3 \
 	match-overrun \
@@ -606,6 +619,7 @@ endif
 
 if HAVE_ALIGNED_CXX_ALLOC
 check_PROGRAMS += cxx17_aligned_new sized_aligned_new_delete_args \
+	duplicate_align_size_errors \
 	new_aligned_delete_default \
 	sized_aligned_new_delete_misaligned1 \
 	sized_aligned_new_delete_misaligned2 \
@@ -624,8 +638,13 @@ check_PROGRAMS += reach_thread_register
 endif
 
 if HAVE_FSIZED_DEALLOCATION
-check_PROGRAMS += sized_delete new_delete_mismatch_size
+check_PROGRAMS += sized_delete
 endif
+
+if HAVE_ALIGN_VAL_T
+check_PROGRAMS += new_delete_mismatch_size
+endif
+
 
 if HAVE_GNU_STPNCPY
 check_PROGRAMS += stpncpy
@@ -672,11 +691,21 @@ leak_cpp_interior_SOURCES	= leak_cpp_interior.cpp
 # we are actually testing for at runtime.
 accounting_CFLAGS	= $(AM_CFLAGS) @FLAG_W_NO_ALLOC_SIZE_LARGER_THAN@
 badfree_CFLAGS		= $(AM_CFLAGS) @FLAG_W_NO_FREE_NONHEAP_OBJECT@
-bug155125_CFLAGS	= $(AM_CFLAGS) -Wno-unused-result @FLAG_W_NO_ALLOC_SIZE_LARGER_THAN@
+bug155125_CFLAGS	= $(AM_CFLAGS) @FLAG_W_NO_UNUSED_RESULT@ @FLAG_W_NO_ALLOC_SIZE_LARGER_THAN@
 bug472219_CFLAGS	= $(AM_CFLAGS) @FLAG_W_NO_UNINITIALIZED@
+calloc_overflow_CFLAGS	= ${AM_CFLAGS} @FLAG_W_NO_ALLOC_SIZE_LARGER_THAN@
+malloc_usable_CFLAGS	= ${AM_CFLAGS} @FLAG_W_NO_MAYBE_UNINITIALIZED@ @FLAG_W_NO_UNINITIALIZED@
 mallinfo_CFLAGS		= $(AM_CFLAGS) -Wno-deprecated-declarations
-malloc3_CFLAGS		= $(AM_CFLAGS) @FLAG_W_NO_ALLOC_SIZE_LARGER_THAN@
+if VGCONF_OS_IS_SOLARIS
+mallinfo_LDADD = -lmalloc
+endif
+mallinfo2_CFLAGS	= $(AM_CFLAGS) -Wno-deprecated-declarations
+malloc3_CFLAGS		= $(AM_CFLAGS) @FLAG_W_NO_ALLOC_SIZE_LARGER_THAN@ @FLAG_W_NO_ALLOC_SIZE@
 sbfragment_CFLAGS	= $(AM_CFLAGS) -Wno-deprecated-declarations
+if VGCONF_OS_IS_SOLARIS
+sbfragment_LDADD = -lmalloc
+endif
+
 strchr_CFLAGS		= $(AM_CFLAGS) @FLAG_W_NO_UNINITIALIZED@
 
 big_debuginfo_symbol_SOURCES = big_debuginfo_symbol.cpp
@@ -687,6 +716,8 @@ bug340392_CFLAGS        = $(AM_CFLAGS) -O3 @FLAG_W_NO_MAYBE_UNINITIALIZED@
 if HAVE_ALIGNED_CXX_ALLOC
 cxx17_aligned_new_SOURCES  = cxx17_aligned_new.cpp
 cxx17_aligned_new_CXXFLAGS = ${AM_CXXFLAGS} -std=c++17 @FLAG_W_NO_MISMATCHED_NEW_DELETE@
+duplicate_align_size_errors_SOURCES = duplicate_align_size_errors.cpp
+duplicate_align_size_errors_CXXFLAGS = ${AM_CXXFLAGS} -std=c++17
 new_aligned_delete_default_SOURCES = new_aligned_delete_default.cpp
 new_aligned_delete_default_CXXFLAGS = ${AM_CXXFLAGS} -std=c++17
 sized_aligned_new_delete_args_SOURCES = sized_aligned_new_delete_args.cpp
@@ -699,6 +730,7 @@ sized_aligned_new_delete_misaligned3_SOURCES = sized_aligned_new_delete_misalign
 sized_aligned_new_delete_misaligned3_CXXFLAGS = ${AM_CXXFLAGS} -std=c++17 @FLAG_W_NO_UNUSED_VARIABLE@
 if COMPILER_IS_CLANG
 cxx17_aligned_new_CXXFLAGS += -fsized-deallocation
+duplicate_align_size_errors_CXXFLAGS += -fsized-deallocation
 sized_aligned_new_delete_args_CXXFLAGS += -fsized-deallocation
 sized_aligned_new_delete_misaligned1_CXXFLAGS += -fsized-deallocation
 sized_aligned_new_delete_misaligned2_CXXFLAGS += -fsized-deallocation
@@ -791,6 +823,7 @@ partial_load_CFLAGS	= $(AM_CFLAGS) @FLAG_W_NO_USE_AFTER_FREE@
 reach_thread_register_CFLAGS	= $(AM_CFLAGS) -O2
 reach_thread_register_LDADD	= -lpthread
 
+realloc3_CFLAGS = ${AM_CFLAGS} @FLAG_W_NO_ALLOC_SIZE@
 realloc_size_zero_CFLAGS	= $(AM_CFLAGS) @FLAG_W_NO_INCOMPATIBLE_POINTER_TYPES_DISCARDS_QUALIFIERS@
 realloc_size_zero_mismatch_SOURCES = realloc_size_zero_mismatch.cpp
 realloc_size_zero_mismatch_CXXFLAGS = $(AM_CXXFLAGS) @FLAG_W_NO_MISMATCHED_NEW_DELETE@

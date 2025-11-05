@@ -12,7 +12,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -195,8 +195,8 @@ static inline void* LibVEX_Alloc_inline ( SizeT nbytes )
 
 /* Misaligned memory access support. */
 
-extern UInt  read_misaligned_UInt_LE  ( void* addr );
-extern ULong read_misaligned_ULong_LE ( void* addr );
+extern UInt  read_misaligned_UInt_LE  ( const void* addr );
+extern ULong read_misaligned_ULong_LE ( const void* addr );
 
 extern void  write_misaligned_UInt_LE  ( void* addr, UInt  w );
 extern void  write_misaligned_ULong_LE ( void* addr, ULong w );

@@ -149,6 +149,9 @@ s/__libc_do_syscall ().*/0x........ in syscall .../
 #       extra source code line
 /libc-do-syscall.S/d
 
+#       variation of the previous extra source code line
+/syscall_cancel.S/d
+
 #       anonymise kill syscall.
 s/in kill ().*$/in syscall .../
 
@@ -281,6 +284,9 @@ s/^0x........ in \(\w\+ (\)/\1/
 #	delete any missing debuginfo messages
 /^Missing debuginfo.*/d
 /^Missing rpms.*/d
+
+#	illumos, but only when building the port
+/\.\/gdb: warning: Couldn't determine a path for the index cache directory\./d
 
 EOF
 

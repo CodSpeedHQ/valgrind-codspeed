@@ -12,7 +12,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -1628,14 +1628,19 @@ static HReg iselIntExpr_R_wrk ( ISelEnv* env, const IRExpr* e )
             addInstr(env, AMD64Instr_Sh64(Ash_SAR, 63, dst));
             return dst;
          }
-         case Iop_Ctz64: {
+         case Iop_CtzNat64: {
             /* Count trailing zeroes, implemented by amd64 'bsfq' */
             HReg dst = newVRegI(env);
             HReg src = iselIntExpr_R(env, e->Iex.Unop.arg);
             addInstr(env, AMD64Instr_Bsfr64(True,src,dst));
+            /* Patch the result in case there was a 0 operand. */
+            IRExpr *cond = unop(Iop_CmpNEZ64, e->Iex.Unop.arg);
+            AMD64CondCode cc = iselCondCode_C(env, cond);
+            HReg ifz = iselIntExpr_R(env, IRExpr_Const(IRConst_U64(64)));
+            addInstr(env, AMD64Instr_CMov64(cc ^ 1, ifz, dst));
             return dst;
          }
-         case Iop_Clz64: {
+         case Iop_ClzNat64: {
             /* Count leading zeroes.  Do 'bsrq' to establish the index
                of the highest set bit, and subtract that value from
                63. */
@@ -1647,6 +1652,11 @@ static HReg iselIntExpr_R_wrk ( ISelEnv* env, const IRExpr* e )
                                             AMD64RMI_Imm(63), dst));
             addInstr(env, AMD64Instr_Alu64R(Aalu_SUB,
                                             AMD64RMI_Reg(tmp), dst));
+            /* Patch the result in case there was a 0 operand. */
+            IRExpr *cond = unop(Iop_CmpNEZ64, e->Iex.Unop.arg);
+            AMD64CondCode cc = iselCondCode_C(env, cond);
+            HReg ifz = iselIntExpr_R(env, IRExpr_Const(IRConst_U64(64)));
+            addInstr(env, AMD64Instr_CMov64(cc ^ 1, ifz, dst));
             return dst;
          }
 

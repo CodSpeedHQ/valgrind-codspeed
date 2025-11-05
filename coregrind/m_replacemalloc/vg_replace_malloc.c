@@ -13,7 +13,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -103,6 +103,7 @@
    10190 PANIC
    10200 MALLOC_STATS
    10210 MALLINFO
+   10215 MALLINFO2
    10220 DEFAULT_ZONE
    10230 CREATE_ZONE
    10240 ZONE_FROM_PTR
@@ -506,7 +507,7 @@ extern int * __error(void) __attribute__((weak));
  #if VG_WORDSIZE == 4
   ALLOC_or_BOMB(VG_Z_LIBSTDCXX_SONAME, _Znwj,          __builtin_new);
   ALLOC_or_BOMB(VG_Z_LIBCXX_SONAME,    _Znwj,          __builtin_new);
-  ALLOC_or_BOMB(VG_Z_LIBC_SONAME,      _Znwj,          __builtin_new);
+  ALLOC_or_BOMB(SO_SYN_MALLOC,         _Znwj,          __builtin_new);
  #endif
  // operator new(unsigned long)
  #if VG_WORDSIZE == 8
@@ -626,7 +627,7 @@ extern int * __error(void) __attribute__((weak));
  #if VG_WORDSIZE == 4
   ALLOC_or_NULL(VG_Z_LIBSTDCXX_SONAME, _ZnwjRKSt9nothrow_t,  __builtin_new);
   ALLOC_or_NULL(VG_Z_LIBCXX_SONAME,    _ZnwjRKSt9nothrow_t,  __builtin_new);
-  ALLOC_or_NULL(VG_Z_LIBC_SONAME,      _ZnwjRKSt9nothrow_t,  __builtin_new);
+  ALLOC_or_NULL(SO_SYN_MALLOC,         _ZnwjRKSt9nothrow_t,  __builtin_new);
  #endif
  // operator new(unsigned long, std::nothrow_t const&)
  #if VG_WORDSIZE == 8
@@ -869,7 +870,7 @@ extern int * __error(void) __attribute__((weak));
  #if VG_WORDSIZE == 4
   ALLOC_or_NULL(VG_Z_LIBSTDCXX_SONAME, _ZnajRKSt9nothrow_t, __builtin_vec_new );
   ALLOC_or_NULL(VG_Z_LIBCXX_SONAME,    _ZnajRKSt9nothrow_t, __builtin_vec_new );
-  ALLOC_or_NULL(VG_Z_LIBC_SONAME,      _ZnajRKSt9nothrow_t, __builtin_vec_new );
+  ALLOC_or_NULL(SO_SYN_MALLOC,         _ZnajRKSt9nothrow_t, __builtin_vec_new );
  #endif
  // operator new[](unsigned long, std::nothrow_t const&)
  #if VG_WORDSIZE == 8
@@ -1072,6 +1073,8 @@ extern int * __error(void) __attribute__((weak));
 
 
 #if defined(VGO_linux)
+ FREE_ALIGNED_SIZED(VG_Z_LIBC_SONAME,       free_aligned_sized,                 free, FreeAlignedSized );
+ FREE_ALIGNED_SIZED(SO_SYN_MALLOC,          free_aligned_sized,                 free, FreeAlignedSized );
 
 #elif defined(VGO_freebsd)
  FREE_ALIGNED_SIZED(VG_Z_LIBC_SONAME,       free_aligned_sized,                 free, FreeAlignedSized );
@@ -1839,7 +1842,10 @@ extern int * __error(void) __attribute__((weak));
   *
   * FreeBSD, undocumented,  just calls aligned_alloc
   * with size rounded up to a multiple
-  * of aligment
+  * of aligment (unless the alignment is 0 in which case
+  * it just calls malloc [prior to Feb 2023 this wasn't
+  * handled correctly resulting in a division-by-zero crash
+  * in the size roundup code])
   *
   * jemalloc mininum alignment is 1, must be a power of 2
   * it looks like excessively large alignment causes ENOMEM
@@ -1923,7 +1929,7 @@ extern int * __error(void) __attribute__((weak));
 #define VG_MEMALIGN_NO_ALIGN_ZERO 0
 #endif
 
-#if defined(MUSL_LIBC)
+#if defined(MUSL_LIBC) || defined(VGO_freebsd)
 #define VG_MEMALIGN_NO_SIZE_ZERO 0
 #else
 #define VG_MEMALIGN_NO_SIZE_ZERO 1
@@ -2187,7 +2193,7 @@ extern int * __error(void) __attribute__((weak));
       DO_INIT; \
       TRIGGER_MEMCHECK_ERROR_IF_UNDEFINED(size); \
       VERIFY_ALIGNMENT(&aligned_alloc_info); \
-      MALLOC_TRACE("posix_memalign(al %llu, size %llu)\n", \
+      MALLOC_TRACE("posix_memalign(al %llu, size %llu)", \
             (ULong)alignment, (ULong)size ); \
       /* Test whether the alignment argument is valid.  It must be \
          a power of two multiple of sizeof (void *).  */ \
@@ -2295,10 +2301,16 @@ extern int * __error(void) __attribute__((weak));
 #define VG_ALIGNED_ALLOC_ALIGN_FACTOR_FOUR 0
 #endif
 
-#if defined(MUSL_LIBC)
-#define VG_ALIGNED_ALLOC_NO_SIZE_ZERO 0
-#else
+#if defined(VGO_solaris)
 #define VG_ALIGNED_ALLOC_NO_SIZE_ZERO 1
+#else
+#define VG_ALIGNED_ALLOC_NO_SIZE_ZERO 0
+#endif
+
+#if defined(MUSL_LIBC)
+#define VG_ALIGNED_ALLOC_NO_ALIGN_ZERO 0
+#else
+#define VG_ALIGNED_ALLOC_NO_ALIGN_ZERO 1
 #endif
 
 #if defined (VGO_linux) && !defined(MUSL_LIBC) && !defined(HAVE_GNU_LIBC_C17_ALIGNED_ALLOC)
@@ -2360,8 +2372,9 @@ extern int * __error(void) __attribute__((weak));
        VERIFY_ALIGNMENT(&aligned_alloc_info); \
        MALLOC_TRACE("aligned_alloc(al %llu, size %llu)", \
                 (ULong)alignment, (ULong)size ); \
-       if ((VG_ALIGNED_ALLOC_NO_SIZE_ZERO && (alignment == 0)) \
-           || (VG_ALIGNED_ALLOC_SIZE_MULTIPLE_ALIGN && (size % alignment != 0)) \
+       if ((VG_ALIGNED_ALLOC_NO_SIZE_ZERO && (size == 0)) \
+           || (VG_ALIGNED_ALLOC_NO_ALIGN_ZERO && (alignment == 0)) \
+           || (VG_ALIGNED_ALLOC_SIZE_MULTIPLE_ALIGN && alignment && (size % alignment != 0)) \
            || (VG_ALIGNED_ALLOC_ALIGN_POWER_TWO && (alignment & (alignment - 1)) != 0) \
            || (VG_ALIGNED_ALLOC_ALIGN_FACTOR_FOUR && (alignment % 4 != 0))) { \
           SET_ERRNO_EINVAL; \
@@ -2517,8 +2530,33 @@ static void panic(const char *str)
  MALLINFO(VG_Z_LIBC_SONAME, mallinfo);
  MALLINFO(SO_SYN_MALLOC,    mallinfo);
 
-#elif defined(VGO_darwin)
- //MALLINFO(VG_Z_LIBC_SONAME, mallinfo);
+#elif defined(VGO_solaris)
+ MALLINFO(VG_Z_LIBC_SONAME, mallinfo);
+ MALLINFO(SO_SYN_MALLOC,    mallinfo);
+
+#endif
+
+
+/*---------------------- mallinfo2 ----------------------*/
+
+// mi must be static;  if it is auto then Memcheck thinks it is
+// uninitialised when used by the caller of this function, because Memcheck
+// doesn't know that the call to mallinfo2 fills in mi.
+#define MALLINFO2(soname, fnname) \
+   \
+   struct vg_mallinfo2 VG_REPLACE_FUNCTION_EZU(10215,soname,fnname) ( void ); \
+   struct vg_mallinfo2 VG_REPLACE_FUNCTION_EZU(10215,soname,fnname) ( void ) \
+   { \
+      static struct vg_mallinfo2 mi; \
+      DO_INIT; \
+      MALLOC_TRACE("mallinfo2()\n"); \
+      (void)VALGRIND_NON_SIMD_CALL1( info.mallinfo2, &mi ); \
+      return mi; \
+   }
+
+#if defined(VGO_linux)
+ MALLINFO2(VG_Z_LIBC_SONAME, mallinfo2);
+ MALLINFO2(SO_SYN_MALLOC,    mallinfo2);
 
 #endif
 

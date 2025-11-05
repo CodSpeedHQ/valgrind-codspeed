@@ -8,7 +8,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -183,7 +183,7 @@ main(int argc, char *argv[])
 
       valgrind_vex_init_for_iri(&iricb);
 
-      switch (iricb.num_operands) {
+      switch (iricb.vbit.num_operands) {
       case 1:
          num_unary_tests += test_unary_op(op, data);
          break;

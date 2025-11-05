@@ -12,7 +12,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -530,7 +530,7 @@ static void MC_helperc_value_check4_fail( void ) { }
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -2021,10 +2021,6 @@ IRExpr* expr2vbits_Unop ( MCEnv* mce, IROp op, IRAtom* atom )
       case Iop_AbsF64:
       case Iop_2xm1F64:
          return mkPCastTo(mce, Ity_I64, vatom);
-
-      case Iop_Clz32:
-      case Iop_Ctz32:
-         return mkPCastTo(mce, Ity_I32, vatom);
 
       case Iop_32Sto64:
       case Iop_32Uto64:

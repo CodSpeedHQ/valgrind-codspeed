@@ -13,7 +13,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -34,4 +34,6 @@
 
 extern const HChar* VG_(find_executable) ( const HChar* exec );
 
-#endif // ndef __PUB_CORE_PATHSCAN_H
+extern Bool VG_(try_get_interp)(const HChar* args_exe, HChar* interp_out, SizeT max_interp_len);
+
+#endif //  __PUB_CORE_PATHSCAN_H

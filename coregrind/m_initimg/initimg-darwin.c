@@ -13,7 +13,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -259,7 +259,6 @@ static HChar *copy_str(HChar **tab, const HChar *str)
    return orig;
 }
 
-
 /* ----------------------------------------------------------------
  
    This sets up the client's initial stack, containing the args,
@@ -448,6 +447,17 @@ Addr setup_client_stack( void*  init_sp,
    *ptr++ = 0;
 
    vg_assert((strtab-stringbase) == stringsize);
+
+   if (VG_(resolved_exename) == NULL) {
+      const HChar *exe_name = VG_(find_executable)(VG_(args_the_exename));
+      HChar interp_name[VKI_PATH_MAX];
+      if (VG_(try_get_interp)(exe_name, interp_name, VKI_PATH_MAX)) {
+         exe_name = interp_name;
+      }
+      HChar resolved_name[VKI_PATH_MAX];
+      VG_(realpath)(exe_name, resolved_name);
+      VG_(resolved_exename) = VG_(strdup)("initimg-darwin.sre.1", resolved_name);
+   }
 
    /* client_SP is pointing at client's argc/argv */
 

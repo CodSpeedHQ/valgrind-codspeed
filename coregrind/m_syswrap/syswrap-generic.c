@@ -14,7 +14,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -121,9 +121,11 @@ Bool ML_(valid_client_addr)(Addr start, SizeT size, ThreadId tid,
 		  syscallname, start, start+size-1, (Int)ret);
 
    if (!ret && syscallname != NULL) {
-      VG_(message)(Vg_UserMsg, "Warning: client syscall %s tried "
-                               "to modify addresses %#lx-%#lx\n",
-                               syscallname, start, start+size-1);
+      if (VG_(clo_verbosity) >= 1) {
+         VG_(message)(Vg_UserMsg, "Warning: client syscall %s tried "
+                                  "to modify addresses %#lx-%#lx\n",
+                                  syscallname, start, start+size-1);
+      }
       if (VG_(clo_verbosity) > 1) {
          VG_(get_and_pp_StackTrace)(tid, VG_(clo_backtrace_size));
       }
@@ -1792,6 +1794,12 @@ Bool ML_(fd_allowed)(Int fd, const HChar *syscallname, ThreadId tid,
    return allowed;
 }
 
+void ML_(fd_at_check_allowed)(Int fd, const HChar* path, const HChar* function_name, ThreadId tid, SyscallStatus* status)
+{
+   if ((ML_(safe_to_deref) (path, 1)) && (path[0] != '/'))
+      if ((fd != VKI_AT_FDCWD) && !ML_(fd_allowed)(fd, function_name, tid, False))
+           SET_STATUS_Failure(VKI_EBADF);
+}
 
 /* ---------------------------------------------------------------------
    Deal with a bunch of socket-related syscalls
@@ -2651,6 +2659,31 @@ ML_(generic_PRE_sys_mmap) ( ThreadId tid,
    VG_(core_panic)("can't use ML_(generic_PRE_sys_mmap) on Darwin");
 #  endif
 
+#if !defined(VKI_MAP_GUARD)
+// on platforms without MAP_GUARD the compiler should optimise away
+// the term using it below as it will always be true
+#define VKI_MAP_GUARD 0
+#endif
+
+#if !defined(VKI_MAP_STACK)
+// as above
+#define VKI_MAP_STACK 0
+#endif
+
+   /* fd (arg5) is only used when flags (arg4) does not contain
+      MAP_ANONYMOUS (or, on FreeBSD, MAP_GUARD and MAP_STACK).
+      ML_(fd_allowed) might just warn (with --track-fds)
+      and not fail, unless it is a Valgrind owned file descriptor.
+      So also check with fcntl (F_GETFD) to know if it really is a bad
+      fd. Fail early in that case with EBADF.  */
+   if (!(arg4 & VKI_MAP_ANONYMOUS)
+       && !(arg4 & VKI_MAP_GUARD)
+       && !(arg4 & VKI_MAP_STACK)
+       && (!ML_(fd_allowed)(arg5, "mmap", tid, False)
+           || VG_(fcntl) (arg5, VKI_F_GETFD, 0) < 0)) {
+      return VG_(mk_SysRes_Error)( VKI_EBADF );
+   }
+
    if (arg2 == 0) {
       /* SuSV3 says: If len is zero, mmap() shall fail and no mapping
          shall be established. */
@@ -2676,7 +2709,12 @@ ML_(generic_PRE_sys_mmap) ( ThreadId tid,
       (fixed/hint/any), and ask aspacem what we should do. */
    mreq.start = arg1;
    mreq.len   = arg2;
-   if (arg4 & VKI_MAP_FIXED) {
+   if ((arg4 & VKI_MAP_FIXED)
+#if defined(VKI_MAP_FIXED_NOREPLACE)
+       || (arg4 & VKI_MAP_FIXED_NOREPLACE)
+#endif
+      )
+   {
       mreq.rkind = MFixed;
    } else
 #if defined(VGO_solaris) && defined(VKI_MAP_ALIGN)
@@ -2708,6 +2746,11 @@ ML_(generic_PRE_sys_mmap) ( ThreadId tid,
    advised = VG_(am_get_advisory)( &mreq, True/*client*/, &mreq_ok );
    if (!mreq_ok) {
       /* Our request was bounced, so we'd better fail. */
+#if defined(VKI_MAP_FIXED_NOREPLACE)
+      if (arg4 & VKI_MAP_FIXED_NOREPLACE) {
+         return VG_(mk_SysRes_Error)( VKI_EEXIST );
+      }
+#endif
       return VG_(mk_SysRes_Error)( VKI_EINVAL );
    }
 
@@ -2739,6 +2782,13 @@ ML_(generic_PRE_sys_mmap) ( ThreadId tid,
    if ((arg4 & VKI_MAP_32BIT) && !(arg4 & VKI_MAP_FIXED)
        && sr_isError(sres)) {
       return VG_(mk_SysRes_Error)( VKI_ENOMEM );
+   }
+#  endif
+
+#  if defined(VKI_MAP_FIXED_NOREPLACE)
+   /* FIXED_NOREPLACE is fatal, no retries. */
+   if ((arg4 & VKI_MAP_FIXED_NOREPLACE) && sr_isError(sres)) {
+      return VG_(mk_SysRes_Error)( VKI_EEXIST );
    }
 #  endif
 
@@ -2900,6 +2950,8 @@ PRE(sys_fsync)
    *flags |= SfMayBlock;
    PRINT("sys_fsync ( %" FMT_REGWORD "u )", ARG1);
    PRE_REG_READ1(long, "fsync", unsigned int, fd);
+   if ( !ML_(fd_allowed)(ARG1, "fsync", tid, False) )
+      SET_STATUS_Failure( VKI_EBADF );
 }
 
 PRE(sys_fdatasync)
@@ -2907,6 +2959,8 @@ PRE(sys_fdatasync)
    *flags |= SfMayBlock;
    PRINT("sys_fdatasync ( %" FMT_REGWORD "u )", ARG1);
    PRE_REG_READ1(long, "fdatasync", unsigned int, fd);
+   if ( !ML_(fd_allowed)(ARG1, "fdatasync", tid, False) )
+      SET_STATUS_Failure( VKI_EBADF );
 }
 
 PRE(sys_msync)
@@ -3171,6 +3225,8 @@ PRE(sys_fstatfs)
    PRE_REG_READ2(long, "fstatfs",
                  unsigned int, fd, struct statfs *, buf);
    PRE_MEM_WRITE( "fstatfs(buf)", ARG2, sizeof(struct vki_statfs) );
+   if ( !ML_(fd_allowed)(ARG1, "fstatfs", tid, False) )
+      SET_STATUS_Failure( VKI_EBADF );
 }
 
 POST(sys_fstatfs)
@@ -3186,6 +3242,8 @@ PRE(sys_fstatfs64)
    PRE_REG_READ3(long, "fstatfs64",
                  unsigned int, fd, vki_size_t, size, struct statfs64 *, buf);
    PRE_MEM_WRITE( "fstatfs64(buf)", ARG3, ARG2 );
+   if ( !ML_(fd_allowed)(ARG1, "fstatfs64", tid, False) )
+      SET_STATUS_Failure( VKI_EBADF );
 }
 POST(sys_fstatfs64)
 {
@@ -3244,6 +3302,8 @@ PRE(sys_flock)
    *flags |= SfMayBlock;
    PRINT("sys_flock ( %" FMT_REGWORD "u, %" FMT_REGWORD "u )", ARG1, ARG2 );
    PRE_REG_READ2(long, "flock", unsigned int, fd, unsigned int, operation);
+   if ( !ML_(fd_allowed)(ARG1, "flock", tid, False) )
+      SET_STATUS_Failure( VKI_EBADF );
 }
 
 // Pre_read a char** argument.
@@ -3756,6 +3816,8 @@ PRE(sys_dup2)
 {
    PRINT("sys_dup2 ( %" FMT_REGWORD "u, %" FMT_REGWORD "u )", ARG1, ARG2);
    PRE_REG_READ2(long, "dup2", unsigned int, oldfd, unsigned int, newfd);
+   if (!ML_(fd_allowed)(ARG1, "dup2", tid, False))
+      SET_STATUS_Failure( VKI_EBADF );
    if (!ML_(fd_allowed)(ARG2, "dup2", tid, True))
       SET_STATUS_Failure( VKI_EBADF );
 }
@@ -3772,6 +3834,8 @@ PRE(sys_fchdir)
    FUSE_COMPATIBLE_MAY_BLOCK();
    PRINT("sys_fchdir ( %" FMT_REGWORD "u )", ARG1);
    PRE_REG_READ1(long, "fchdir", unsigned int, fd);
+   if ( !ML_(fd_allowed)(ARG1, "fchdir", tid, False) )
+      SET_STATUS_Failure( VKI_EBADF );
 }
 
 PRE(sys_fchown)
@@ -3781,6 +3845,8 @@ PRE(sys_fchown)
          FMT_REGWORD "u )", ARG1, ARG2, ARG3);
    PRE_REG_READ3(long, "fchown",
                  unsigned int, fd, vki_uid_t, owner, vki_gid_t, group);
+   if ( !ML_(fd_allowed)(ARG1, "fchown", tid, False) )
+      SET_STATUS_Failure( VKI_EBADF );
 }
 
 PRE(sys_fchmod)
@@ -3788,6 +3854,8 @@ PRE(sys_fchmod)
    FUSE_COMPATIBLE_MAY_BLOCK();
    PRINT("sys_fchmod ( %" FMT_REGWORD "u, %" FMT_REGWORD "u )", ARG1, ARG2);
    PRE_REG_READ2(long, "fchmod", unsigned int, fildes, vki_mode_t, mode);
+   if ( !ML_(fd_allowed)(ARG1, "fchmod", tid, False) )
+      SET_STATUS_Failure( VKI_EBADF );
 }
 
 #if !defined(VGP_nanomips_linux) && !defined (VGO_freebsd)
@@ -3797,6 +3865,8 @@ PRE(sys_newfstat)
    PRINT("sys_newfstat ( %" FMT_REGWORD "u, %#" FMT_REGWORD "x )", ARG1, ARG2);
    PRE_REG_READ2(long, "fstat", unsigned int, fd, struct stat *, buf);
    PRE_MEM_WRITE( "fstat(buf)", ARG2, sizeof(struct vki_stat) );
+   if ( !ML_(fd_allowed)(ARG1, "fstat", tid, False) )
+      SET_STATUS_Failure( VKI_EBADF );
 }
 
 POST(sys_newfstat)
@@ -3864,6 +3934,8 @@ PRE(sys_ftruncate)
    *flags |= SfMayBlock;
    PRINT("sys_ftruncate ( %" FMT_REGWORD "u, %" FMT_REGWORD "u )", ARG1, ARG2);
    PRE_REG_READ2(long, "ftruncate", unsigned int, fd, unsigned long, length);
+   if ( !ML_(fd_allowed)(ARG1, "ftruncate", tid, False) )
+      SET_STATUS_Failure( VKI_EBADF );
 }
 
 PRE(sys_truncate)
@@ -3890,6 +3962,8 @@ PRE(sys_ftruncate64)
    PRE_REG_READ2(long, "ftruncate64",
                  unsigned int,fd, UWord,length);
 #endif
+   if ( !ML_(fd_allowed)(ARG1, "ftruncate64", tid, False) )
+      SET_STATUS_Failure( VKI_EBADF );
 }
 
 PRE(sys_truncate64)
@@ -3920,12 +3994,203 @@ PRE(sys_getdents)
    PRE_MEM_WRITE( "getdents(dirp)", ARG2, ARG3 );
 }
 
+#if defined(VGO_linux) || defined(VGO_solaris)
+
+/* Check if the given file descriptor points to a /proc/PID/fd or /proc/PID/fdinfo directory.
+   Returns True if it's a directory we should filter Valgrind FDs from. */
+static Bool is_proc_fd_directory(Int fd)
+{
+   const HChar* path;
+   if (!VG_(resolve_filename)(fd, &path))
+      return False;
+   
+   HChar ppfd[32]; /* large enough for /proc/<pid>/fd and /proc/<pid>/fdinfo */
+   HChar ppfdinfo[32];
+   VG_(sprintf)(ppfd, "/proc/%d/fd", VG_(getpid)());
+   VG_(sprintf)(ppfdinfo, "/proc/%d/fdinfo", VG_(getpid)());
+
+   if (VG_(strcmp)(path, "/proc/self/fd") == 0
+		   || VG_(strcmp)(path, "/proc/self/fdinfo") == 0
+		   || VG_(strcmp)(path, ppfd) == 0
+		   || VG_(strcmp)(path, ppfdinfo) == 0)
+       return True;
+   
+   return False;
+}
+
+
+/* Helper function to decide if an FD entry should be kept */
+static Bool should_keep_fd_entry(const HChar *name)
+{
+   if (VG_(strcmp)(name, ".") == 0 || VG_(strcmp)(name, "..") == 0)
+      return True;
+
+   Bool is_numeric = True;
+   for (Int i = 0; name[i] != '\0'; i++) {
+      if (name[i] < '0' || name[i] > '9') {
+         is_numeric = False;
+         if (VG_(clo_verbosity) > 1)
+            VG_(dmsg)("Warning: Non-numeric entry '%s' found in /proc/*/fd directory\n", name);
+         break;
+      }
+   }
+
+   if (is_numeric && name[0] != '\0') {
+      Int fd_num = VG_(strtoll10)(name, NULL);
+      /* Hide FDs beyond soft limit or Valgrind's output FDs */
+      if (fd_num >= VG_(fd_soft_limit) ||
+          fd_num == VG_(log_output_sink).fd ||
+          fd_num == VG_(xml_output_sink).fd)
+         return False;
+   }
+
+   return True;
+}
+
+/* Make sure we really need the proc filtering using (32bit) getdents,
+   which not every linux arch implements.  */
+#if defined(__NR_getdents)
+
+/* Filter and compact dirent entries */
+static SizeT filter_dirent_entries(struct vki_dirent *dirp, SizeT orig_size)
+{
+   struct vki_dirent *dp = dirp;
+   struct vki_dirent *write_pos = dirp;
+   SizeT bytes_processed = 0;
+   SizeT new_size = 0;
+
+   while (bytes_processed < orig_size) {
+      if (should_keep_fd_entry(dp->d_name)) {
+         if (write_pos != dp)
+            VG_(memmove)(write_pos, dp, dp->d_reclen);
+         new_size += dp->d_reclen;
+         write_pos = (struct vki_dirent *)((HChar *)write_pos + dp->d_reclen);
+      }
+
+      bytes_processed += dp->d_reclen;
+      dp = (struct vki_dirent *)((HChar *)dp + dp->d_reclen);
+   }
+
+   return new_size;
+}
+#endif /* defined(__NR_getdents) */
+
+/* Filter and compact dirent64 entries */
+static SizeT filter_dirent64_entries(struct vki_dirent64 *dirp, SizeT orig_size)
+{
+   struct vki_dirent64 *dp = dirp;
+   struct vki_dirent64 *write_pos = dirp;
+   SizeT bytes_processed = 0;
+   SizeT new_size = 0;
+
+   while (bytes_processed < orig_size) {
+      if (should_keep_fd_entry(dp->d_name)) {
+         if (write_pos != dp)
+            VG_(memmove)(write_pos, dp, dp->d_reclen);
+         new_size += dp->d_reclen;
+         write_pos = (struct vki_dirent64 *)((HChar *)write_pos + dp->d_reclen);
+      }
+
+      bytes_processed += dp->d_reclen;
+      dp = (struct vki_dirent64 *)((HChar *)dp + dp->d_reclen);
+   }
+
+   return new_size;
+}
+
+/* Make sure we really need the proc filtering using (32bit) getdents,
+   which not every linux arch implements.  */
+#if defined(__NR_getdents)
+
+/* Filter out Valgrind's internal file descriptors from getdents results with refill capability.
+   When entries are filtered out, attempts to read more entries to avoid empty results.
+   Returns filtered size on success, or -1 if retry syscall failed. */
+static SizeT filter_valgrind_fds_from_getdents_with_refill(Int fd, struct vki_dirent *dirp, SizeT orig_size, SizeT buf_size, /*MOD*/SyscallStatus* status)
+{
+   SizeT new_size = filter_dirent_entries(dirp, orig_size);
+
+   /* If we filtered out everything, try to read more entries.
+      Since new_size == 0, the buffer is completely unused. */
+   while (new_size == 0) {
+      SysRes retry = VG_(do_syscall3)(__NR_getdents, fd, (UWord)dirp, buf_size);
+      if (sr_isError(retry)) {
+         /* Set the syscall status and return error indicator */
+         SET_STATUS_from_SysRes(retry);
+         return -1;
+      }
+      if (sr_Res(retry) == 0) {
+         /* Real EOF - stop trying */
+         break;
+      }
+
+      /* Filter the new batch */
+      SizeT retry_size = sr_Res(retry);
+      new_size = filter_dirent_entries(dirp, retry_size);
+   }
+
+   return new_size;
+}
+#endif /* defined(__NR_getdents) */
+
+/* Filter out Valgrind's internal file descriptors from getdents64 results with refill capability.
+   Same logic as getdents version but for 64-bit dirent structures.
+   Returns filtered size on success, or -1 if retry syscall failed. */
+static SizeT filter_valgrind_fds_from_getdents64_with_refill(Int fd, struct vki_dirent64 *dirp, SizeT orig_size, SizeT buf_size, /*MOD*/SyscallStatus* status)
+{
+   SizeT new_size = filter_dirent64_entries(dirp, orig_size);
+
+   /* If we filtered out everything, try to read more entries.
+      Since new_size == 0, the buffer is completely unused. */
+   while (new_size == 0) {
+      SysRes retry = VG_(do_syscall3)(__NR_getdents64, fd, (UWord)dirp, buf_size);
+      if (sr_isError(retry)) {
+         /* Set the syscall status and return error indicator */
+         SET_STATUS_from_SysRes(retry);
+         return -1;
+      }
+      if (sr_Res(retry) == 0) {
+         /* Real EOF - stop trying */
+         break;
+      }
+
+      /* Filter the new batch */
+      SizeT retry_size = sr_Res(retry);
+      new_size = filter_dirent64_entries(dirp, retry_size);
+   }
+
+   return new_size;
+}
+
+#endif /* defined(VGO_linux) || defined(VGO_solaris) */
+
 POST(sys_getdents)
 {
    vg_assert(SUCCESS);
-   if (RES > 0)
-      POST_MEM_WRITE( ARG2, RES );
+   if (RES > 0) {
+      SizeT result_size = RES;
+      
+      /* Make sure we really need the proc filtering using (32bit) getdents,
+         which not every linux arch implements.  */
+#if (defined(VGO_linux) || defined(VGO_solaris)) && defined(__NR_getdents)
+
+      /* Only filter Valgrind FDs when listing /proc/PID/fd or /proc/PID/fdinfo directories */
+      if (is_proc_fd_directory(ARG1)) {
+         SizeT filtered_size = filter_valgrind_fds_from_getdents_with_refill(ARG1, (struct vki_dirent *)ARG2, RES, ARG3, status);
+         if ((SizeT)filtered_size == (SizeT)-1) {
+            /* Error already set by filter function */
+            return;
+         }
+         result_size = filtered_size;
+         if (result_size != RES)
+            SET_STATUS_Success(result_size);
+      }
+#endif /* (defined(VGO_linux) || defined(VGO_solaris)) && defined(__NR_getdents) */
+      
+      POST_MEM_WRITE( ARG2, result_size );
+   }
 }
+
+#if defined(__NR_getdents64)
 
 PRE(sys_getdents64)
 {
@@ -3941,9 +4206,26 @@ PRE(sys_getdents64)
 POST(sys_getdents64)
 {
    vg_assert(SUCCESS);
-   if (RES > 0)
-      POST_MEM_WRITE( ARG2, RES );
+   if (RES > 0) {
+      SizeT result_size = RES;
+      
+      /* Only filter Valgrind FDs when listing /proc/PID/fd or /proc/PID/fdinfo directories */
+      if (is_proc_fd_directory(ARG1)) {
+         SizeT filtered_size = filter_valgrind_fds_from_getdents64_with_refill(ARG1, (struct vki_dirent64 *)ARG2, RES, ARG3, status);
+         if ((SizeT)filtered_size == (SizeT)-1) {
+            /* Error already set by filter function */
+            return;
+         }
+         result_size = filtered_size;
+         if (result_size != RES)
+            SET_STATUS_Success(result_size);
+      }
+      
+      POST_MEM_WRITE( ARG2, result_size );
+   }
 }
+
+#endif /* defined(__NR_getdents64) */
 
 PRE(sys_getgroups)
 {
@@ -4556,8 +4838,23 @@ Bool ML_(handle_self_exe_open)(SyscallStatus *status, const HChar *filename,
 }
 #endif // defined(VGO_linux)
 
+// int open(const char *path, int flags, mode_t mode);
 PRE(sys_open)
 {
+#if defined(VGO_linux)
+   HChar  name[30];   // large enough
+   Bool   proc_self_exe = False;
+
+   /* Check for /proc/self/exe or /proc/<pid>/exe case
+    * first so that we can then use the later checks. */
+   VG_(sprintf)(name, "/proc/%d/exe", VG_(getpid)());
+   if (ML_(safe_to_deref)( (void*)(Addr)ARG1, 1 )
+       && (VG_(strcmp)((HChar *)(Addr)ARG1, name) == 0
+           || VG_(strcmp)((HChar *)(Addr)ARG1, "/proc/self/exe") == 0)) {
+      proc_self_exe = True;
+   }
+#endif
+
    if (ARG2 & VKI_O_CREAT) {
       // 3-arg version
       PRINT("sys_open ( %#" FMT_REGWORD "x(%s), %ld, %ld )",ARG1,
@@ -4573,13 +4870,39 @@ PRE(sys_open)
    }
    PRE_MEM_RASCIIZ( "open(filename)", ARG1 );
 
+   // check that we are not trying to open the client exe for writing
+   if ((ARG2 & VKI_O_WRONLY) ||
+       (ARG2 & VKI_O_RDWR)) {
+#if defined(VGO_linux)
+      if (proc_self_exe) {
+
+         SET_STATUS_Failure( VKI_ETXTBSY );
+         return;
+      } else {
+#endif
+      vg_assert(VG_(resolved_exename));
+      const HChar* path = (const HChar*)ARG1;
+      if (ML_(safe_to_deref)(path, 1)) {
+         // we need something like a "ML_(safe_to_deref_path)" that does a binary search for the addressable length, and maybe nul
+         HChar tmp[VKI_PATH_MAX];
+         if (VG_(realpath)(path, tmp)) {
+            if (!VG_(strcmp)(tmp, VG_(resolved_exename))) {
+               SET_STATUS_Failure( VKI_ETXTBSY );
+               return;
+            }
+         }
+      }
+#if defined(VGO_linux)
+      }
+#endif
+   }
+
 #if defined(VGO_linux)
    /* Handle the case where the open is of /proc/self/cmdline or
       /proc/<pid>/cmdline, and just give it a copy of the fd for the
       fake file we cooked up at startup (in m_main).  Also, seek the
       cloned fd back to the start. */
    {
-      HChar  name[30];   // large enough
       HChar* arg1s = (HChar*) (Addr)ARG1;
       SysRes sres;
 
@@ -4602,6 +4925,11 @@ PRE(sys_open)
    if (ML_(handle_auxv_open)(status, (const HChar *)(Addr)ARG1, ARG2)
        || ML_(handle_self_exe_open)(status, (const HChar *)(Addr)ARG1, ARG2))
       return;
+
+   if (proc_self_exe) {
+      // do the syscall with VG_(resolved_exename)
+      ARG1 = (Word)VG_(resolved_exename);
+   }
 #endif // defined(VGO_linux)
 
    /* Otherwise handle normally */
@@ -4709,6 +5037,9 @@ PRE(sys_poll)
       PRE_MEM_READ( "poll(ufds.fd)",
                     (Addr)(&ufds[i].fd), sizeof(ufds[i].fd) );
       if (ML_(safe_to_deref)(&ufds[i].fd, sizeof(ufds[i].fd)) && ufds[i].fd >= 0) {
+         if (!ML_(fd_allowed)(ufds[i].fd, "poll(ufds.fd)", tid, False)) {
+            /* do nothing? Just let fd_allowed produce a warning? */
+         }
          PRE_MEM_READ( "poll(ufds.events)",
                        (Addr)(&ufds[i].events), sizeof(ufds[i].events) );
       }

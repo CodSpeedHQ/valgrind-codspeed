@@ -12,7 +12,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -44,127 +44,9 @@
 void
 LibVEX_GuestS390X_initialise(VexGuestS390XState *state)
 {
-/*------------------------------------------------------------*/
-/*--- Initialise ar registers                              ---*/
-/*------------------------------------------------------------*/
+   __builtin_memset(state, 0x0, sizeof *state);
 
-   state->guest_a0 = 0;
-   state->guest_a1 = 0;
-   state->guest_a2 = 0;
-   state->guest_a3 = 0;
-   state->guest_a4 = 0;
-   state->guest_a5 = 0;
-   state->guest_a6 = 0;
-   state->guest_a7 = 0;
-   state->guest_a8 = 0;
-   state->guest_a9 = 0;
-   state->guest_a10 = 0;
-   state->guest_a11 = 0;
-   state->guest_a12 = 0;
-   state->guest_a13 = 0;
-   state->guest_a14 = 0;
-   state->guest_a15 = 0;
-
-/*------------------------------------------------------------*/
-/*--- Initialise vr registers                             ---*/
-/*------------------------------------------------------------*/
-
-#define VRZERO(vr) \
-   do { \
-      vr.w64[0] = vr.w64[1] = 0ULL; \
-   } while(0);
-
-   VRZERO(state->guest_v0)
-   VRZERO(state->guest_v1)
-   VRZERO(state->guest_v2)
-   VRZERO(state->guest_v3)
-   VRZERO(state->guest_v4)
-   VRZERO(state->guest_v5)
-   VRZERO(state->guest_v6)
-   VRZERO(state->guest_v7)
-   VRZERO(state->guest_v8)
-   VRZERO(state->guest_v9)
-   VRZERO(state->guest_v10)
-   VRZERO(state->guest_v11)
-   VRZERO(state->guest_v12)
-   VRZERO(state->guest_v13)
-   VRZERO(state->guest_v14)
-   VRZERO(state->guest_v15)
-   VRZERO(state->guest_v16)
-   VRZERO(state->guest_v17)
-   VRZERO(state->guest_v18)
-   VRZERO(state->guest_v19)
-   VRZERO(state->guest_v20)
-   VRZERO(state->guest_v21)
-   VRZERO(state->guest_v22)
-   VRZERO(state->guest_v23)
-   VRZERO(state->guest_v24)
-   VRZERO(state->guest_v25)
-   VRZERO(state->guest_v26)
-   VRZERO(state->guest_v27)
-   VRZERO(state->guest_v28)
-   VRZERO(state->guest_v29)
-   VRZERO(state->guest_v30)
-   VRZERO(state->guest_v31)
-
-#undef VRZERO
-/*------------------------------------------------------------*/
-/*--- Initialise gpr registers                             ---*/
-/*------------------------------------------------------------*/
-
-   state->guest_r0 = 0;
-   state->guest_r1 = 0;
-   state->guest_r2 = 0;
-   state->guest_r3 = 0;
-   state->guest_r4 = 0;
-   state->guest_r5 = 0;
-   state->guest_r6 = 0;
-   state->guest_r7 = 0;
-   state->guest_r8 = 0;
-   state->guest_r9 = 0;
-   state->guest_r10 = 0;
-   state->guest_r11 = 0;
-   state->guest_r12 = 0;
-   state->guest_r13 = 0;
-   state->guest_r14 = 0;
-   state->guest_r15 = 0;
-
-/*------------------------------------------------------------*/
-/*--- Initialise S390 miscellaneous registers              ---*/
-/*------------------------------------------------------------*/
-
-   state->guest_counter = 0;
-   state->guest_fpc = 0;
-   state->guest_IA = 0;
-
-/*------------------------------------------------------------*/
-/*--- Initialise S390 pseudo registers                     ---*/
-/*------------------------------------------------------------*/
-
-   state->guest_SYSNO = 0;
-
-/*------------------------------------------------------------*/
-/*--- Initialise generic pseudo registers                  ---*/
-/*------------------------------------------------------------*/
-
-   state->guest_NRADDR = 0;
-   state->guest_CMSTART = 0;
-   state->guest_CMLEN = 0;
-   state->guest_IP_AT_SYSCALL = 0;
    state->guest_EMNOTE = EmNote_NONE;
-   state->host_EvC_COUNTER = 0;
-   state->host_EvC_FAILADDR = 0;
-
-/*------------------------------------------------------------*/
-/*--- Initialise thunk                                     ---*/
-/*------------------------------------------------------------*/
-
-   state->guest_CC_OP = 0;
-   state->guest_CC_DEP1 = 0;
-   state->guest_CC_DEP2 = 0;
-   state->guest_CC_NDEP = 0;
-
-   __builtin_memset(state->padding, 0x0, sizeof(state->padding));
 }
 
 
@@ -746,7 +628,7 @@ s390_do_cu12_cu14_helper2(UInt byte1, UInt byte2, UInt byte3, UInt byte4,
       UInt ij     = (byte3 >> 4) & 0x3;
       UInt klmn   = byte3 & 0xf;
       UInt opqrst = byte4 & 0x3f;
-      
+
       if (is_cu12) {
          UInt abcd = (uvwxy - 1) & 0xf;
          UInt high_surrogate = (0xd8 << 8) | (abcd << 6) | (efgh << 2) | ij;
@@ -900,6 +782,8 @@ decode_bfp_rounding_mode(UInt irrm)
    case Irrm_NegINF:  return S390_BFP_ROUND_NEGINF;
    case Irrm_PosINF:  return S390_BFP_ROUND_POSINF;
    case Irrm_ZERO:    return S390_BFP_ROUND_ZERO;
+   case Irrm_NEAREST_TIE_AWAY_0: return S390_BFP_ROUND_NEAREST_AWAY;
+   case Irrm_PREPARE_SHORTER:    return S390_BFP_ROUND_PREPARE_SHORT;
    }
    vpanic("decode_bfp_rounding_mode");
 }
@@ -998,6 +882,12 @@ decode_bfp_rounding_mode(UInt irrm)
 ({                                                        \
    UInt cc;                                               \
    switch (decode_bfp_rounding_mode(cc_dep2)) {           \
+   case S390_BFP_ROUND_NEAREST_AWAY:                      \
+      cc = S390_CC_FOR_BFP_CONVERT_AUX(opcode,cc_dep1,1); \
+      break;                                              \
+   case S390_BFP_ROUND_PREPARE_SHORT:                     \
+      cc = S390_CC_FOR_BFP_CONVERT_AUX(opcode,cc_dep1,3); \
+      break;                                              \
    case S390_BFP_ROUND_NEAREST_EVEN:                      \
       cc = S390_CC_FOR_BFP_CONVERT_AUX(opcode,cc_dep1,4); \
       break;                                              \
@@ -1032,6 +922,12 @@ decode_bfp_rounding_mode(UInt irrm)
 ({                                                         \
    UInt cc;                                                \
    switch (decode_bfp_rounding_mode(cc_dep2)) {            \
+   case S390_BFP_ROUND_NEAREST_AWAY:                       \
+      cc = S390_CC_FOR_BFP_UCONVERT_AUX(opcode,cc_dep1,1); \
+      break;                                               \
+   case S390_BFP_ROUND_PREPARE_SHORT:                      \
+      cc = S390_CC_FOR_BFP_UCONVERT_AUX(opcode,cc_dep1,3); \
+      break;                                               \
    case S390_BFP_ROUND_NEAREST_EVEN:                       \
       cc = S390_CC_FOR_BFP_UCONVERT_AUX(opcode,cc_dep1,4); \
       break;                                               \
@@ -1069,6 +965,12 @@ decode_bfp_rounding_mode(UInt irrm)
       s390_cc_thunk_put3 for rationale. */                           \
    cc_dep2 = cc_dep2 ^ cc_ndep;                                      \
    switch (decode_bfp_rounding_mode(cc_ndep)) {                      \
+   case S390_BFP_ROUND_NEAREST_AWAY:                                 \
+      cc = S390_CC_FOR_BFP128_CONVERT_AUX(opcode,cc_dep1,cc_dep2,1); \
+      break;                                                         \
+   case S390_BFP_ROUND_PREPARE_SHORT:                                \
+      cc = S390_CC_FOR_BFP128_CONVERT_AUX(opcode,cc_dep1,cc_dep2,3); \
+      break;                                                         \
    case S390_BFP_ROUND_NEAREST_EVEN:                                 \
       cc = S390_CC_FOR_BFP128_CONVERT_AUX(opcode,cc_dep1,cc_dep2,4); \
       break;                                                         \
@@ -1106,6 +1008,13 @@ decode_bfp_rounding_mode(UInt irrm)
       s390_cc_thunk_put3 for rationale. */                            \
    cc_dep2 = cc_dep2 ^ cc_ndep;                                       \
    switch (decode_bfp_rounding_mode(cc_ndep)) {                       \
+   case S390_BFP_ROUND_NEAREST_AWAY:                                  \
+      cc = S390_CC_FOR_BFP128_UCONVERT_AUX(opcode,cc_dep1,cc_dep2,1); \
+      break;                                                          \
+   case S390_BFP_ROUND_PREPARE_SHORT:                                 \
+      cc = S390_CC_FOR_BFP128_UCONVERT_AUX(opcode,cc_dep1,cc_dep2,3); \
+      cc = S390_CC_FOR_BFP_UCONVERT_AUX(opcode,cc_dep1,3);            \
+      break;                                                          \
    case S390_BFP_ROUND_NEAREST_EVEN:                                  \
       cc = S390_CC_FOR_BFP128_UCONVERT_AUX(opcode,cc_dep1,cc_dep2,4); \
       break;                                                          \
@@ -1818,9 +1727,9 @@ guest_s390x_spechelper(const HChar *function_name, IRExpr **args,
 
 #  if 0
    vex_printf("spec request:\n");
-   vex_printf("   %s  ", function_name);
+   vex_printf("   %s", function_name);
    for (i = 0; i < arity; i++) {
-      vex_printf("  ");
+      vex_printf("   [%u]: ", i);
       ppIRExpr(args[i]);
    }
    vex_printf("\n");
@@ -2143,13 +2052,13 @@ guest_s390x_spechelper(const HChar *function_name, IRExpr **args,
          cc_dep1 = the value to be tested, ANDed with the mask
          cc_dep2 = an 8-bit mask; expected to be a constant here */
       if (cc_op == S390_CC_OP_TEST_UNDER_MASK_8) {
-         ULong mask16;
+         ULong mask8;
 
          if (! isC64(cc_dep2)) goto missed;
 
-         mask16 = cc_dep2->Iex.Const.con->Ico.U64;
+         mask8 = cc_dep2->Iex.Const.con->Ico.U64;
 
-         if (mask16 == 0) {   /* cc == 0 */
+         if (mask8 == 0) {   /* cc == 0 */
             if (cond & 0x8) return mkU32(1);
             return mkU32(0);
          }
@@ -2166,6 +2075,22 @@ guest_s390x_spechelper(const HChar *function_name, IRExpr **args,
          }
          if (cond == 14 || cond == 14 - 2) { /* not all bits set */
             return unop(Iop_1Uto32, binop(Iop_CmpNE64, cc_dep1, cc_dep2));
+         }
+         if (cond == 4 || cond == 4 + 2) { /* not all zero and not all one */
+            return unop(Iop_1Uto32, binop(Iop_And1,
+                        binop(Iop_CmpNE64, cc_dep1, cc_dep2),
+                        binop(Iop_CmpNE64, cc_dep1, mkU64(0))));
+         }
+         if (cond == 9 || cond == 9 + 2) { /* selected bits all 1 or all 0 */
+            return unop(Iop_1Uto32, binop(Iop_Or1,
+                                          binop(Iop_CmpEQ64, cc_dep1, cc_dep2),
+                                          binop(Iop_CmpEQ64, cc_dep1, mkU64(0))));
+         }
+         if (cond == 0 || cond == 0 + 2) {
+            return mkU32(0);
+         }
+         if (cond == 15 || cond == 15 - 2) {
+            return mkU32(1);
          }
          goto missed;
       }
@@ -2216,6 +2141,17 @@ guest_s390x_spechelper(const HChar *function_name, IRExpr **args,
          if (cond == 14) { /* not all bits set */
             return unop(Iop_1Uto32, binop(Iop_CmpNE64, val, mkU64(mask)));
          }
+         if (cond == 9) { /* selected bits all 1 or all 0 */
+            return unop(Iop_1Uto32, binop(Iop_Or1,
+                                          binop(Iop_CmpEQ64, cc_dep1, cc_dep2),
+                                          binop(Iop_CmpEQ64, cc_dep1, mkU64(0))));
+         }
+         if (cond == 6) { /* not all zero and not all one */
+            return unop(Iop_1Uto32, binop(Iop_And1,
+                        binop(Iop_CmpNE64, cc_dep1, cc_dep2),
+                        binop(Iop_CmpNE64, cc_dep1, mkU64(0))));
+         }
+         if (cond == 0) return mkU32(0);
 
          IRExpr *masked_msb = binop(Iop_And64, val, mkU64(msb));
 
@@ -2260,8 +2196,22 @@ guest_s390x_spechelper(const HChar *function_name, IRExpr **args,
                               binop(Iop_CmpEQ64, masked_msb, mkU64(0)),
                               binop(Iop_CmpEQ64, val, mkU64(mask))));
          }
-         // fixs390: handle cond = 5,6,9,10 (the missing cases)
-         // vex_printf("TUM mask = 0x%llx\n", mask16);
+         if (cond == 5) { /* cc == 1 || cc == 3 */
+            /* mixed and leftmost bit zero or all bits set */
+            IRExpr *cc1 = binop(Iop_And1,
+                                binop(Iop_CmpEQ64, masked_msb, mkU64(0)),
+                                binop(Iop_CmpNE64, val, mkU64(0)));
+            IRExpr *cc3 = binop(Iop_CmpEQ64, val, mkU64(mask));
+            return unop(Iop_1Uto32, binop(Iop_Or1, cc1, cc3));
+         }
+         if (cond == 10) { /* cc == 0 || cc == 2 */
+            /* all bits zero or mixed and leftmost bit one */
+            IRExpr *cc0 = binop(Iop_CmpEQ64, val, mkU64(0));
+            IRExpr *cc2 = binop(Iop_And1,
+                                binop(Iop_CmpNE64, masked_msb, mkU64(0)),
+                                binop(Iop_CmpNE64, val, mkU64(mask)));
+            return unop(Iop_1Uto32, binop(Iop_Or1, cc0, cc2));
+         }
          goto missed;
       }
 

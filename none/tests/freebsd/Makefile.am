@@ -1,19 +1,12 @@
 
 include $(top_srcdir)/Makefile.tool-tests.am
 
-dist_noinst_SCRIPTS = filter_stderr test.sh filter_452274 filter_auxv filter_fdleak auxv_script
+dist_noinst_SCRIPTS = filter_stderr test.sh filter_452274 filter_auxv \
+                      filter_pre_auxv filter_fdleak auxv_script
 
 EXTRA_DIST = \
 	auxv.vgtest \
-	auxv.stderr.exp \
-	auxv.stderr.exp-32on64 \
-	auxv.stderr.exp-freebsd13 \
-	auxv.stderr.exp-freebsd131 \
-	auxv.stderr.exp-freebsd14 \
-	auxv.stderr.exp-arm64 \
 	auxv_script.vgtest \
-	auxv_script.stderr.exp \
-	auxv_script.stderr.exp-arm64 \
 	bug452274.vgtest \
 	bug452274.stderr.exp \
 	bug498317.vgtest bug498317.stderr.exp \
@@ -53,6 +46,12 @@ EXTRA_DIST = \
 	ksh_test.ksh \
 	ksh_test.stderr.exp \
 	ksh_test.stdout.exp \
+	open_client.vgtest \
+	open_client.stderr.exp \
+	readlinkat.vgtest \
+	readlinkat.stderr.exp \
+	readlinkat2.vgtest \
+	readlinkat2.stderr.exp \
 	sanity_level_thread.vgtest \
 	sanity_level_thread.stderr.exp \
 	swapcontext.vgtest \
@@ -69,8 +68,9 @@ EXTRA_DIST = \
 	usrstack.stdout.exp
 
 check_PROGRAMS = \
-	auxv bug452274 bug498317 bug499212 fexecve hello_world osrel \
-        proc_pid_file sanity_level_thread swapcontext umtx_shm_creat usrstack
+	auxv bug452274 bug498317 bug499212 fexecve hello_world open_client \
+	osrel proc_pid_file readlinkat readlinkat2 sanity_level_thread swapcontext \
+	umtx_shm_creat usrstack
 
 AM_CFLAGS   += $(AM_FLAG_M3264_PRI)
 AM_CXXFLAGS += $(AM_FLAG_M3264_PRI)
@@ -80,8 +80,12 @@ osrel_CFLAGS = ${AM_CFLAGS}
 swapcontext_CFLAGS = ${AM_CFLAGS}
 
 hello_world_SOURCES = hello_world.cpp
-
+open_client_SOURCES = open_client.cpp
 proc_pid_file_SOURCES = proc_pid_file.cpp
+readlinkat_SOURCES = readlinkat.cpp
+readlinkat_CXXFLAGS = ${AM_CXXFLAGS} @FLAG_W_NO_UNINITIALIZED@
+readlinkat2_SOURCES = readlinkat2.cpp
+readlinkat2_CXXFLAGS = ${AM_CXXFLAGS} @FLAG_W_NO_UNINITIALIZED@
 
 sanity_level_thread_SOURCES = sanity_level_thread.cpp
 sanity_level_thread_LDFLAGS = ${AM_LDFLAGS} -pthread

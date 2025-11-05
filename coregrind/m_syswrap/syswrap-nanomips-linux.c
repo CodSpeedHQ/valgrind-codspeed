@@ -11,7 +11,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -382,10 +382,7 @@ DECL_TEMPLATE (mips_linux, sys_set_thread_area);
 DECL_TEMPLATE (mips_linux, sys_ptrace);
 DECL_TEMPLATE (mips_linux, sys_unshare);
 DECL_TEMPLATE (mips_linux, sys_reboot);
-DECL_TEMPLATE (mips_linux, sys_setdomainname);
 DECL_TEMPLATE (mips_linux, sys_sethostname);
-DECL_TEMPLATE (mips_linux, sys_swapon);
-DECL_TEMPLATE (mips_linux, sys_swapoff);
 
 PRE(sys_mmap2)
 {
@@ -514,28 +511,10 @@ PRE(sys_reboot)
    *flags |= SfMayBlock;
 }
 
-PRE(sys_setdomainname)
-{
-   PRINT ("sys_setdomainname ( %#lx, %ld )", ARG1, SARG2);
-   PRE_REG_READ2 (long, "setdomainname", const void *, name, int, len);
-}
-
 PRE(sys_sethostname)
 {
    PRINT ("sys_sethostname ( %#lx, %ld )", ARG1, SARG2);
    PRE_REG_READ2 (long, "sethostname", const void *, name, int, len);
-}
-
-PRE(sys_swapon)
-{
-   PRINT("sys_swapon ( %#lx, %#lx )", ARG1, ARG2);
-   PRE_REG_READ2(long, "swapon", const void *, path, int, flags);
-}
-
-PRE(sys_swapoff)
-{
-   PRINT("sys_swapoff ( %#lx )", ARG1);
-   PRE_REG_READ1(long, "swapoff", const void *, path);
 }
 
 #undef PRE
@@ -628,7 +607,7 @@ static SyscallTableEntry syscall_main_table[] = {
    LINXY (__NR_pselect6,               sys_pselect6),
    LINXY (__NR_ppoll,                  sys_ppoll),
    LINXY (__NR_signalfd4,              sys_signalfd4),
-   LINX_ (__NR_vmsplice,               sys_vmsplice),
+   LINXY (__NR_vmsplice,               sys_vmsplice),
    LINX_ (__NR_splice,                 sys_splice),
    LINX_ (__NR_tee,                    sys_tee),
    LINXY (__NR_readlinkat,             sys_readlinkat),
@@ -712,7 +691,7 @@ static SyscallTableEntry syscall_main_table[] = {
    GENX_ (__NR_setgroups,              sys_setgroups),
    GENXY (__NR_uname,                  sys_newuname),
    PLAX_ (__NR_sethostname,            sys_sethostname),
-   PLAX_ (__NR_setdomainname,          sys_setdomainname),
+   LINX_ (__NR_setdomainname,          sys_setdomainname),
    GENXY (__NR_getrusage,              sys_getrusage),
    GENX_ (__NR_umask,                  sys_umask),
    LINXY (__NR_prctl,                  sys_prctl),
@@ -772,8 +751,8 @@ static SyscallTableEntry syscall_main_table[] = {
    GENX_ (__NR_execve,                 sys_execve),
    PLAX_ (__NR_mmap2,                  sys_mmap2),
    LINX_ (__NR_fadvise64_64,           sys_fadvise64_64),
-   PLAX_ (__NR_swapon,                 sys_swapon),
-   PLAX_ (__NR_swapoff,                sys_swapoff),
+   LINX_ (__NR_swapon,                 sys_swapon),
+   LINX_ (__NR_swapoff,                sys_swapoff),
    GENXY (__NR_mprotect,               sys_mprotect),
    GENX_ (__NR_msync,                  sys_msync),
    GENX_ (__NR_mlock,                  sys_mlock),
@@ -840,7 +819,12 @@ static SyscallTableEntry syscall_main_table[] = {
    LINXY (__NR_landlock_create_ruleset,sys_landlock_create_ruleset),
    LINX_ (__NR_landlock_add_rule,      sys_landlock_add_rule),
    LINX_ (__NR_landlock_restrict_self, sys_landlock_restrict_self),
+   LINXY (__NR_cachestat,              sys_cachestat),
    LINX_ (__NR_fchmodat2,              sys_fchmodat2),
+   LINXY (__NR_statmount,              sys_statmount),
+   LINXY (__NR_listmount,              sys_listmount),
+   LINX_ (__NR_mseal,                  sys_mseal),
+   LINX_ (__NR_futex_waitv,            sys_futex_waitv),
 };
 
 SyscallTableEntry* ML_(get_linux_syscall_entry) (UInt sysno)

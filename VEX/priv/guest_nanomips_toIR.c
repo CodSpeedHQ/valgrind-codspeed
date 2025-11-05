@@ -11,7 +11,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -20,9 +20,7 @@
    General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307, USA.
+   along with this program; if not, see <http://www.gnu.org/licenses/>.
 
    The GNU General Public License is contained in the file COPYING.
 */
@@ -864,23 +862,17 @@ static void nano_pool32Axf_4(DisResult *dres, UInt cins)
 {
    UChar rs = (cins >> 16) & 0x1F;
    UChar rt = (cins >> 21) & 0x1F;
-   IRTemp t1;
 
    switch ((cins >> 9) & 0x7F) {
       case nano_POOL32Axf4_CLO: {  /* clo */
          DIP("clo r%u, r%u", rt, rs);
-         t1 = newTemp(Ity_I1);
-         assign(t1, binop(Iop_CmpEQ32, getIReg(rs), mkU32(0xffffffff)));
-         putIReg(rt, IRExpr_ITE(mkexpr(t1),
-                                mkU32(0x00000020),
-                                unop(Iop_Clz32,
-                                     unop(Iop_Not32, getIReg(rs)))));
+         putIReg(rt, unop(Iop_ClzNat32, unop(Iop_Not32, getIReg(rs))));
          break;
       }
 
       case nano_POOL32Axf4_CLZ: {  /* clz */
          DIP("clz r%u, r%u", rt, rs);
-         putIReg(rt, unop(Iop_Clz32, getIReg(rs)));
+         putIReg(rt, unop(Iop_ClzNat32, getIReg(rs)));
          break;
       }
    }

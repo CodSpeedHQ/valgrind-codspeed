@@ -8,7 +8,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -152,17 +152,6 @@ read_objdump(const char *file)
          ++p;
 
       char *dis_insn = p;
-
-      /* Remove symbolic jump targets, if any. E.g. change
-         1b68:    c0 e5 ff ff fd a4    brasl   %r14,16b0 <puts@plt>  to
-         1b68:    c0 e5 ff ff fd a4    brasl   %r14,16b0
-      */
-      p = strchr(p, '<');
-      if (p) {
-         *p-- = '\0';
-         while (isspace(*p))   // remove trailing white space
-            *p-- = '\0';
-      }
 
       if (strncmp(dis_insn, mark, strlen(mark)) == 0) {
          if (marker_seen)

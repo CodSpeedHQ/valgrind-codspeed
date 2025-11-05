@@ -12,7 +12,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -1940,6 +1940,7 @@ PRE(kqueue)
 
 POST(kqueue)
 {
+   POST_newFd_RES;
    if (!ML_(fd_allowed)(RES, "kqueue", tid, True)) {
       VG_(close)(RES);
       SET_STATUS_Failure( VKI_EMFILE );
@@ -1970,6 +1971,7 @@ PRE(guarded_kqueue_np)
 
 POST(guarded_kqueue_np)
 {
+   POST_newFd_RES;
    if (!ML_(fd_allowed)(RES, "guarded_kqueue_np", tid, True)) {
       VG_(close)(RES);
       SET_STATUS_Failure( VKI_EMFILE );
@@ -2083,18 +2085,18 @@ PRE(bsdthread_register)
    pthread_starter = ARG1;
    wqthread_starter = ARG2;
    pthread_structsize = ARG3;
-   #if DARWIN_VERS >= DARWIN_10_12
-     typedef struct {
+#if DARWIN_VERS >= DARWIN_10_12
+    typedef struct {
        uint64_t version;
        uint64_t dispatch_queue_offset;
        uint64_t main_qos;
        uint32_t tsd_offset;
        uint32_t return_to_kernel_offset;
        uint32_t mach_thread_self_offset;
-     } __attribute__ ((packed)) _pthread_registration_data;
+    } __attribute__ ((packed)) _pthread_registration_data;
 
-     pthread_tsd_offset = ((_pthread_registration_data*) ARG4)->tsd_offset;
-   #endif
+    pthread_tsd_offset = ((_pthread_registration_data*) ARG4)->tsd_offset;
+#endif
    ARG1 = (Word)&pthread_hijack_asm;
    ARG2 = (Word)&wqthread_hijack_asm;
 }
@@ -2140,6 +2142,7 @@ PRE(workq_ops)
       // GrP fixme need anything here?
       // GrP fixme may block?
       break;
+   case VKI_WQOPS_THREAD_KEVENT_RETURN:
    case VKI_WQOPS_THREAD_RETURN: {
       // The interesting case. The kernel will do one of two things:
       // 1. Return normally. We continue; libc proceeds to stop the thread.
@@ -2168,10 +2171,6 @@ PRE(workq_ops)
    case VKI_WQOPS_QUEUE_REQTHREADS2:
       // JRS uh, looks like it queues up a bunch of threads, or some such?
       *flags |= SfMayBlock; // the kernel sources take a spinlock, so play safe
-      break;
-   case VKI_WQOPS_THREAD_KEVENT_RETURN:
-      // RK fixme need anything here?
-      // perhaps similar to VKI_WQOPS_THREAD_RETURN above?
       break;
    case VKI_WQOPS_SET_EVENT_MANAGER_PRIORITY:
       // RK fixme this just sets scheduling priorities - don't think we need
@@ -2410,6 +2409,8 @@ PRE(__pthread_fchdir)
 {
     PRINT("__pthread_fchdir ( %lu )", ARG1);
     PRE_REG_READ1(long, "__pthread_fchdir", unsigned int, fd);
+    if (!ML_(fd_allowed)(ARG1, "__pthread_chdir", tid, False))
+       SET_STATUS_Failure(VKI_EBADF);
 }
 
 
@@ -2525,6 +2526,8 @@ PRE(fgetxattr)
    PRE_REG_READ6(vki_ssize_t, "fgetxattr",
                  int, fd, char *, name, void *, value,
                  vki_size_t, size, uint32_t, position, int, options);
+   if (!ML_(fd_allowed)(ARG1, "fgetxattr", tid, False))
+      SET_STATUS_Failure(VKI_EBADF);
    PRE_MEM_RASCIIZ("getxattr(name)", ARG2);
    PRE_MEM_WRITE( "getxattr(value)", ARG3, ARG4);
 }
@@ -2556,7 +2559,8 @@ PRE(fsetxattr)
    PRE_REG_READ6(int, "fsetxattr", 
                  int,"fd", char *,"name", void *,"value", 
                  vki_size_t,"size", uint32_t,"position", int,"options" );
-   
+   if (!ML_(fd_allowed)(ARG1, "fsetxattr", tid, False))
+      SET_STATUS_Failure(VKI_EBADF);
    PRE_MEM_RASCIIZ( "fsetxattr(name)", ARG2 );
    PRE_MEM_READ( "fsetxattr(value)", ARG3, ARG4 );
 }
@@ -2579,6 +2583,8 @@ PRE(fremovexattr)
           SARG1, ARG2, (HChar*)ARG2, SARG3 );
    PRE_REG_READ3(int, "fremovexattr",
                  int, "fd", char*, "attrname", int, "options");
+   if (!ML_(fd_allowed)(ARG1, "fremovextattr", tid, False))
+      SET_STATUS_Failure(VKI_EBADF);
    PRE_MEM_RASCIIZ( "removexattr(attrname)", ARG2 );
 }
 
@@ -2610,6 +2616,8 @@ PRE(flistxattr)
    PRE_REG_READ4 (long, "flistxattr", 
                   int, "fd", char *,"namebuf", 
                  vki_size_t,"size", int,"options" );
+   if (!ML_(fd_allowed)(ARG1, "flistxtattr", tid, False))
+      SET_STATUS_Failure(VKI_EBADF);
    PRE_MEM_WRITE( "flistxattr(namebuf)", ARG2, ARG3 );
    *flags |= SfMayBlock;
 }
@@ -2681,6 +2689,7 @@ PRE(shm_open)
 POST(shm_open)
 {
    vg_assert(SUCCESS);
+   POST_newFd_RES;
    if (!ML_(fd_allowed)(RES, "shm_open", tid, True)) {
       VG_(close)(RES);
       SET_STATUS_Failure( VKI_EMFILE );
@@ -9846,29 +9855,23 @@ POST(getattrlistbulk)
 
 PRE(faccessat)
 {
-    uint32_t fd = ARG1;
+    Int fd = ARG1;
     PRINT("faccessat(fd:%d, path:%#lx(%s), amode:%#lx, flag:%#lx)",
           fd, ARG2, ARG2 ? (HChar*)ARG2 : "null", ARG3, ARG4);
     PRE_REG_READ4(int, "faccessat",
                   int, fd, user_addr_t, path, int, amode, int, flag);
-
-    if (fd != VKI_AT_FDCWD && !ML_(fd_allowed)(fd, "faccessat", tid, False)) {
-      SET_STATUS_Failure( VKI_EBADF );
-    }
+    ML_(fd_at_check_allowed)(SARG1, (const HChar*)ARG2, "faccessat", tid, status);
     PRE_MEM_RASCIIZ( "faccessat(path)", ARG2 );
 }
 
 PRE(fstatat64)
 {
-    uint32_t fd = ARG1;
+    Int fd = ARG1;
     PRINT("fstatat64(fd:%d, path:%#lx(%s), ub:%#lx, flag:%#lx)",
           fd, ARG2, ARG2 ? (HChar*)ARG2 : "null", ARG3, ARG4);
     PRE_REG_READ4(int, "fstatat64",
                   int, fd, user_addr_t, path, user_addr_t, ub, int, flag);
-
-    if (fd != VKI_AT_FDCWD && !ML_(fd_allowed)(fd, "fstatat64", tid, False)) {
-      SET_STATUS_Failure( VKI_EBADF );
-    }
+    ML_(fd_at_check_allowed)(SARG1, (const HChar*)ARG2, "fstatat64", tid, status);
     PRE_MEM_RASCIIZ( "fstatat64(path)", ARG2 );
     PRE_MEM_WRITE( "fstatat64(ub)", ARG3, sizeof(struct vki_stat64) );
 }
@@ -9879,25 +9882,24 @@ POST(fstatat64)
 
 PRE(readlinkat)
 {
-    Word  saved = SYSNO;
-    
     PRINT("readlinkat ( %ld, %#lx(%s), %#lx, %ld )",
           SARG1, ARG2, (HChar*)ARG2, ARG3, SARG4);
     PRE_REG_READ4(long, "readlinkat",
                   int, dfd, const char *, path, char *, buf, int, bufsiz);
+    ML_(fd_at_check_allowed)(SARG1, (const HChar*)ARG2, "readlinkat", tid, status);
     PRE_MEM_RASCIIZ( "readlinkat(path)", ARG2 );
     PRE_MEM_WRITE( "readlinkat(buf)", ARG3,ARG4 );
     
     /*
-     * Refer to coregrind/m_syswrap/syswrap-linux.c
+     * Linux needs to jump through hoops to check for accesses to things liks
+     * /proc/PID/self
+     * Darwin does not have proc so no need here
      */
-    {
-        /* Normal case */
-        SET_STATUS_from_SysRes( VG_(do_syscall4)(saved, ARG1, ARG2, ARG3, ARG4));
-    }
-    
-    if (SUCCESS && RES > 0)
-        POST_MEM_WRITE( ARG3, RES );
+}
+
+POST(readlinkat)
+{
+   POST_MEM_WRITE( ARG3, RES );
 }
 
 PRE(bsdthread_ctl)
@@ -9995,11 +9997,7 @@ PRE(openat)
    /* For absolute filenames, dfd is ignored.  If dfd is AT_FDCWD,
       filename is relative to cwd.  When comparing dfd against AT_FDCWD,
       be sure only to compare the bottom 32 bits. */
-   if (ML_(safe_to_deref)( (void*)(Addr)ARG2, 1 )
-       && *(Char *)(Addr)ARG2 != '/'
-       && ((Int)ARG1) != ((Int)VKI_AT_FDCWD)
-       && !ML_(fd_allowed)(ARG1, "openat", tid, False))
-      SET_STATUS_Failure( VKI_EBADF );
+   ML_(fd_at_check_allowed)(SARG1, (const HChar*)ARG2, "openat", tid, status);
 
    /* Otherwise handle normally */
    *flags |= SfMayBlock;
@@ -10008,6 +10006,7 @@ PRE(openat)
 POST(openat)
 {
    vg_assert(SUCCESS);
+   POST_newFd_RES;
    if (!ML_(fd_allowed)(RES, "openat", tid, True)) {
       VG_(close)(RES);
       SET_STATUS_Failure( VKI_EMFILE );
@@ -10022,6 +10021,7 @@ PRE(mkdirat)
    PRINT("mkdirat ( %" FMT_REGWORD "u, %#" FMT_REGWORD "x(%s), %" FMT_REGWORD "u )", ARG1,ARG2,(char*)ARG2,ARG3);
    PRE_REG_READ3(int, "mkdirat",
                  int, fd, const char *, path, unsigned int, mode);
+   ML_(fd_at_check_allowed)(SARG1, (const HChar*)ARG2, "mkdirat", tid, status);
    PRE_MEM_RASCIIZ( "mkdirat(path)", ARG2 );
    *flags |= SfMayBlock;
 }
@@ -10479,18 +10479,16 @@ PRE(openat_nocancel)
    /* For absolute filenames, dfd is ignored.  If dfd is AT_FDCWD,
       filename is relative to cwd.  When comparing dfd against AT_FDCWD,
       be sure only to compare the bottom 32 bits. */
-   if (ML_(safe_to_deref)( (void*)(Addr)ARG2, 1 )
-       && *(Char *)(Addr)ARG2 != '/'
-       && ((Int)ARG1) != ((Int)VKI_AT_FDCWD)
-       && !ML_(fd_allowed)(ARG1, "openat_nocancel", tid, False))
-      SET_STATUS_Failure( VKI_EBADF );
+   ML_(fd_at_check_allowed)(SARG1, (const HChar*)ARG2, "openat_nocancel", tid, status);
 
    /* Otherwise handle normally */
    *flags |= SfMayBlock;
 }
+
 POST(openat_nocancel)
 {
    vg_assert(SUCCESS);
+   POST_newFd_RES;
    if (!ML_(fd_allowed)(RES, "openat_nocancel", tid, True)) {
       VG_(close)(RES);
       SET_STATUS_Failure( VKI_EMFILE );
@@ -11100,7 +11098,7 @@ const SyscallTableEntry ML_(syscall_table)[] = {
 #endif
    MACX_(__NR_faccessat,           faccessat),          // 466
    MACXY(__NR_fstatat64,           fstatat64),          // 470
-   MACX_(__NR_readlinkat,          readlinkat),         // 473
+   MACXY(__NR_readlinkat,          readlinkat),         // 473
    MACX_(__NR_bsdthread_ctl,       bsdthread_ctl),      // 478
    MACXY(__NR_csrctl,              csrctl),             // 483
    MACX_(__NR_guarded_open_dprotected_np, guarded_open_dprotected_np),  // 484

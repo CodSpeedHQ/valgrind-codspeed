@@ -12,7 +12,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -1550,7 +1550,8 @@ static Bool dis_RV64I(/*MB_OUT*/ DisResult* dres,
                break;
             case 0b001:
                expr = binop(Iop_Shl64, getIReg64(rs1),
-                            unop(Iop_64to8, getIReg64(rs2)));
+                            unop(Iop_64to8, binop(Iop_And64, mkU64(0b00111111),
+                                                  getIReg64(rs2))));
                break;
             case 0b010:
                expr = unop(Iop_1Uto64,
@@ -1565,7 +1566,8 @@ static Bool dis_RV64I(/*MB_OUT*/ DisResult* dres,
                break;
             case 0b101:
                expr = binop(is_base ? Iop_Shr64 : Iop_Sar64, getIReg64(rs1),
-                            unop(Iop_64to8, getIReg64(rs2)));
+                            unop(Iop_64to8, binop(Iop_And64, mkU64(0b00111111),
+                                                  getIReg64(rs2))));
                break;
             case 0b110:
                expr = binop(Iop_Or64, getIReg64(rs1), getIReg64(rs2));
@@ -1719,7 +1721,9 @@ static Bool dis_RV64I(/*MB_OUT*/ DisResult* dres,
       if (rd != 0)
          putIReg32(
             irsb, rd,
-            binop(Iop_Shl32, getIReg32(rs1), unop(Iop_64to8, getIReg64(rs2))));
+            binop(Iop_Shl32, getIReg32(rs1),
+                  unop(Iop_64to8, binop(Iop_And64, mkU64(0b00011111),
+                                        getIReg64(rs2)))));
       DIP("sllw %s, %s, %s\n", nameIReg(rd), nameIReg(rs1), nameIReg(rs2));
       return True;
    }
@@ -1734,7 +1738,8 @@ static Bool dis_RV64I(/*MB_OUT*/ DisResult* dres,
       if (rd != 0)
          putIReg32(irsb, rd,
                    binop(is_log ? Iop_Shr32 : Iop_Sar32, getIReg32(rs1),
-                         unop(Iop_64to8, getIReg64(rs2))));
+                         unop(Iop_64to8, binop(Iop_And64, mkU64(0b00011111),
+                                               getIReg64(rs2)))));
       DIP("%s %s, %s, %s\n", is_log ? "srlw" : "sraw", nameIReg(rd),
           nameIReg(rs1), nameIReg(rs2));
       return True;
@@ -1758,8 +1763,6 @@ static Bool dis_RV64M(/*MB_OUT*/ DisResult* dres,
       UInt rs1    = INSN(19, 15);
       UInt rs2    = INSN(24, 20);
       if (funct3 == 0b010) {
-         /* Invalid {MUL,DIV,REM}<x>, fall through. */
-      } else if (funct3 == 0b010) {
          /* MULHSU, not currently handled, fall through. */
       } else {
          if (rd != 0) {

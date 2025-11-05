@@ -12,7 +12,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -314,6 +314,7 @@
 #define __NR_seccomp		348
 #define __NR_getrandom		349
 #define __NR_memfd_create	350
+#define __NR_bpf		351
 
 #define __NR_execveat		354
 
@@ -346,6 +347,11 @@
 #define __NR_kexec_file_load		381
 #define __NR_io_pgetevents		382
 #define __NR_rseq			383
+#define __NR_semtimedop			392
+#define __NR_semctl			394
+#define __NR_shmctl			396
+#define __NR_msgctl			402
+#define __NR_futex_waitv		449
 
 #define NR_syscalls 384
 

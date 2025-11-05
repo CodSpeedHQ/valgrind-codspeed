@@ -12,7 +12,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -170,6 +170,25 @@ typedef struct {
 
 typedef int __vki_kernel_key_t;
 typedef int __vki_kernel_mqd_t;
+
+//----------------------------------------------------------------------
+// From pre-git history /include/linux/types.h
+//----------------------------------------------------------------------
+
+struct vki_ustat {
+#if defined(VGA_mips32) || defined(VGA_mips64) || defined(VGA_nanomips)
+	long			f_tfree;
+#else
+	int			f_tfree;
+#endif
+#if defined(VGA_s390x)
+	unsigned int		f_tinode;
+#else
+	unsigned long		f_tinode;
+#endif
+	char			f_fname[6];
+	char			f_fpack[6];
+};
 
 //----------------------------------------------------------------------
 // From linux-2.6.8.1/include/linux/types.h
@@ -1396,6 +1415,19 @@ struct vki_robust_list_head {
 	struct vki_robust_list __user *list_op_pending;
 };
 
+/* Introduced in linux commit bf69bad38cf63d980e8a603f8d1bd1f85b5ed3d9 */
+struct vki_futex_waitv {
+	__vki_u64 val;
+	__vki_u64 uaddr;
+	__vki_u32 flags;
+	__vki_u32 __reserved;
+};
+
+struct vki__kernel_timespec {
+	long long tv_sec;
+	long long tv_nsec;
+};
+
 //----------------------------------------------------------------------
 // From linux-2.6.8.1/include/linux/errno.h
 //----------------------------------------------------------------------
@@ -1514,6 +1546,7 @@ struct vki_dirent64 {
 #define VKI_F_SETLEASE      (VKI_F_LINUX_SPECIFIC_BASE + 0)
 #define VKI_F_GETLEASE      (VKI_F_LINUX_SPECIFIC_BASE + 1)
 
+#define VKI_F_CREATED_QUERY (VKI_F_LINUX_SPECIFIC_BASE + 4)
 #define VKI_F_CANCELLK      (VKI_F_LINUX_SPECIFIC_BASE + 5)
 
 #define VKI_F_DUPFD_CLOEXEC (VKI_F_LINUX_SPECIFIC_BASE + 6)
@@ -3202,6 +3235,8 @@ struct vki_perf_event_attr {
 #define VKI_PERF_EVENT_IOC_SET_FILTER   _VKI_IOW('$', 6, char *)
 #define VKI_PERF_EVENT_IOC_ID           _VKI_IOR('$', 7, __vki_u64 *)
 #define VKI_PERF_EVENT_IOC_SET_BPF      _VKI_IOW('$', 8, __vki_u32)
+
+#define VKI_PERF_FLAG_FD_NO_GROUP       (1UL << 0)
 
 /*--------------------------------------------------------------------*/
 // From linux-2.6.32.4/include/linux/getcpu.h
@@ -5478,6 +5513,19 @@ struct vki_open_how {
 #define VKI_CLOSE_RANGE_UNSHARE (1U << 1)
 #define VKI_CLOSE_RANGE_CLOEXEC (1U << 2)
 
+struct vki_cachestat_range {
+    __vki_u64 off;
+    __vki_u64 len;
+};
+
+struct vki_cachestat {
+    __vki_u64 nr_cache;
+    __vki_u64 nr_dirty;
+    __vki_u64 nr_writeback;
+    __vki_u64 nr_evicted;
+    __vki_u64 nr_recently_evicted;
+};
+
 //----------------------------------------------------------------------
 // From linux/magic.h
 //----------------------------------------------------------------------
@@ -5487,6 +5535,43 @@ struct vki_open_how {
 struct vki__aio_sigset {
    const vki_sigset_t __user	*sigmask;
    vki_size_t		sigsetsize;
+};
+
+//----------------------------------------------------------------------
+// From uapi/linux/mount.h
+//----------------------------------------------------------------------
+
+struct vki_mnt_id_req {
+   __vki_u32 size;
+   __vki_u32 spare;
+   __vki_u64 mnt_id;
+   __vki_u64 param;
+   __vki_u64 mnt_ns_id;
+};
+
+struct vki_statmount {
+	__vki_u32 size;		/* Total size, including strings */
+	__vki_u32 mnt_opts;		/* [str] Mount options of the mount */
+	__vki_u64 mask;		/* What results were written */
+	__vki_u32 sb_dev_major;	/* Device ID */
+	__vki_u32 sb_dev_minor;
+	__vki_u64 sb_magic;		/* ..._SUPER_MAGIC */
+	__vki_u32 sb_flags;		/* SB_{RDONLY,SYNCHRONOUS,DIRSYNC,LAZYTIME} */
+	__vki_u32 fs_type;		/* [str] Filesystem type */
+	__vki_u64 mnt_id;		/* Unique ID of mount */
+	__vki_u64 mnt_parent_id;	/* Unique ID of parent (for root == mnt_id) */
+	__vki_u32 mnt_id_old;	/* Reused IDs used in proc/.../mountinfo */
+	__vki_u32 mnt_parent_id_old;
+	__vki_u64 mnt_attr;		/* MOUNT_ATTR_... */
+	__vki_u64 mnt_propagation;	/* MS_{SHARED,SLAVE,PRIVATE,UNBINDABLE} */
+	__vki_u64 mnt_peer_group;	/* ID of shared peer group */
+	__vki_u64 mnt_master;	/* Mount receives propagation from this ID */
+	__vki_u64 propagate_from;	/* Propagation from in current namespace */
+	__vki_u32 mnt_root;		/* [str] Root of mount relative to root of fs */
+	__vki_u32 mnt_point;	/* [str] Mountpoint relative to current root */
+	__vki_u64 mnt_ns_id;	/* ID of the mount namespace */
+	__vki_u64 __spare2[49];
+	char str[];		/* Variable size part containing strings */
 };
 
 /*--------------------------------------------------------------------*/

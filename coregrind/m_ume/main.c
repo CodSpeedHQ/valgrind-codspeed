@@ -13,7 +13,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -42,6 +42,7 @@
 
 #include "priv_ume.h"
 
+typedef Int (*load_function)( Int fd, const HChar *name, ExeInfo *info );
 
 typedef struct {
    Bool (*match_fn)(const void *hdr, SizeT len);
@@ -56,7 +57,7 @@ static ExeHandler exe_handlers[] = {
 #  else
 #    error "unknown OS"
 #  endif
-   { VG_(match_script), VG_(load_script) },
+   { VG_(match_script), (load_function)VG_(load_script) },
 };
 #define EXE_HANDLER_COUNT (sizeof(exe_handlers)/sizeof(exe_handlers[0]))
 

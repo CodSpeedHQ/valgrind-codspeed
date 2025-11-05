@@ -13,7 +13,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -67,7 +67,7 @@ Bool VG_(match_script)(const void *hdr, SizeT len)
 
 
 /* returns: 0 = success, non-0 is failure */
-Int VG_(load_script)(Int fd, const HChar* name, ExeInfo* info)
+Int VG_(load_script)(Int fd, HChar* name, ExeInfo* info)
 {
    HChar  hdr[4096];
    Int    len = sizeof hdr;
@@ -124,7 +124,15 @@ Int VG_(load_script)(Int fd, const HChar* name, ExeInfo* info)
    if (info->argv && info->argv[0] != NULL)
      info->argv[0] = name;
 
-   VG_(args_the_exename) = name;
+   vg_assert(VG_(args_the_exename));
+   if (name) {
+      if (name != VG_(args_the_exename)) {
+         VG_(free)((void*)VG_(args_the_exename));
+      VG_(args_the_exename) = VG_(strdup)("ume.ls.3", name);
+      }
+   } else {
+      VG_(args_the_exename) = name;
+   }
 
    if (0)
       VG_(printf)("#! script: interp_name=\"%s\" interp_args=\"%s\"\n",

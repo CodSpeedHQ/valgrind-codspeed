@@ -12,7 +12,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -158,7 +158,8 @@ typedef
 #define VEX_S390X_MODEL_Z14_ZR1  15
 #define VEX_S390X_MODEL_Z15      16
 #define VEX_S390X_MODEL_Z16      17
-#define VEX_S390X_MODEL_UNKNOWN  18     /* always last in list */
+#define VEX_S390X_MODEL_Z17      18
+#define VEX_S390X_MODEL_UNKNOWN  19     /* always last in list */
 #define VEX_S390X_MODEL_MASK     0x3F
 
 #define VEX_HWCAPS_S390X_LDISP (1<<6)   /* Long-displacement facility */
@@ -572,6 +573,9 @@ typedef
          - '3': current, faster implementation; perhaps producing slightly worse
                 spilling decisions. */
       UInt regalloc_version;
+      /* When false constant folding and algebric simplification is disabled.
+         This is used in the iropt tester. */
+      Bool iropt_fold_expr;
    }
    VexControl;
 
@@ -581,6 +585,8 @@ typedef
 extern 
 void LibVEX_default_VexControl ( /*OUT*/ VexControl* vcon );
 
+extern
+void LibVEX_set_VexControl ( VexControl );
 
 /*-------------------------------------------------------*/
 /*--- Storage management control                      ---*/
@@ -960,7 +966,14 @@ extern void LibVEX_ShowStats ( void );
 
 #define NO_ROUNDING_MODE (~0u)
 
-typedef 
+typedef
+   enum {
+      IRICB_vbit,
+      IRICB_iropt,
+   }
+   IRICB_t;
+
+typedef
    struct {
       IROp  op;        // the operation to perform
       HWord result;    // address of the result
@@ -976,13 +989,37 @@ typedef
       UInt  rounding_mode;
       UInt  num_operands; // excluding rounding mode, if any
       /* The following two members describe if this operand has immediate
-       *  operands. There are a few restrictions:
-       *    (1) An operator can have at most one immediate operand.
+       * operands. There are a few restrictions:
+       * (1) An operator can have at most one immediate operand.
        * (2) If there is an immediate operand, it is the right-most operand
-       *  An immediate_index of 0 means there is no immediate operand.
+       * An immediate_index of 0 means there is no immediate operand.
        */
       UInt immediate_type;  // size of immediate Ity_I8, Ity_16
       UInt immediate_index; // operand number: 1, 2
+   }
+   IRICB_vbit_payload;
+
+typedef
+   struct {
+      IROp   op;            // the operation to perform
+      HWord  result_fold;   // address of the result (with folding)
+      HWord  result_nofold; // address of the result (without folding)
+      HWord  opnd1;         // address of 1st operand
+      HWord  opnd2;         // address of 2nd operand
+      IRType t_result;      // type of result
+      IRType t_opnd1;       // type of 1st operand
+      IRType t_opnd2;       // type of 2nd operand
+      UInt   num_operands;
+   }
+   IRICB_iropt_payload;
+
+typedef
+   struct {
+      IRICB_t kind;
+      union {
+         IRICB_vbit_payload vbit;
+         IRICB_iropt_payload iropt;
+      };
    }
    IRICB;
 

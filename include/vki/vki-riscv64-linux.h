@@ -12,7 +12,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -186,6 +186,7 @@ typedef struct vki_sigaltstack {
 //----------------------------------------------------------------------
 
 #define VKI_MAP_NORESERVE       0x4000  /* don't check for reservations */
+#define VKI_MAP_FIXED_NOREPLACE	0x100000 /* fail EEXIST if fixed map fails */
 
 //----------------------------------------------------------------------
 // From linux-6.0/include/uapi/linux/mman.h

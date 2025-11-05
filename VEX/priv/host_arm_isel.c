@@ -17,7 +17,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -1870,14 +1870,7 @@ static HReg iselIntExpr_R_wrk ( ISelEnv* env, IRExpr* e )
 //zz            addInstr(env, X86Instr_Sh32(Xsh_SAR, 31, dst));
 //zz            return dst;
 //zz         }
-//zz         case Iop_Ctz32: {
-//zz            /* Count trailing zeroes, implemented by x86 'bsfl' */
-//zz            HReg dst = newVRegI(env);
-//zz            HReg src = iselIntExpr_R(env, e->Iex.Unop.arg);
-//zz            addInstr(env, X86Instr_Bsfr32(True,src,dst));
-//zz            return dst;
-//zz         }
-         case Iop_Clz32: {
+         case Iop_ClzNat32: {
             /* Count leading zeroes; easy on ARM. */
             HReg dst = newVRegI(env);
             HReg src = iselIntExpr_R(env, e->Iex.Unop.arg);

@@ -11,7 +11,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -401,6 +401,7 @@
 #define __NR_lsm_get_self_attr      (__NR_Linux + 459)
 #define __NR_lsm_set_self_attr      (__NR_Linux + 460)
 #define __NR_lsm_list_modules       (__NR_Linux + 461)
+#define __NR_mseal                  (__NR_Linux + 462)
 
 #elif defined(VGABI_N32)
 

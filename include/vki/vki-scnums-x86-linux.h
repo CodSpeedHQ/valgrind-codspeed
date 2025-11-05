@@ -13,7 +13,7 @@
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2 of the
+   published by the Free Software Foundation; either version 3 of the
    License, or (at your option) any later version.
 
    This program is distributed in the hope that it will be useful, but
@@ -429,6 +429,7 @@
 #define __NR_msgsnd		400
 #define __NR_msgrcv		401
 #define __NR_msgctl		402
+#define __NR_futex_waitv	449
 
 #endif /* __VKI_SCNUMS_X86_LINUX_H */
 
