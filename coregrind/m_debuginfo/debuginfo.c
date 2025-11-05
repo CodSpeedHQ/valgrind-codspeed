@@ -56,6 +56,7 @@
 #include "priv_d3basics.h"       /* ML_(pp_GX) */
 #include "priv_tytypes.h"
 #include "priv_storage.h"
+#include "priv_inltab_lookup.h"
 #include "priv_readdwarf.h"
 #if defined(VGO_linux) || defined(VGO_solaris) || defined(VGO_freebsd)
 # include "priv_readelf.h"
@@ -345,6 +346,7 @@ static void free_DebugInfo ( DebugInfo* di )
    if (di->loctab)       ML_(dinfo_free)(di->loctab);
    if (di->loctab_fndn_ix) ML_(dinfo_free)(di->loctab_fndn_ix);
    if (di->inltab)       ML_(dinfo_free)(di->inltab);
+   if (di->inltab_lookup) VG_(inltab_lookup_cleanup)(di->inltab_lookup);
    if (di->cfsi_base)    ML_(dinfo_free)(di->cfsi_base);
    if (di->cfsi_m_ix)    ML_(dinfo_free)(di->cfsi_m_ix);
    if (di->cfsi_rd)      ML_(dinfo_free)(di->cfsi_rd);
@@ -2388,13 +2390,12 @@ Bool VG_(get_inline_fnname) ( DiEpoch ep, Addr a, const HChar** inl_fnname )
       return False;
 
    /* Search the inline table for an entry containing this address */
-   /* We search from the end backwards to find the innermost inline function first */
-   for (Word i = si->inltab_used - 1; i >= 0; i--) {
-      if (si->inltab[i].addr_lo <= a && a < si->inltab[i].addr_hi) {
-         /* Found it! Return the inline function name */
-         *inl_fnname = si->inltab[i].inlined.fn;
-         return True;
-      }
+   /* Lookup with hash table cache and binary search fallback */
+   Word inl_idx;
+   if (VG_(inltab_lookup_get)(si->inltab_lookup, a, &inl_idx, si)) {
+      /* Found it! Return the inline function name */
+      *inl_fnname = si->inltab[inl_idx].inlined.fn;
+      return True;
    }
 
    return False;

@@ -46,6 +46,7 @@
 #include "pub_core_basics.h"   // Addr
 #include "pub_core_xarray.h"   // XArray
 #include "pub_core_deduppoolalloc.h" // DedupPoolAlloc
+#include "pub_tool_hashtable.h" // VgHashTable
 #include "priv_d3basics.h"     // GExpr et al.
 #include "priv_image.h"        // DiCursor
 
@@ -975,6 +976,10 @@ struct _DebugInfo {
    DiSubprogram* subtab;
    UWord         subtab_used;
    UWord         subtab_size;
+   
+   /* Hash table for O(1) inline lookups by address.
+      Maps arbitrary addresses to indices in inltab; populated on-demand during lookups for cache efficiency. */
+   VgHashTable* inltab_lookup;
 
    /* A set of expandable arrays to store CFI summary info records.
       The machine specific information (i.e. the DiCfSI_m struct)
