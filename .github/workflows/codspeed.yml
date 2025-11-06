@@ -17,10 +17,9 @@ jobs:
         cmd:
           - testdata/take_strings-aarch64 varbinview_non_null
           - echo Hello, World!
-          - ls bench.py
           - python3 testdata/test.py
-          - stress-ng --cpu 1 --timeout 1s
-          - stress-ng --cpu 4 --timeout 1s
+          - stress-ng --cpu 1 --cpu-ops 10
+          - stress-ng --cpu 4 --cpu-ops 10
         valgrind:
           - "3.26.0"
           - "3.25.1"
