@@ -15,7 +15,7 @@ awk '
 }
 
 in_main && /^fn=/ && !/^fn=main$/ {
-    in_main = 0
+    exit
 }
 
 in_main {
