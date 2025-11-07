@@ -5,5 +5,4 @@
 13_fix-path-to-vgdb.patch
 14_fix-armhf-ftbfs.patch
 armhf_neon.patch
-16_Add-ppc64le-linux-hardwire-for-ld64.so.2-strcmp.patch
 use-mpich-if-mpic-not-found.patch
