@@ -250,6 +250,12 @@ void TG_(push_call_stack)(BBCC* from, UInt jmp, BBCC* to, Addr sp, Bool skip)
 
     TG_(current_call_stack).sp++;
 
+    /* Emit CSV trace sample on function entry */
+    if (!skip && TG_(current_state).collect) {
+	fn_node* to_fn = to->cxt->fn[0];
+	TG_(trace_emit_sample)(TG_(current_tid), "ENTER", to_fn);
+    }
+
     /* To allow for above assertion we set context of next frame to 0 */
     TG_ASSERT(TG_(current_call_stack).sp < TG_(current_call_stack).size);
     current_entry++;
@@ -352,6 +358,11 @@ void TG_(pop_call_stack)(void)
 	  jcc->from->ret_counter++;
 	}
 	TG_(stat).ret_counter++;
+
+	/* Emit CSV trace sample on function exit */
+	if (TG_(current_state).collect) {
+	    TG_(trace_emit_sample)(TG_(current_tid), "EXIT", to_fn);
+	}
 
 	/* restore context */
 	TG_(current_state).cxt  = lower_entry->cxt;

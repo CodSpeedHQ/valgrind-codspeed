@@ -588,6 +588,9 @@ struct _thread_info {
   FullCost lastdump_cost;    /* Cost at last dump */
   FullCost sighandler_cost;
 
+  /* CSV trace: per-thread snapshot of cost at last sample emission */
+  FullCost last_sample_cost;
+
   /* thread specific data structure containers */
   fn_array fn_active;
   jcc_hash jccs;
@@ -674,6 +677,18 @@ struct event_sets {
 };
 
 #define fullOffset(group) (TG_(sets).full->offset[group])
+
+
+/*------------------------------------------------------------*/
+/*--- CSV trace output state                               ---*/
+/*------------------------------------------------------------*/
+
+typedef struct {
+    Int       fd;              /* Output file descriptor (-1 if not open) */
+    ULong     seq;             /* Global sequence counter */
+    Bool      initialized;     /* Has the output been opened? */
+    Bool      header_written;  /* Has the CSV header been written? */
+} trace_output;
 
 
 /*------------------------------------------------------------*/
@@ -783,6 +798,11 @@ void TG_(run_post_signal_on_call_stack_bottom)(void);
 /* from dump.c */
 void TG_(init_dumps)(void);
 
+/* CSV trace output (from dump.c) */
+void TG_(trace_open_output)(void);
+void TG_(trace_emit_sample)(ThreadId tid, const HChar* event_type, fn_node* fn);
+void TG_(trace_close_output)(void);
+
 /*------------------------------------------------------------*/
 /*--- Exported global variables                            ---*/
 /*------------------------------------------------------------*/
@@ -790,6 +810,7 @@ void TG_(init_dumps)(void);
 extern CommandLineOptions TG_(clo);
 extern Statistics TG_(stat);
 extern EventMapping* TG_(dumpmap);
+extern trace_output TG_(trace_out);
 
 /* Function active counter array, indexed by function number */
 extern UInt* TG_(fn_active_array);

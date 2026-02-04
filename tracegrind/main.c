@@ -1947,6 +1947,9 @@ void finish(void)
 
   TG_(dump_profile)(0, False);
 
+  /* Close CSV trace output */
+  TG_(trace_close_output)();
+
   if (VG_(clo_verbosity) == 0) return;
   
   if (VG_(clo_stats)) {
@@ -2098,11 +2101,13 @@ void TG_(post_clo_init)(void)
 
    TG_(instrument_state) = TG_(clo).instrument_atstart;
 
+   /* Open CSV trace output file */
+   TG_(trace_open_output)();
+
    if (VG_(clo_verbosity) > 0) {
       VG_(message)(Vg_UserMsg,
-                   "For interactive control, run 'tracegrind_control%s%s -h'.\n",
-                   (VG_(arg_vgdb_prefix) ? " " : ""),
-                   (VG_(arg_vgdb_prefix) ? VG_(arg_vgdb_prefix) : ""));
+                   "Streaming CSV trace output to tracegrind.out.%d\n",
+                   VG_(getpid)());
    }
 }
 

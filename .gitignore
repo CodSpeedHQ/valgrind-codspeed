@@ -10,6 +10,8 @@
 /autom4te.cache
 /bin
 /cachegrind.out.*
+/callgrind.out.*
+/tracegrind.out.*
 /compile
 /config.guess
 /config.h*
@@ -17,6 +19,7 @@
 /config.status
 /config.sub
 /configure
+/configure~
 /default.supp
 /depcomp
 /glibc-2.X.supp
@@ -160,6 +163,30 @@
 /callgrind/tests/threads
 /callgrind/tests/inline-samefile
 /callgrind/tests/inline-crossfile
+
+# /tracegrind/
+/tracegrind/*.so
+/tracegrind/.deps
+/tracegrind/tracegrind-*-darwin
+/tracegrind/tracegrind-*-linux
+/tracegrind/tracegrind-*-solaris
+/tracegrind/tracegrind-*-freebsd
+/tracegrind/Makefile
+/tracegrind/Makefile.in
+
+# /tracegrind/tests/
+/tracegrind/tests/*.dSYM
+/tracegrind/tests/*.post.diff*
+/tracegrind/tests/*.post.out
+/tracegrind/tests/*.stderr.diff*
+/tracegrind/tests/*.stderr.out
+/tracegrind/tests/*.stdout.diff*
+/tracegrind/tests/*.stdout.out
+/tracegrind/tests/.deps
+/tracegrind/tests/Makefile
+/tracegrind/tests/Makefile.in
+/tracegrind/tests/tracegrind.out.*
+/tracegrind/tests/fibo
 
 # /coregrind/
 /coregrind/*.a

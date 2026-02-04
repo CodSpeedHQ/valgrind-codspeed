@@ -116,6 +116,9 @@ thread_info* new_thread(void)
     TG_(init_cost)( TG_(sets).full, t->lastdump_cost );
     TG_(init_cost)( TG_(sets).full, t->sighandler_cost );
 
+    /* CSV trace: per-thread sample snapshot (allocated lazily in trace_emit_sample) */
+    t->last_sample_cost = 0;
+
     /* init data containers */
     TG_(init_fn_array)( &(t->fn_active) );
     TG_(init_bbcc_hash)( &(t->bbccs) );
