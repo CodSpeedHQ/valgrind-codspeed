@@ -1798,8 +1798,13 @@ static void cg_print_debug_usage(void)
 /*--- Client requests                                              ---*/
 /*--------------------------------------------------------------------*/
 
+// Environment variable used to preserve instrumentation state across exec
+#define CACHEGRIND_INSTR_ENABLED_VAR "CACHEGRIND_INSTR_ENABLED"
+
 static void set_instr_enabled(Bool enable)
 {
+   VG_(message)(Vg_UserMsg, "DEBUG set_instr_enabled: enable=%d, current instr_enabled=%d\n",
+                (Int)enable, (Int)instr_enabled);
    if (enable) {
       // Enable instrumentation.
       if (!instr_enabled) {
@@ -1807,6 +1812,10 @@ static void set_instr_enabled(Bool enable)
          // `cg_discard_superblock_info` relies on that.
          VG_(discard_translations_safely)((Addr)0x1000, ~(SizeT)0xfff, "cachegrind");
          instr_enabled = True;
+         // Set environment variable so child processes inherit the state
+         VG_(env_setenv)(&VG_(client_envp), CACHEGRIND_INSTR_ENABLED_VAR, "1");
+         VG_(message)(Vg_UserMsg, "DEBUG set_instr_enabled: set env var %s=1\n",
+                      CACHEGRIND_INSTR_ENABLED_VAR);
       } else {
          VG_(dmsg)("warning: CACHEGRIND_START_INSTRUMENTATION called,\n");
          VG_(dmsg)("         but instrumentation is already enabled\n");
@@ -1818,6 +1827,10 @@ static void set_instr_enabled(Bool enable)
          // `cg_discard_superblock_info` relies on that.
          VG_(discard_translations_safely)((Addr)0x1000, ~(SizeT)0xfff, "cachegrind");
          instr_enabled = False;
+         // Remove environment variable so child processes start without instrumentation
+         VG_(env_unsetenv)(VG_(client_envp), CACHEGRIND_INSTR_ENABLED_VAR, NULL);
+         VG_(message)(Vg_UserMsg, "DEBUG set_instr_enabled: unset env var %s\n",
+                      CACHEGRIND_INSTR_ENABLED_VAR);
       } else {
          VG_(dmsg)("warning: CACHEGRIND_STOP_INSTRUMENTATION called,\n");
          VG_(dmsg)("         but instrumentation is already disabled\n");
@@ -1931,9 +1944,21 @@ static void cg_post_clo_init(void)
    }
 
    // When instrumentation client requests are enabled, we start with
-   // instrumentation off.
+   // instrumentation off, unless the parent process had it enabled.
    if (!clo_instr_at_start) {
-      instr_enabled = False;
+      const HChar* env = VG_(getenv)(CACHEGRIND_INSTR_ENABLED_VAR);
+      VG_(message)(Vg_UserMsg, "DEBUG cg_post_clo_init: clo_instr_at_start=False, env=%s\n",
+                   env ? env : "(null)");
+      if (env != NULL && env[0] == '1') {
+         // Parent process had instrumentation enabled, inherit that state
+         instr_enabled = True;
+         VG_(message)(Vg_UserMsg, "DEBUG cg_post_clo_init: inheriting instr_enabled=True from parent\n");
+      } else {
+         instr_enabled = False;
+         VG_(message)(Vg_UserMsg, "DEBUG cg_post_clo_init: setting instr_enabled=False\n");
+      }
+   } else {
+      VG_(message)(Vg_UserMsg, "DEBUG cg_post_clo_init: clo_instr_at_start=True, instr_enabled=True\n");
    }
 }
 

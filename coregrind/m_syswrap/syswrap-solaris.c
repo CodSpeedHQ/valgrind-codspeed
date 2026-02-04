@@ -3785,6 +3785,20 @@ PRE(sys_execve)
    if (trace_this_child) {
       /* Set VALGRIND_LIB in ARG3 (the environment). */
       VG_(env_setenv)( &envp, VALGRIND_LIB, VG_(libdir));
+
+      /* Copy tool-specific environment variables from VG_(client_envp)
+         so child processes can inherit tool state (e.g., instrumentation on/off) */
+      {
+         const HChar* val;
+         val = VG_(getenv)("CACHEGRIND_INSTR_ENABLED");
+         if (val != NULL) {
+            VG_(env_setenv)( &envp, "CACHEGRIND_INSTR_ENABLED", val);
+         }
+         val = VG_(getenv)("CALLGRIND_INSTR_ENABLED");
+         if (val != NULL) {
+            VG_(env_setenv)( &envp, "CALLGRIND_INSTR_ENABLED", val);
+         }
+      }
    }
 
    /* Set up the child's args.  If not tracing it, they are simply ARG2.

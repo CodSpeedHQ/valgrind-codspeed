@@ -48,6 +48,9 @@ CommandLineOptions CLG_(clo);
 Statistics CLG_(stat);
 Bool CLG_(instrument_state) = True; /* Instrumentation on ? */
 
+// Environment variable used to preserve instrumentation state across exec
+#define CALLGRIND_INSTR_ENABLED_VAR "CALLGRIND_INSTR_ENABLED"
+
 /* thread and signal handler specific */
 exec_state CLG_(current_state);
 
@@ -1448,6 +1451,8 @@ void zero_state_cost(thread_info* t)
 
 void CLG_(set_instrument_state)(const HChar* reason, Bool state)
 {
+  VG_(message)(Vg_UserMsg, "DEBUG set_instrument_state: reason=%s, state=%d, current=%d\n",
+               reason, (Int)state, (Int)CLG_(instrument_state));
   if (CLG_(instrument_state) == state) {
     CLG_DEBUG(2, "%s: instrumentation already %s\n",
 	     reason, state ? "ON" : "OFF");
@@ -1463,6 +1468,17 @@ void CLG_(set_instrument_state)(const HChar* reason, Bool state)
   CLG_(forall_threads)(unwind_thread);
   CLG_(forall_threads)(zero_state_cost);
   (*CLG_(cachesim).clear)();
+
+  // Set/unset environment variable so child processes inherit the state
+  if (state) {
+    VG_(env_setenv)(&VG_(client_envp), CALLGRIND_INSTR_ENABLED_VAR, "1");
+    VG_(message)(Vg_UserMsg, "DEBUG set_instrument_state: set env var %s=1\n",
+                 CALLGRIND_INSTR_ENABLED_VAR);
+  } else {
+    VG_(env_unsetenv)(VG_(client_envp), CALLGRIND_INSTR_ENABLED_VAR, NULL);
+    VG_(message)(Vg_UserMsg, "DEBUG set_instrument_state: unset env var %s\n",
+                 CALLGRIND_INSTR_ENABLED_VAR);
+  }
 
   if (VG_(clo_verbosity) > 1)
     VG_(message)(Vg_DebugMsg, "%s: instrumentation switched %s\n",
@@ -2096,7 +2112,24 @@ void CLG_(post_clo_init)(void)
    CLG_(init_threads)();
    CLG_(run_thread)(1);
 
-   CLG_(instrument_state) = CLG_(clo).instrument_atstart;
+   // When instrumentation client requests are enabled, we start with
+   // instrumentation off, unless the parent process had it enabled.
+   if (!CLG_(clo).instrument_atstart) {
+      const HChar* env = VG_(getenv)(CALLGRIND_INSTR_ENABLED_VAR);
+      VG_(message)(Vg_UserMsg, "DEBUG post_clo_init: instrument_atstart=False, env=%s\n",
+                   env ? env : "(null)");
+      if (env != NULL && env[0] == '1') {
+         // Parent process had instrumentation enabled, inherit that state
+         CLG_(instrument_state) = True;
+         VG_(message)(Vg_UserMsg, "DEBUG post_clo_init: inheriting instrument_state=True from parent\n");
+      } else {
+         CLG_(instrument_state) = False;
+         VG_(message)(Vg_UserMsg, "DEBUG post_clo_init: setting instrument_state=False\n");
+      }
+   } else {
+      CLG_(instrument_state) = True;
+      VG_(message)(Vg_UserMsg, "DEBUG post_clo_init: instrument_atstart=True, instrument_state=True\n");
+   }
 
    if (VG_(clo_verbosity) > 0) {
       VG_(message)(Vg_UserMsg,

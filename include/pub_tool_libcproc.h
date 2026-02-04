@@ -42,6 +42,16 @@ extern HChar** VG_(client_envp);
 /* Looks up VG_(client_envp) */
 extern HChar* VG_(getenv) ( const HChar* name );
 
+/* Set an environment variable in the client environment.
+   Returns the old env array if a new one was allocated, NULL otherwise. */
+extern HChar **VG_(env_setenv) ( HChar ***envp, const HChar* varname,
+                                  const HChar *val );
+
+/* Remove an environment variable from the given environment.
+   free_fn is called on the removed entry if non-NULL. */
+extern void VG_(env_unsetenv) ( HChar **env, const HChar *varname,
+                                 void (*free_fn) ( void *) );
+
 /* Path to all our library/aux files */
 extern const HChar *VG_(libdir);
 

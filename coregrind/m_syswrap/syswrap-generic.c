@@ -3534,6 +3534,26 @@ void handle_pre_sys_execve(ThreadId tid, SyscallStatus *status, Addr pathname,
    if (trace_this_child) {
       // Set VALGRIND_LIB in arg_3 (the environment)
       VG_(env_setenv)( &envp, VALGRIND_LIB, VG_(libdir));
+
+      // Copy tool-specific environment variables from VG_(client_envp)
+      // so child processes can inherit tool state (e.g., instrumentation on/off)
+      {
+         const HChar* val;
+         val = VG_(getenv)("CACHEGRIND_INSTR_ENABLED");
+         VG_(message)(Vg_UserMsg, "DEBUG syswrap execve: CACHEGRIND_INSTR_ENABLED=%s\n",
+                      val ? val : "(null)");
+         if (val != NULL) {
+            VG_(env_setenv)( &envp, "CACHEGRIND_INSTR_ENABLED", val);
+            VG_(message)(Vg_UserMsg, "DEBUG syswrap execve: copied CACHEGRIND env var to child\n");
+         }
+         val = VG_(getenv)("CALLGRIND_INSTR_ENABLED");
+         VG_(message)(Vg_UserMsg, "DEBUG syswrap execve: CALLGRIND_INSTR_ENABLED=%s\n",
+                      val ? val : "(null)");
+         if (val != NULL) {
+            VG_(env_setenv)( &envp, "CALLGRIND_INSTR_ENABLED", val);
+            VG_(message)(Vg_UserMsg, "DEBUG syswrap execve: copied CALLGRIND env var to child\n");
+         }
+      }
    }
 
    // Set up the child's args.  If not tracing it, they are
