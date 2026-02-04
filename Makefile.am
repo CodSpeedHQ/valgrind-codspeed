@@ -9,6 +9,7 @@ TOOLS = \
 		memcheck \
 		cachegrind \
 		callgrind \
+		tracegrind \
 		helgrind \
 		drd \
 		massif \
