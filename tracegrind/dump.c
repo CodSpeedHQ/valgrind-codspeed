@@ -26,6 +26,8 @@
 
 #include "config.h"
 #include "global.h"
+#include "tg_msgpack.h"
+#include "tg_lz4.h"
 
 #include "pub_tool_threadstate.h"
 #include "pub_tool_libcfile.h"
@@ -55,6 +57,220 @@ Int TG_(get_dump_counter)(void)
 trace_output TG_(trace_out) = { .fd = -1, .seq = 0,
                                 .initialized = False,
                                 .header_written = False };
+
+/* ================================================================== */
+/* === MsgPack + LZ4 output                                       === */
+/* ================================================================== */
+
+#define MSGPACK_CHUNK_ROWS 4096  /* Rows per compressed chunk */
+#define MSGPACK_INITIAL_BUF (256 * 1024)  /* Initial buffer size */
+
+typedef struct {
+    msgpack_buffer buf;      /* Buffer for serializing rows */
+    UInt rows_in_chunk;      /* Number of rows in current chunk */
+    UInt n_event_cols;       /* Number of dynamic event columns */
+    const HChar** col_names; /* Column names (for header) */
+    Int ncols;               /* Total columns including events */
+} msgpack_state;
+
+static msgpack_state mp_state;
+
+/* Write a compressed chunk to the trace output */
+static void msgpack_flush_chunk(void)
+{
+    if (mp_state.rows_in_chunk == 0) return;
+    if (TG_(trace_out).fd < 0) return;
+
+    /* Compress the msgpack data with zstd */
+    SizeT src_size = mp_state.buf.size;
+    SizeT dst_capacity = tg_lz4_compress_bound(src_size);
+    UChar* compressed = VG_(malloc)("tg.mp.compress", dst_capacity);
+
+    SizeT compressed_size = tg_lz4_compress(
+        compressed, dst_capacity,
+        mp_state.buf.data, src_size);
+
+    if (compressed_size == 0) {
+        /* Compression failed, write raw with size=0 marker */
+        VG_(free)(compressed);
+        return;
+    }
+
+    /* Write chunk header: 4 bytes uncompressed size, 4 bytes compressed size */
+    UChar hdr[8];
+    hdr[0] = (UChar)(src_size & 0xff);
+    hdr[1] = (UChar)((src_size >> 8) & 0xff);
+    hdr[2] = (UChar)((src_size >> 16) & 0xff);
+    hdr[3] = (UChar)((src_size >> 24) & 0xff);
+    hdr[4] = (UChar)(compressed_size & 0xff);
+    hdr[5] = (UChar)((compressed_size >> 8) & 0xff);
+    hdr[6] = (UChar)((compressed_size >> 16) & 0xff);
+    hdr[7] = (UChar)((compressed_size >> 24) & 0xff);
+    VG_(write)(TG_(trace_out).fd, hdr, 8);
+
+    /* Write compressed data */
+    VG_(write)(TG_(trace_out).fd, compressed, compressed_size);
+
+    VG_(free)(compressed);
+
+    /* Reset buffer for next chunk */
+    msgpack_reset(&mp_state.buf);
+    mp_state.rows_in_chunk = 0;
+}
+
+/* Write file header with schema metadata */
+static void msgpack_write_header(void)
+{
+    msgpack_buffer hdr;
+    msgpack_init(&hdr, 1024);
+
+    /* Header is a map with metadata */
+    msgpack_write_map_header(&hdr, 3);
+
+    /* version */
+    msgpack_write_key(&hdr, "version");
+    msgpack_write_uint(&hdr, 1);
+
+    /* format */
+    msgpack_write_key(&hdr, "format");
+    msgpack_write_str(&hdr, "tracegrind-msgpack", -1);
+
+    /* columns */
+    msgpack_write_key(&hdr, "columns");
+    msgpack_write_array_header(&hdr, mp_state.ncols);
+    for (Int i = 0; i < mp_state.ncols; i++) {
+        msgpack_write_str(&hdr, mp_state.col_names[i], -1);
+    }
+
+    /* Compress and write header chunk (with special marker) */
+    SizeT src_size = hdr.size;
+    SizeT dst_capacity = tg_lz4_compress_bound(src_size);
+    UChar* compressed = VG_(malloc)("tg.mp.hdr", dst_capacity);
+
+    SizeT compressed_size = tg_lz4_compress(
+        compressed, dst_capacity, hdr.data, src_size);
+
+    /* Magic + version (8 bytes): "TGMP" + version(4) */
+    UChar magic[8] = {'T', 'G', 'M', 'P', 0x01, 0x00, 0x00, 0x00};
+    VG_(write)(TG_(trace_out).fd, magic, 8);
+
+    /* Header chunk size (4 bytes uncompressed, 4 bytes compressed) */
+    UChar hdr_size[8];
+    hdr_size[0] = (UChar)(src_size & 0xff);
+    hdr_size[1] = (UChar)((src_size >> 8) & 0xff);
+    hdr_size[2] = (UChar)((src_size >> 16) & 0xff);
+    hdr_size[3] = (UChar)((src_size >> 24) & 0xff);
+    hdr_size[4] = (UChar)(compressed_size & 0xff);
+    hdr_size[5] = (UChar)((compressed_size >> 8) & 0xff);
+    hdr_size[6] = (UChar)((compressed_size >> 16) & 0xff);
+    hdr_size[7] = (UChar)((compressed_size >> 24) & 0xff);
+    VG_(write)(TG_(trace_out).fd, hdr_size, 8);
+
+    /* Compressed header data */
+    VG_(write)(TG_(trace_out).fd, compressed, compressed_size);
+
+    VG_(free)(compressed);
+    msgpack_free(&hdr);
+}
+
+/* Initialize msgpack state with schema from event sets */
+static void msgpack_init_state(void)
+{
+    EventSet* es = TG_(sets).full;
+    Int g, i;
+
+    /* Count dynamic event columns */
+    Int n_events = 0;
+    for (g = 0; g < MAX_EVENTGROUP_COUNT; g++) {
+        if (!(es->mask & (1u << g))) continue;
+        EventGroup* eg = TG_(get_event_group)(g);
+        if (!eg) continue;
+        n_events += eg->size;
+    }
+
+    mp_state.n_event_cols = n_events;
+    mp_state.ncols = 7 + n_events;  /* 7 fixed + dynamic */
+
+    /* Allocate column names array */
+    mp_state.col_names = VG_(malloc)("tg.mp.cols",
+                                      mp_state.ncols * sizeof(HChar*));
+
+    /* Fixed columns */
+    mp_state.col_names[0] = "seq";
+    mp_state.col_names[1] = "tid";
+    mp_state.col_names[2] = "event";
+    mp_state.col_names[3] = "fn";
+    mp_state.col_names[4] = "obj";
+    mp_state.col_names[5] = "file";
+    mp_state.col_names[6] = "line";
+
+    /* Dynamic event columns */
+    Int c = 7;
+    for (g = 0; g < MAX_EVENTGROUP_COUNT; g++) {
+        if (!(es->mask & (1u << g))) continue;
+        EventGroup* eg = TG_(get_event_group)(g);
+        if (!eg) continue;
+        for (i = 0; i < eg->size; i++) {
+            mp_state.col_names[c++] = eg->name[i];
+        }
+    }
+
+    /* Initialize buffer */
+    msgpack_init(&mp_state.buf, MSGPACK_INITIAL_BUF);
+    mp_state.rows_in_chunk = 0;
+
+    /* Write file header */
+    msgpack_write_header();
+}
+
+/* Add a row to the msgpack output */
+static void msgpack_add_row(ULong seq, Int tid, Int event,
+                            const HChar* fn_name, const HChar* obj_name,
+                            const HChar* file_name, Int line,
+                            const ULong* deltas, Int n_deltas)
+{
+    /* Each row is a msgpack array */
+    msgpack_write_array_header(&mp_state.buf, mp_state.ncols);
+
+    /* Fixed columns */
+    msgpack_write_uint(&mp_state.buf, seq);
+    msgpack_write_int(&mp_state.buf, tid);
+    msgpack_write_int(&mp_state.buf, event);  /* 0=ENTER, 1=EXIT */
+    msgpack_write_str(&mp_state.buf, fn_name, -1);
+    msgpack_write_str(&mp_state.buf, obj_name, -1);
+    msgpack_write_str(&mp_state.buf, file_name, -1);
+    msgpack_write_int(&mp_state.buf, line);
+
+    /* Event delta columns */
+    for (Int i = 0; i < n_deltas; i++) {
+        msgpack_write_uint(&mp_state.buf, deltas[i]);
+    }
+
+    mp_state.rows_in_chunk++;
+
+    /* Flush if chunk is full */
+    if (mp_state.rows_in_chunk >= MSGPACK_CHUNK_ROWS) {
+        msgpack_flush_chunk();
+    }
+}
+
+/* Close msgpack output */
+static void msgpack_close_output(void)
+{
+    /* Flush any remaining rows */
+    msgpack_flush_chunk();
+
+    /* Write end marker (zero-size chunk) */
+    UChar end[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+    VG_(write)(TG_(trace_out).fd, end, 8);
+
+    /* Cleanup */
+    msgpack_free(&mp_state.buf);
+    if (mp_state.col_names) {
+        VG_(free)(mp_state.col_names);
+        mp_state.col_names = NULL;
+    }
+}
 
 /* Write a string to the trace output fd */
 static void trace_write(const HChar* buf, Int len)
@@ -119,6 +335,15 @@ void TG_(trace_open_output)(void)
     filename[sizeof(filename) - 1] = '\0';
     VG_(free)(expanded);
 
+    /* Append format-specific suffix */
+    if (TG_(clo).output_format == output_format_msgpack) {
+        SizeT len = VG_(strlen)(filename);
+        if (len + 12 < sizeof(filename)) {
+            VG_(strncpy)(filename + len, ".msgpack.lz4", sizeof(filename) - len - 1);
+            filename[sizeof(filename) - 1] = '\0';
+        }
+    }
+
     res = VG_(open)(filename,
                     VKI_O_CREAT|VKI_O_WRONLY|VKI_O_TRUNC,
                     VKI_S_IRUSR|VKI_S_IWUSR);
@@ -132,6 +357,11 @@ void TG_(trace_open_output)(void)
     TG_(trace_out).seq = 0;
     TG_(trace_out).initialized = True;
     TG_(trace_out).header_written = False;
+
+    /* Initialize format-specific writer */
+    if (TG_(clo).output_format == output_format_msgpack) {
+        msgpack_init_state();
+    }
 
     if (VG_(clo_verbosity) > 1)
         VG_(message)(Vg_DebugMsg, "Trace output to %s\n", filename);
@@ -166,20 +396,13 @@ static void trace_write_header(void)
     trace_write(buf, pos);
 }
 
-void TG_(trace_emit_sample)(ThreadId tid, const HChar* event_type,
+void TG_(trace_emit_sample)(ThreadId tid, Bool is_enter,
                              fn_node* fn)
 {
-    HChar buf[4096];
-    HChar escaped[1024];
-    Int pos = 0;
     Int i;
 
     if (!TG_(trace_out).initialized) return;
     if (TG_(trace_out).fd < 0) return;
-
-    /* Lazily write header on first sample */
-    if (!TG_(trace_out).header_written)
-        trace_write_header();
 
     /* Get current thread info for per-thread last_sample_cost */
     thread_info* ti = TG_(get_current_thread)();
@@ -201,52 +424,70 @@ void TG_(trace_emit_sample)(ThreadId tid, const HChar* event_type,
     const HChar* obj_name = (fn && fn->file && fn->file->obj)
                             ? fn->file->obj->name : "???";
     const HChar* file_name = (fn && fn->file) ? fn->file->name : "???";
-    UInt line = (fn && fn->file) ? 0 : 0;  /* line from fn_node's BB */
+    UInt line = 0;
 
-    /* Try to get line number from the function's BB debug info */
-    if (fn && fn->pure_cxt) {
-        /* We could look up debug info here, but fn_node doesn't store line.
-         * The BB that was the entry point does store it. We use 0 as default. */
-    }
-
-    /* seq, tid, event */
-    pos += VG_(sprintf)(buf + pos, "%llu,%u,%s,",
-                        TG_(trace_out).seq,
-                        (UInt)tid,
-                        event_type);
-
-    /* fn (escaped) */
-    csv_escape(escaped, sizeof(escaped), fn_name);
-    pos += VG_(sprintf)(buf + pos, "%s,", escaped);
-
-    /* obj (escaped) */
-    csv_escape(escaped, sizeof(escaped), obj_name);
-    pos += VG_(sprintf)(buf + pos, "%s,", escaped);
-
-    /* file (escaped) */
-    csv_escape(escaped, sizeof(escaped), file_name);
-    pos += VG_(sprintf)(buf + pos, "%s,", escaped);
-
-    /* line */
-    pos += VG_(sprintf)(buf + pos, "%u", line);
-
-    /* Compute and emit deltas for all event groups */
+    /* Compute deltas for all event counters */
+    ULong deltas[64]; /* es->size is always small */
+    tl_assert(es->size <= 64);
     if (current_cost && ti->last_sample_cost) {
         for (i = 0; i < es->size; i++) {
-            ULong delta = current_cost[i] - ti->last_sample_cost[i];
-            pos += VG_(sprintf)(buf + pos, ",%llu", delta);
+            deltas[i] = current_cost[i] - ti->last_sample_cost[i];
         }
-        /* Update last_sample_cost snapshot */
         TG_(copy_cost)(es, ti->last_sample_cost, current_cost);
     } else {
-        /* No cost data available, emit zeros */
         for (i = 0; i < es->size; i++) {
-            pos += VG_(sprintf)(buf + pos, ",0");
+            deltas[i] = 0;
         }
     }
 
-    pos += VG_(sprintf)(buf + pos, "\n");
-    trace_write(buf, pos);
+    /* Event type: 0=ENTER, 1=EXIT */
+    Int event_val = is_enter ? 0 : 1;
+    const HChar* event_str = is_enter ? "ENTER" : "EXIT";
+
+    if (TG_(clo).output_format == output_format_msgpack) {
+        /* --- MsgPack + LZ4 path --- */
+        msgpack_add_row(TG_(trace_out).seq, (Int)tid, event_val,
+                        fn_name, obj_name, file_name, (Int)line,
+                        deltas, es->size);
+    } else {
+        /* --- CSV path --- */
+        HChar buf[4096];
+        HChar escaped[1024];
+        Int pos = 0;
+
+        /* Lazily write header on first sample */
+        if (!TG_(trace_out).header_written)
+            trace_write_header();
+
+        /* seq, tid, event */
+        pos += VG_(sprintf)(buf + pos, "%llu,%u,%s,",
+                            TG_(trace_out).seq,
+                            (UInt)tid,
+                            event_str);
+
+        /* fn (escaped) */
+        csv_escape(escaped, sizeof(escaped), fn_name);
+        pos += VG_(sprintf)(buf + pos, "%s,", escaped);
+
+        /* obj (escaped) */
+        csv_escape(escaped, sizeof(escaped), obj_name);
+        pos += VG_(sprintf)(buf + pos, "%s,", escaped);
+
+        /* file (escaped) */
+        csv_escape(escaped, sizeof(escaped), file_name);
+        pos += VG_(sprintf)(buf + pos, "%s,", escaped);
+
+        /* line */
+        pos += VG_(sprintf)(buf + pos, "%u", line);
+
+        /* event deltas */
+        for (i = 0; i < es->size; i++) {
+            pos += VG_(sprintf)(buf + pos, ",%llu", deltas[i]);
+        }
+
+        pos += VG_(sprintf)(buf + pos, "\n");
+        trace_write(buf, pos);
+    }
 }
 
 void TG_(trace_close_output)(void)
@@ -254,22 +495,29 @@ void TG_(trace_close_output)(void)
     if (!TG_(trace_out).initialized) return;
     if (TG_(trace_out).fd < 0) return;
 
-    /* Write a totals summary comment at the end for verification */
-    if (TG_(total_cost)) {
-        HChar buf[4096];
-        Int pos = 0;
-        Int i;
-        EventSet* es = TG_(sets).full;
+    if (TG_(clo).output_format == output_format_msgpack) {
+        /* MsgPack close flushes remaining rows, writes end marker, closes fd */
+        msgpack_close_output();
+        VG_(close)(TG_(trace_out).fd);
+    } else {
+        /* Write a totals summary comment at the end for verification */
+        if (TG_(total_cost)) {
+            HChar buf[4096];
+            Int pos = 0;
+            Int i;
+            EventSet* es = TG_(sets).full;
 
-        pos += VG_(sprintf)(buf + pos, "# totals:");
-        for (i = 0; i < es->size; i++) {
-            pos += VG_(sprintf)(buf + pos, " %llu", TG_(total_cost)[i]);
+            pos += VG_(sprintf)(buf + pos, "# totals:");
+            for (i = 0; i < es->size; i++) {
+                pos += VG_(sprintf)(buf + pos, " %llu", TG_(total_cost)[i]);
+            }
+            pos += VG_(sprintf)(buf + pos, "\n");
+            trace_write(buf, pos);
         }
-        pos += VG_(sprintf)(buf + pos, "\n");
-        trace_write(buf, pos);
+
+        VG_(close)(TG_(trace_out).fd);
     }
 
-    VG_(close)(TG_(trace_out).fd);
     TG_(trace_out).fd = -1;
     TG_(trace_out).initialized = False;
 

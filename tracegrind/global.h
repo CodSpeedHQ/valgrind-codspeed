@@ -78,6 +78,11 @@ typedef enum {
    systime_nsec
 } Collect_Systime;
 
+typedef enum {
+   output_format_csv,
+   output_format_msgpack
+} OutputFormat;
+
 typedef struct _CommandLineOptions CommandLineOptions;
 struct _CommandLineOptions {
 
@@ -126,6 +131,8 @@ struct _CommandLineOptions {
   Int   verbose;
   ULong verbose_start;
 #endif
+
+  OutputFormat output_format;  /* csv or msgpack */
 };
 
 /*------------------------------------------------------------*/
@@ -800,7 +807,7 @@ void TG_(init_dumps)(void);
 
 /* CSV trace output (from dump.c) */
 void TG_(trace_open_output)(void);
-void TG_(trace_emit_sample)(ThreadId tid, const HChar* event_type, fn_node* fn);
+void TG_(trace_emit_sample)(ThreadId tid, Bool is_enter, fn_node* fn);
 void TG_(trace_close_output)(void);
 
 /*------------------------------------------------------------*/

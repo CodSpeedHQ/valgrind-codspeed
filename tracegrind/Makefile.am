@@ -11,7 +11,11 @@ pkginclude_HEADERS = tracegrind.h
 noinst_HEADERS = \
 	costs.h \
 	events.h \
-	global.h
+	global.h \
+	lz4.c \
+	lz4.h \
+	tg_lz4.h \
+	tg_msgpack.h
 
 #----------------------------------------------------------------------------
 # tracegrind-<platform>
@@ -36,7 +40,9 @@ TRACEGRIND_SOURCES_COMMON = \
 	jumps.c \
 	main.c \
 	sim.c \
-	threads.c
+	threads.c \
+	tg_lz4.c \
+	tg_msgpack.c
 
 # We sneakily include "cg_branchpred.c" and "cg_arch.c" from cachegrind
 TRACEGRIND_CFLAGS_COMMON = -I$(top_srcdir)/cachegrind
