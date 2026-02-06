@@ -42,9 +42,6 @@
 
 /* Logging configuration for a function */
 struct _fn_config {
-    Int dump_before;
-    Int dump_after;
-    Int zero_before;
     Int toggle_collect;
 
     Int skip;    /* Handle CALL to this function as JMP (= Skip)? */
@@ -99,9 +96,6 @@ fn_config* new_fnc(void)
    fn_config* fnc = (fn_config*) TG_MALLOC("cl.clo.nf.1",
                                             sizeof(fn_config));
 
-   fnc->dump_before  = CONFIG_DEFAULT;
-   fnc->dump_after   = CONFIG_DEFAULT;
-   fnc->zero_before  = CONFIG_DEFAULT;
    fnc->toggle_collect = CONFIG_DEFAULT;
    fnc->skip         = CONFIG_DEFAULT;
    fnc->pop_on_jump  = CONFIG_DEFAULT;
@@ -315,15 +309,6 @@ static fn_config* get_fnc(const HChar* name)
 
 static void update_fn_config1(fn_node* fn, fn_config* fnc)
 {
-    if (fnc->dump_before != CONFIG_DEFAULT)
-	fn->dump_before = (fnc->dump_before == CONFIG_TRUE);
-
-    if (fnc->dump_after != CONFIG_DEFAULT)
-	fn->dump_after = (fnc->dump_after == CONFIG_TRUE);
-
-    if (fnc->zero_before != CONFIG_DEFAULT)
-	fn->zero_before = (fnc->zero_before == CONFIG_TRUE);
-
     if (fnc->toggle_collect != CONFIG_DEFAULT)
 	fn->toggle_collect = (fnc->toggle_collect == CONFIG_TRUE);
 
@@ -439,21 +424,6 @@ Bool TG_(process_cmd_line_option)(const HChar* arg)
        TG_(clo).objs_to_skip[TG_(clo).objs_to_skip_count-1] = obj_name;
    }
 
-   else if VG_STR_CLO(arg, "--dump-before", tmp_str) {
-       fn_config* fnc = get_fnc(tmp_str);
-       fnc->dump_before = CONFIG_TRUE;
-   }
-
-   else if VG_STR_CLO(arg, "--zero-before", tmp_str) {
-       fn_config* fnc = get_fnc(tmp_str);
-       fnc->zero_before = CONFIG_TRUE;
-   }
-
-   else if VG_STR_CLO(arg, "--dump-after", tmp_str) {
-       fn_config* fnc = get_fnc(tmp_str);
-       fnc->dump_after = CONFIG_TRUE;
-   }
-
    else if VG_STR_CLO(arg, "--toggle-collect", tmp_str) {
        fn_config* fnc = get_fnc(tmp_str);
        fnc->toggle_collect = CONFIG_TRUE;
@@ -531,8 +501,6 @@ Bool TG_(process_cmd_line_option)(const HChar* arg)
    else if VG_BOOL_CLO(arg, "--dump-instr", TG_(clo).dump_instr) {}
    else if VG_BOOL_CLO(arg, "--dump-bb",    TG_(clo).dump_bb) {}
 
-   else if VG_INT_CLO( arg, "--dump-every-bb", TG_(clo).dump_every_bb) {}
-
    else if VG_BOOL_CLO(arg, "--collect-alloc",   TG_(clo).collect_alloc) {}
    else if VG_XACT_CLO(arg, "--collect-systime=no",
                        TG_(clo).collect_systime, systime_no) {}
@@ -590,10 +558,6 @@ void TG_(print_usage)(void)
 #endif
 
 "\n   activity options (for interactivity use tracegrind_control):\n"
-"    --dump-every-bb=<count>   Dump every <count> basic blocks [0=never]\n"
-"    --dump-before=<func>      Dump when entering function\n"
-"    --zero-before=<func>      Zero all costs when entering function\n"
-"    --dump-after=<func>       Dump when leaving function\n"
 #if TG_EXPERIMENTAL
 "    --dump-objs=no|yes        Dump static object information [no]\n"
 #endif
@@ -670,8 +634,6 @@ void TG_(set_clo_defaults)(void)
   TG_(clo).dump_instr       = False;
   TG_(clo).dump_bb          = False;
   TG_(clo).dump_bbs         = False;
-
-  TG_(clo).dump_every_bb    = 0;
 
   /* Collection */
   TG_(clo).separate_threads = False;

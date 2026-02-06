@@ -44,43 +44,54 @@ The first chunk contains a MsgPack map describing the discriminated union schema
     "version": 2,
     "format": "tracegrind-msgpack",
     "event_schemas": {
-        "0": ["seq", "tid", "event", "fn", "obj", "file", "line", "Ir", ...],
+        "0": ["seq", "tid", "event", "marker"],
         "1": ["seq", "tid", "event", "fn", "obj", "file", "line", "Ir", ...],
-        "2": ["seq", "tid", "event", "child_pid"]
+        "2": ["seq", "tid", "event", "fn", "obj", "file", "line", "Ir", ...],
+        "3": ["seq", "tid", "event", "child_pid"]
     }
 }
 ```
 
 ### Event Types
 
-| Type | Name  | Description |
-|------|-------|-------------|
-| 0    | ENTER | Function entry |
-| 1    | EXIT  | Function exit |
-| 2    | FORK  | Child process created |
+| Type | Name   | Description |
+|------|--------|-------------|
+| 0    | MARKER | Named marker |
+| 1    | ENTER  | Function entry |
+| 2    | EXIT   | Function exit |
+| 3    | FORK   | Child process created |
 
 ### Row Schemas
 
-**ENTER/EXIT rows (event 0, 1):**
+**MARKER rows (event 0):**
+
+| Index | Name   | Type   | Description |
+|-------|--------|--------|-------------|
+| 0     | seq    | uint64 | Sequence number |
+| 1     | tid    | int32  | Thread ID |
+| 2     | event  | int    | 0 = MARKER |
+| 3     | marker | string | Marker label |
+
+**ENTER/EXIT rows (event 1, 2):**
 
 | Index | Name  | Type   | Description |
 |-------|-------|--------|-------------|
 | 0     | seq   | uint64 | Sequence number |
 | 1     | tid   | int32  | Thread ID |
-| 2     | event | int    | 0 = ENTER, 1 = EXIT |
+| 2     | event | int    | 1 = ENTER, 2 = EXIT |
 | 3     | fn    | string | Function name |
 | 4     | obj   | string | Shared object path |
 | 5     | file  | string | Source file path |
 | 6     | line  | int32  | Line number (0 if unknown) |
 | 7+    | ...   | int64  | Event counter deltas (Ir, Dr, Dw, etc.) |
 
-**FORK rows (event 2):**
+**FORK rows (event 3):**
 
 | Index | Name      | Type   | Description |
 |-------|-----------|--------|-------------|
 | 0     | seq       | uint64 | Sequence number |
 | 1     | tid       | int32  | Thread ID that called fork |
-| 2     | event     | int    | 2 = FORK |
+| 2     | event     | int    | 3 = FORK |
 | 3     | child_pid | int32  | PID of the new child process |
 
 ### Event Counter Columns
@@ -94,9 +105,10 @@ For ENTER/EXIT rows, event counters appear as delta values starting at index 7. 
 Each data chunk contains concatenated MsgPack arrays. The row format depends on the event type (index 2):
 
 ```
-[seq, tid, 0, fn, obj, file, line, delta_Ir, ...]  # ENTER
-[seq, tid, 1, fn, obj, file, line, delta_Ir, ...]  # EXIT
-[seq, tid, 2, child_pid]                            # FORK
+[seq, tid, 0, marker]                               # MARKER
+[seq, tid, 1, fn, obj, file, line, delta_Ir, ...]   # ENTER
+[seq, tid, 2, fn, obj, file, line, delta_Ir, ...]   # EXIT
+[seq, tid, 3, child_pid]                             # FORK
 ```
 
 The reference implementation writes 4096 rows per chunk.

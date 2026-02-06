@@ -127,15 +127,6 @@ static void function_entered(fn_node* fn)
   }
 #endif		
 	    
-  if (fn->dump_before) {
-    HChar trigger[VG_(strlen)(fn->name) + 20];
-    VG_(sprintf)(trigger, "--dump-before=%s", fn->name);
-    TG_(dump_profile)(trigger, True);
-  }
-  else if (fn->zero_before) {
-    TG_(zero_all_cost)(True);
-  }
-
   if (fn->toggle_collect) {
     TG_(current_state).collect = !TG_(current_state).collect;
     TG_DEBUG(2,"   entering %s: toggled collection state to %s\n",
@@ -149,11 +140,6 @@ static void function_left(fn_node* fn)
 {
   TG_ASSERT(fn != 0);
 
-  if (fn->dump_after) {
-    HChar trigger[VG_(strlen)(fn->name) + 20];
-    VG_(sprintf)(trigger, "--dump-after=%s", fn->name);
-    TG_(dump_profile)(trigger, True);
-  }
   if (fn->toggle_collect) {
     TG_(current_state).collect = !TG_(current_state).collect;
     TG_DEBUG(2,"   leaving %s: toggled collection state to %s\n",

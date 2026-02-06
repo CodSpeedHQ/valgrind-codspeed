@@ -447,9 +447,6 @@ fn_node* new_fn_node(const HChar *fnname,
     fn->file     = file;
     fn->next     = next;
 
-    fn->dump_before  = False;
-    fn->dump_after   = False;
-    fn->zero_before  = False;
     fn->toggle_collect = False;
     fn->skip         = False;
     fn->obj_skip_checked = False;

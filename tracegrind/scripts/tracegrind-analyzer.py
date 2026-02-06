@@ -91,7 +91,7 @@ def decode_trace(filepath: str) -> Tuple[int, Dict[str, Any], List[List[Any]]]:
 
 def get_event_name(event_type: int) -> str:
     """Convert event type to name."""
-    return {0: 'ENTER', 1: 'EXIT', 2: 'FORK'}.get(event_type, f'UNKNOWN({event_type})')
+    return {0: 'MARKER', 1: 'ENTER', 2: 'EXIT', 3: 'FORK'}.get(event_type, f'UNKNOWN({event_type})')
 
 
 def format_row(row: List[Any], schema: Dict[str, Any]) -> Dict[str, Any]:
@@ -165,7 +165,7 @@ def print_stats(rows: List[List[Any]], schema: Dict[str, Any]) -> None:
     # Function stats (for ENTER/EXIT events)
     fn_counts = Counter()
     for row in rows:
-        if len(row) > 3 and row[2] in (0, 1):  # ENTER or EXIT
+        if len(row) > 3 and row[2] in (1, 2):  # ENTER or EXIT
             fn_counts[row[3]] += 1
 
     if fn_counts:
@@ -174,7 +174,7 @@ def print_stats(rows: List[List[Any]], schema: Dict[str, Any]) -> None:
             print(f"  {count:8,}  {fn}")
 
     # FORK events
-    fork_rows = [row for row in rows if len(row) > 2 and row[2] == 2]
+    fork_rows = [row for row in rows if len(row) > 2 and row[2] == 3]
     if fork_rows:
         print(f"\nFork events: {len(fork_rows)}")
         for row in fork_rows[:5]:
@@ -226,7 +226,7 @@ def main():
                         help='Print raw row arrays')
     parser.add_argument('--json', action='store_true',
                         help='Output as JSON')
-    parser.add_argument('--event', type=str, choices=['ENTER', 'EXIT', 'FORK'],
+    parser.add_argument('--event', type=str, choices=['MARKER', 'ENTER', 'EXIT', 'FORK'],
                         help='Filter by event type')
     parser.add_argument('--fn', type=str, metavar='PATTERN',
                         help='Filter by function name (substring match)')
@@ -248,7 +248,7 @@ def main():
     filtered_rows = rows
 
     if args.event:
-        event_map = {'ENTER': 0, 'EXIT': 1, 'FORK': 2}
+        event_map = {'MARKER': 0, 'ENTER': 1, 'EXIT': 2, 'FORK': 3}
         event_type = event_map[args.event]
         filtered_rows = [r for r in filtered_rows if len(r) > 2 and r[2] == event_type]
 

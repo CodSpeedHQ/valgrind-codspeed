@@ -32,23 +32,10 @@
 #include "pub_tool_threadstate.h"
 #include "pub_tool_libcfile.h"
 
-/* ================================================================== */
-/* === Legacy dump state (kept for totals verification)           === */
-/* ================================================================== */
-
-static Int out_counter = 0;
-static HChar* out_file = 0;
-static Bool dumps_initialized = False;
-
-/* Total reads/writes/misses sum over all dumps and threads. */
+/* Total reads/writes/misses sum over all threads. */
 FullCost TG_(total_cost) = 0;
 
 EventMapping* TG_(dumpmap) = 0;
-
-Int TG_(get_dump_counter)(void)
-{
-  return out_counter;
-}
 
 /* ================================================================== */
 /* === Trace output                                                === */
@@ -137,24 +124,32 @@ static void msgpack_write_header(void)
 
     /* event_schemas - discriminated union: each event type has its own schema */
     msgpack_write_key(&hdr, "event_schemas");
-    msgpack_write_map_header(&hdr, 3);  /* 3 event types: ENTER, EXIT, FORK */
+    msgpack_write_map_header(&hdr, 4);  /* 4 event types: MARKER, ENTER, EXIT, FORK */
 
-    /* Event type 0 (ENTER) schema */
+    /* Event type 0 (MARKER) schema */
     msgpack_write_key(&hdr, "0");
-    msgpack_write_array_header(&hdr, mp_state.ncols);
-    for (Int i = 0; i < mp_state.ncols; i++) {
-        msgpack_write_str(&hdr, mp_state.col_names[i], -1);
-    }
+    msgpack_write_array_header(&hdr, 4);
+    msgpack_write_str(&hdr, "seq", -1);
+    msgpack_write_str(&hdr, "tid", -1);
+    msgpack_write_str(&hdr, "event", -1);
+    msgpack_write_str(&hdr, "marker", -1);
 
-    /* Event type 1 (EXIT) schema - same as ENTER */
+    /* Event type 1 (ENTER) schema */
     msgpack_write_key(&hdr, "1");
     msgpack_write_array_header(&hdr, mp_state.ncols);
     for (Int i = 0; i < mp_state.ncols; i++) {
         msgpack_write_str(&hdr, mp_state.col_names[i], -1);
     }
 
-    /* Event type 2 (FORK) schema - minimal: seq, tid, event, child_pid */
+    /* Event type 2 (EXIT) schema - same as ENTER */
     msgpack_write_key(&hdr, "2");
+    msgpack_write_array_header(&hdr, mp_state.ncols);
+    for (Int i = 0; i < mp_state.ncols; i++) {
+        msgpack_write_str(&hdr, mp_state.col_names[i], -1);
+    }
+
+    /* Event type 3 (FORK) schema */
+    msgpack_write_key(&hdr, "3");
     msgpack_write_array_header(&hdr, 4);
     msgpack_write_str(&hdr, "seq", -1);
     msgpack_write_str(&hdr, "tid", -1);
@@ -286,6 +281,22 @@ static void msgpack_add_fork_row(ULong seq, Int tid, Int child_pid)
     mp_state.rows_in_chunk++;
 
     /* Flush if chunk is full */
+    if (mp_state.rows_in_chunk >= MSGPACK_CHUNK_ROWS) {
+        msgpack_flush_chunk();
+    }
+}
+
+/* Add a MARKER row to the msgpack output (seq, tid, event, marker_str) */
+static void msgpack_add_marker_row(ULong seq, Int tid, const HChar* marker)
+{
+    msgpack_write_array_header(&mp_state.buf, 4);
+    msgpack_write_uint(&mp_state.buf, seq);
+    msgpack_write_int(&mp_state.buf, tid);
+    msgpack_write_int(&mp_state.buf, TG_EV_MARKER);
+    msgpack_write_str(&mp_state.buf, marker, -1);
+
+    mp_state.rows_in_chunk++;
+
     if (mp_state.rows_in_chunk >= MSGPACK_CHUNK_ROWS) {
         msgpack_flush_chunk();
     }
@@ -444,6 +455,16 @@ void TG_(trace_emit_fork)(ThreadId tid, Int child_pid)
     msgpack_add_fork_row(TG_(trace_out).seq, (Int)tid, child_pid);
 }
 
+void TG_(trace_emit_marker)(ThreadId tid, const HChar* marker)
+{
+    if (!TG_(trace_out).initialized) return;
+    if (TG_(trace_out).fd < 0) return;
+
+    TG_(trace_out).seq++;
+
+    msgpack_add_marker_row(TG_(trace_out).seq, (Int)tid, marker);
+}
+
 void TG_(trace_close_output)(void)
 {
     if (!TG_(trace_out).initialized) return;
@@ -463,78 +484,14 @@ void TG_(trace_close_output)(void)
 }
 
 
-/* ================================================================== */
-/* === Simplified dump (totals only, for verification)            === */
-/* ================================================================== */
-
-/* Command buffer for dump header */
-static HChar *cmdbuf;
-
-static void init_cmdbuf(void)
+/* Sum costs from all threads into total_cost */
+void TG_(compute_total_cost)(void)
 {
-  SizeT size;
-  Int i,j;
-
-  size  = 1;
-  size += VG_(strlen)( VG_(args_the_exename) );
-  for (i = 0; i < VG_(sizeXA)( VG_(args_for_client) ); i++) {
-     const HChar *arg = *(HChar**)VG_(indexXA)( VG_(args_for_client), i );
-     size += 1;
-     for(j=0; arg[j]; j++)
-       switch(arg[j]) {
-       case '\n':
-       case '\\':
-	 size++;
-	 /* fallthrough */
-       default:
-	 size++;
-       }
-  }
-
-  cmdbuf = TG_MALLOC("tg.dump.ic.1", size + 1);
-
-  size = VG_(sprintf)(cmdbuf, " %s", VG_(args_the_exename));
-
-  for(i = 0; i < VG_(sizeXA)( VG_(args_for_client) ); i++) {
-     const HChar *arg = * (HChar**) VG_(indexXA)( VG_(args_for_client), i );
-     cmdbuf[size++] = ' ';
-     for(j=0; arg[j]; j++)
-       switch(arg[j]) {
-       case '\n':
-	 cmdbuf[size++] = '\\';
-	 cmdbuf[size++] = 'n';
-	 break;
-       case '\\':
-	 cmdbuf[size++] = '\\';
-	 cmdbuf[size++] = '\\';
-	 break;
-       default:
-	 cmdbuf[size++] = arg[j];
-	 break;
-       }
-  }
-  cmdbuf[size] = '\0';
-}
-
-
-/* Dump profile now only computes totals (no callgraph output).
- * The real output is the streaming CSV trace.
- */
-void TG_(dump_profile)(const HChar* trigger, Bool only_current_thread)
-{
-   TG_DEBUG(2, "+ dump_profile(Trigger '%s')\n",
-	    trigger ? trigger : "Prg.Term.");
-
-   TG_(init_dumps)();
-   out_counter++;
-
-   /* Compute totals from all threads */
    if (!TG_(total_cost)) {
        TG_(total_cost) = TG_(get_eventset_cost)(TG_(sets).full);
        TG_(init_cost)(TG_(sets).full, TG_(total_cost));
    }
 
-   /* Sum costs from all threads into total_cost */
    {
        Int t;
        thread_info** thr = TG_(get_threads)();
@@ -543,41 +500,8 @@ void TG_(dump_profile)(const HChar* trigger, Bool only_current_thread)
            TG_(add_diff_cost)(TG_(sets).full, TG_(total_cost),
                               thr[t]->lastdump_cost,
                               thr[t]->states.entry[0]->cost);
-           /* Update lastdump_cost */
            TG_(copy_cost)(TG_(sets).full, thr[t]->lastdump_cost,
                           thr[t]->states.entry[0]->cost);
        }
    }
-
-   if (VG_(clo_verbosity) > 1)
-       VG_(message)(Vg_DebugMsg, "Dump done (trigger: %s).\n",
-                    trigger ? trigger : "Prg.Term.");
-}
-
-
-void TG_(init_dumps)(void)
-{
-   static int thisPID = 0;
-   int currentPID = VG_(getpid)();
-   if (currentPID == thisPID) {
-       TG_ASSERT(out_file != 0);
-       return;
-   }
-   thisPID = currentPID;
-
-   if (!TG_(clo).out_format)
-     TG_(clo).out_format = DEFAULT_OUTFORMAT;
-
-   if (out_file) {
-       VG_(free)(out_file);
-       out_counter = 0;
-   }
-
-   out_file =
-       VG_(expand_file_name)("--tracegrind-out-file", TG_(clo).out_format);
-
-   if (!dumps_initialized)
-       init_cmdbuf();
-
-   dumps_initialized = True;
 }

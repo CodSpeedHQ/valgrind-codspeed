@@ -704,8 +704,8 @@ void addEvent_D_guarded ( ClgState* clgs, InstrInfo* inode,
                                 ea, mkIRExpr_HWord( datasize ) );
    regparms    = 3;
    di          = unsafeIRDirty_0_N(
-                    regparms, 
-                    helperName, VG_(fnptr_to_fnentry)( helperAddr ), 
+                    regparms,
+                    helperName, VG_(fnptr_to_fnentry)( helperAddr ),
                     argv );
    di->guard = guard;
    addStmtToIRSB( clgs->sbOut, IRStmt_Dirty(di) );
@@ -908,7 +908,7 @@ void addConstMemStoreStmt( IRSB* bbOut, UWord addr, UInt val, IRType hWordTy)
 					     IRConst_U32( addr ) :
 					     IRConst_U64( addr )),
 				IRExpr_Const(IRConst_U32(val)) ));
-}   
+}
 
 
 /* add helper call to setup_bbcc, with pointer to BB struct as argument
@@ -993,7 +993,7 @@ IRSB* TG_(instrument)( VgCallbackClosure* closure,
    TG_ASSERT(Ist_IMark == st->tag);
 
    origAddr = st->Ist.IMark.addr + st->Ist.IMark.delta;
-   TG_ASSERT(origAddr == st->Ist.IMark.addr 
+   TG_ASSERT(origAddr == st->Ist.IMark.addr
                           + st->Ist.IMark.delta);  // XXX: check no overflow
 
    /* Get BB struct (creating if necessary).
@@ -1389,41 +1389,6 @@ void tg_discard_superblock_info ( Addr orig_addr, VexGuestExtents vge )
 
 
 
-static void zero_thread_cost(thread_info* t)
-{
-  Int i;
-
-  for(i = 0; i < TG_(current_call_stack).sp; i++) {
-    if (!TG_(current_call_stack).entry[i].jcc) continue;
-
-    /* reset call counters to current for active calls */
-    TG_(copy_cost)( TG_(sets).full, 
-		    TG_(current_call_stack).entry[i].enter_cost,
-		    TG_(current_state).cost );
-    TG_(current_call_stack).entry[i].jcc->call_counter = 0;
-  }
-
-  TG_(forall_bbccs)(TG_(zero_bbcc));
-
-  /* set counter for last dump */
-  TG_(copy_cost)( TG_(sets).full, 
-		  t->lastdump_cost, TG_(current_state).cost );
-}
-
-void TG_(zero_all_cost)(Bool only_current_thread)
-{
-  if (VG_(clo_verbosity) > 1)
-    VG_(message)(Vg_DebugMsg, "  Zeroing costs...\n");
-
-  if (only_current_thread)
-    zero_thread_cost(TG_(get_current_thread)());
-  else
-    TG_(forall_threads)(zero_thread_cost);
-
-  if (VG_(clo_verbosity) > 1)
-    VG_(message)(Vg_DebugMsg, "  ...done\n");
-}
-
 static
 void unwind_thread(thread_info* t)
 {
@@ -1494,18 +1459,18 @@ static void dump_state_of_thread_togdb(thread_info* ti)
       ce = TG_(get_call_entry)(i);
       /* if this frame is skipped, we don't have counters */
       if (!ce->jcc) continue;
-      
+
       from = ce->jcc->from;
       VG_(gdb_printf)("function-%d-%d: %s\n",t, i, from->cxt->fn[0]->name);
       VG_(gdb_printf)("calls-%d-%d: %llu\n",t, i, ce->jcc->call_counter);
-      
+
       /* FIXME: EventSets! */
       TG_(copy_cost)( TG_(sets).full, sum, ce->jcc->cost );
       TG_(copy_cost)( TG_(sets).full, tmp, ce->enter_cost );
       TG_(add_diff_cost)( TG_(sets).full, sum,
 			  ce->enter_cost, TG_(current_state).cost );
       TG_(copy_cost)( TG_(sets).full, ce->enter_cost, tmp );
-      
+
       mcost = TG_(mappingcost_as_string)(TG_(dumpmap), sum);
       VG_(gdb_printf)("events-%d-%d: %s\n",t, i, mcost);
       VG_(free)(mcost);
@@ -1538,9 +1503,8 @@ static void dump_state_togdb(void)
     HChar *evmap = TG_(eventmapping_as_string)(TG_(dumpmap));
     VG_(gdb_printf)("events: %s\n", evmap);
     VG_(free)(evmap);
-    /* "part:" line (number of last part. Is 0 at start */
-    VG_(gdb_printf)("part: %d\n", TG_(get_dump_counter)());
-		
+    /* Total cost summary */
+
     /* threads */
     th = TG_(get_threads)();
     VG_(gdb_printf)("threads:");
@@ -1553,15 +1517,11 @@ static void dump_state_togdb(void)
     TG_(forall_threads)(dump_state_of_thread_togdb);
 }
 
-  
+
 static void print_monitor_help ( void )
 {
    VG_(gdb_printf) ("\n");
    VG_(gdb_printf) ("tracegrind monitor commands:\n");
-   VG_(gdb_printf) ("  dump [<dump_hint>]\n");
-   VG_(gdb_printf) ("        dump counters\n");
-   VG_(gdb_printf) ("  zero\n");
-   VG_(gdb_printf) ("        zero counters\n");
    VG_(gdb_printf) ("  status\n");
    VG_(gdb_printf) ("        print status\n");
    VG_(gdb_printf) ("  instrumentation [on|off]\n");
@@ -1579,7 +1539,7 @@ static Bool handle_gdb_monitor_command (ThreadId tid, const HChar *req)
    VG_(strcpy) (s, req);
 
    wcmd = VG_(strtok_r) (s, " ", &ssaveptr);
-   switch (VG_(keyword_id) ("help dump zero status instrumentation", 
+   switch (VG_(keyword_id) ("help status instrumentation",
                             wcmd, kwd_report_duplicated_matches)) {
    case -2: /* multiple matches */
       return True;
@@ -1588,16 +1548,8 @@ static Bool handle_gdb_monitor_command (ThreadId tid, const HChar *req)
    case  0: /* help */
       print_monitor_help();
       return True;
-   case  1: { /* dump */
-      TG_(dump_profile)(req, False);
-      return True;
-   }
-   case  2: { /* zero */
-      TG_(zero_all_cost)(False);
-      return True;
-   }
 
-   case 3: { /* status */
+   case 1: { /* status */
      HChar* arg = VG_(strtok_r) (0, " ", &ssaveptr);
      if (arg && (VG_(strcmp)(arg, "internal") == 0)) {
        /* internal interface to tracegrind_control */
@@ -1618,7 +1570,7 @@ static Bool handle_gdb_monitor_command (ThreadId tid, const HChar *req)
      return True;
    }
 
-   case 4: { /* instrumentation */
+   case 2: { /* instrumentation */
      HChar* arg = VG_(strtok_r) (0, " ", &ssaveptr);
      if (!arg) {
        VG_(gdb_printf)("instrumentation: %s\n",
@@ -1629,7 +1581,7 @@ static Bool handle_gdb_monitor_command (ThreadId tid, const HChar *req)
      return True;
    }
 
-   default: 
+   default:
       tl_assert(0);
       return False;
    }
@@ -1643,31 +1595,20 @@ Bool TG_(handle_client_request)(ThreadId tid, UWord *args, UWord *ret)
       return False;
 
    switch(args[0]) {
-   case VG_USERREQ__DUMP_STATS:     
-      TG_(dump_profile)("Client Request", True);
-      *ret = 0;                 /* meaningless */
-      break;
-
-   case VG_USERREQ__DUMP_STATS_AT:
-     {
-       const HChar *arg = (HChar*)args[1];
-       HChar buf[30 + VG_(strlen)(arg)];    // large enough
-       VG_(sprintf)(buf,"Client Request: %s", arg);
-       TG_(dump_profile)(buf, True);
-       *ret = 0;                 /* meaningless */
-     }
-     break;
-
-   case VG_USERREQ__ZERO_STATS:
-     TG_(zero_all_cost)(True);
-      *ret = 0;                 /* meaningless */
-      break;
-
    case VG_USERREQ__TOGGLE_COLLECT:
      TG_(current_state).collect = !TG_(current_state).collect;
      TG_DEBUG(2, "Client Request: toggled collection state to %s\n",
 	      TG_(current_state).collect ? "ON" : "OFF");
      *ret = 0;                 /* meaningless */
+     break;
+
+   case VG_USERREQ__ADD_MARKER:
+     {
+       const HChar *marker = (HChar*)args[1];
+       TG_DEBUG(2, "Client Request: add marker '%s'\n", marker);
+       TG_(trace_emit_marker)(tid, marker);
+       *ret = 0;                 /* meaningless */
+     }
      break;
 
    case VG_USERREQ__START_INSTRUMENTATION:
@@ -1688,6 +1629,12 @@ Bool TG_(handle_client_request)(ThreadId tid, UWord *args, UWord *ret)
          *ret = 0;
       return handled;
    }
+   case VG_USERREQ__DUMP_STATS:
+   case VG_USERREQ__ZERO_STATS:
+     TG_DEBUG(2, "Client Request: ignoring  %llx\n", (ULong)args[0]);
+     *ret = 0;                 /* meaningless */
+     break;
+
    default:
       VG_(message)(Vg_UserMsg,
                    "Warning: unknown tracegrind client request code %llx\n",
@@ -1972,13 +1919,13 @@ void finish(void)
    */
   TG_(forall_threads)(unwind_thread);
 
-  TG_(dump_profile)(0, False);
+  TG_(compute_total_cost)();
 
   /* Close CSV trace output */
   TG_(trace_close_output)();
 
   if (VG_(clo_verbosity) == 0) return;
-  
+
   if (VG_(clo_stats)) {
     VG_(message)(Vg_DebugMsg, "\n");
     tg_print_stats();
@@ -2064,7 +2011,7 @@ void TG_(post_clo_init)(void)
       TG_DEBUG(1, " Using user specified value for "
                 "--vex-iropt-register-updates\n");
    } else {
-      TG_DEBUG(1, 
+      TG_DEBUG(1,
                 " Using default --vex-iropt-register-updates="
                 "sp-at-mem-access\n");
    }
@@ -2094,13 +2041,13 @@ void TG_(post_clo_init)(void)
       TG_DEBUG(1, " Using user specified value for "
                 "--px-file-backed\n");
    } else {
-      TG_DEBUG(1, 
+      TG_DEBUG(1,
                 " Using default --px-file-backed="
                 "sp-at-mem-access\n");
    }
 
    if (VG_(clo_vex_control).iropt_unroll_thresh != 0) {
-      VG_(message)(Vg_UserMsg, 
+      VG_(message)(Vg_UserMsg,
                    "tracegrind only works with --vex-iropt-unroll-thresh=0\n"
                    "=> resetting it back to 0\n");
       VG_(clo_vex_control).iropt_unroll_thresh = 0;   // cannot be overridden.
@@ -2111,7 +2058,7 @@ void TG_(post_clo_init)(void)
                    "=> resetting it back to 'no'\n");
       VG_(clo_vex_control).guest_chase = False; // cannot be overridden.
    }
-   
+
    TG_DEBUG(1, "  dump threads: %s\n", TG_(clo).separate_threads ? "Yes":"No");
    TG_DEBUG(1, "  call sep. : %d\n", TG_(clo).separate_callers);
    TG_DEBUG(1, "  rec. sep. : %d\n", TG_(clo).separate_recursions);
@@ -2120,8 +2067,6 @@ void TG_(post_clo_init)(void)
        VG_(message)(Vg_UserMsg, "Using source line as position.\n");
        TG_(clo).dump_line = True;
    }
-
-   TG_(init_dumps)();
 
    (*TG_(cachesim).post_clo_init)();
 

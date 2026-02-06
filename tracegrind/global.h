@@ -85,9 +85,10 @@ typedef enum {
 
 /* Trace event types */
 typedef enum {
-   TG_EV_ENTER = 0,
-   TG_EV_EXIT  = 1,
-   TG_EV_FORK  = 2
+   TG_EV_MARKER = 0,
+   TG_EV_ENTER  = 1,
+   TG_EV_EXIT   = 2,
+   TG_EV_FORK   = 3
 } TraceEventType;
 
 typedef struct _CommandLineOptions CommandLineOptions;
@@ -105,9 +106,6 @@ struct _CommandLineOptions {
   Bool dump_instr;
   Bool dump_bb;
   Bool dump_bbs;         /* Dump basic block information? */
-  
-  /* Dump generation options */
-  ULong dump_every_bb;     /* Dump every xxx BBs. */
   
   /* Collection options */
   Bool separate_threads; /* Separate threads in dump? */
@@ -419,9 +417,6 @@ struct _fn_node {
   file_node* file;     /* reverse mapping for 2nd hash */
   fn_node* next;
 
-  Bool dump_before :1;
-  Bool dump_after :1;
-  Bool zero_before :1;
   Bool toggle_collect :1;
   Bool skip :1;
   Bool obj_skip_checked : 1;
@@ -726,9 +721,7 @@ Bool TG_(get_debug_info)(Addr, const HChar **dirname,
                           const HChar **fn_name, UInt*, DebugInfo**);
 void TG_(collectBlockInfo)(IRSB* bbIn, UInt*, UInt*, Bool*);
 void TG_(set_instrument_state)(const HChar*,Bool);
-void TG_(dump_profile)(const HChar* trigger,Bool only_current_thread);
-void TG_(zero_all_cost)(Bool only_current_thread);
-Int TG_(get_dump_counter)(void);
+void TG_(compute_total_cost)(void);
 void TG_(fini)(Int exitcode);
 
 /* from bb.c */
@@ -810,13 +803,13 @@ void TG_(post_signal)(ThreadId tid, Int sigNum);
 void TG_(run_post_signal_on_call_stack_bottom)(void);
 
 /* from dump.c */
-void TG_(init_dumps)(void);
 
 /* Trace output (from dump.c) */
 void TG_(trace_open_output)(void);
 void TG_(trace_reopen_child)(void);
 void TG_(trace_emit_sample)(ThreadId tid, Bool is_enter, fn_node* fn);
 void TG_(trace_emit_fork)(ThreadId tid, Int child_pid);
+void TG_(trace_emit_marker)(ThreadId tid, const HChar* marker);
 void TG_(trace_close_output)(void);
 
 /*------------------------------------------------------------*/

@@ -181,19 +181,6 @@ void TG_(switch_thread)(ThreadId tid)
 
 void TG_(run_thread)(ThreadId tid)
 {
-    /* check for dumps needed */
-    static ULong bbs_done = 0;
-    HChar buf[50];   // large enough
-
-    if (TG_(clo).dump_every_bb >0) {
-       if (TG_(stat).bb_executions - bbs_done > TG_(clo).dump_every_bb) {
-           VG_(sprintf)(buf, "--dump-every-bb=%llu", TG_(clo).dump_every_bb);
-	   TG_(dump_profile)(buf, False);
-           bbs_done = TG_(stat).bb_executions;
-       }
-    }
-
-    /* now check for thread switch */
     TG_(switch_thread)(tid);
 }
 
