@@ -202,11 +202,7 @@ void TG_(push_call_stack)(BBCC* from, UInt jmp, BBCC* to, Addr sp, Bool skip)
 	TG_ASSERT(jcc != 0);
 
 	pdepth = TG_(get_fn_entry)(to_fn->number);
-	if (TG_(clo).skip_direct_recursion) {
-	    /* only increment depth if another function is called */
-	  if (jcc->from->cxt->fn[0] != to_fn) (*pdepth)++;
-	}
-	else (*pdepth)++;
+	(*pdepth)++;
 
 	if (*pdepth>1)
 	  TG_(stat).rec_call_counter++;
@@ -326,11 +322,7 @@ void TG_(pop_call_stack)(void)
     if (jcc) {
 	fn_node* to_fn  = jcc->to->cxt->fn[0];
 	UInt* pdepth =  TG_(get_fn_entry)(to_fn->number);
-	if (TG_(clo).skip_direct_recursion) {
-	    /* only decrement depth if another function was called */
-	  if (jcc->from->cxt->fn[0] != to_fn) (*pdepth)--;
-	}
-	else (*pdepth)--;
+	(*pdepth)--;
 	depth = *pdepth;
 
 	/* add cost difference to sum */

@@ -44,7 +44,6 @@
 struct _fn_config {
     Int toggle_collect;
 
-    Int skip;    /* Handle CALL to this function as JMP (= Skip)? */
     Int group;   /* don't change caller dependency inside group !=0 */
     Int pop_on_jump; 
 
@@ -97,7 +96,6 @@ fn_config* new_fnc(void)
                                             sizeof(fn_config));
 
    fnc->toggle_collect = CONFIG_DEFAULT;
-   fnc->skip         = CONFIG_DEFAULT;
    fnc->pop_on_jump  = CONFIG_DEFAULT;
    fnc->group        = CONFIG_DEFAULT;
    fnc->separate_callers    = CONFIG_DEFAULT;
@@ -312,9 +310,6 @@ static void update_fn_config1(fn_node* fn, fn_config* fnc)
     if (fnc->toggle_collect != CONFIG_DEFAULT)
 	fn->toggle_collect = (fnc->toggle_collect == CONFIG_TRUE);
 
-    if (fnc->skip != CONFIG_DEFAULT)
-	fn->skip = (fnc->skip == CONFIG_TRUE);
-
     if (fnc->pop_on_jump != CONFIG_DEFAULT)
 	fn->pop_on_jump = (fnc->pop_on_jump == CONFIG_TRUE);
 
@@ -405,19 +400,6 @@ Bool TG_(process_cmd_line_option)(const HChar* arg)
 
    else if VG_BOOL_CLO(arg, "--separate-threads", TG_(clo).separate_threads) {}
 
-   else if VG_STR_CLO(arg, "--fn-skip", tmp_str) {
-       fn_config* fnc = get_fnc(tmp_str);
-       fnc->skip = CONFIG_TRUE;
-   }
-   else if VG_STR_CLO(arg, "--obj-skip", tmp_str) {
-       HChar *obj_name = VG_(strdup)("cl.clo.pclo.1", tmp_str);
-       TG_(clo).objs_to_skip_count++;
-       TG_(clo).objs_to_skip = VG_(realloc)("cl.clo.pclo.2",
-                                             TG_(clo).objs_to_skip,
-                                             TG_(clo).objs_to_skip_count*sizeof(HChar*));
-       TG_(clo).objs_to_skip[TG_(clo).objs_to_skip_count-1] = obj_name;
-   }
-
    else if VG_STR_CLO(arg, "--toggle-collect", tmp_str) {
        fn_config* fnc = get_fnc(tmp_str);
        fnc->toggle_collect = CONFIG_TRUE;
@@ -482,9 +464,6 @@ Bool TG_(process_cmd_line_option)(const HChar* arg)
 
    else if VG_STR_CLO(arg, "--tracegrind-out-file", TG_(clo).out_format) {}
 
-   else if VG_BOOL_CLO(arg, "--skip-direct-rec",
-                            TG_(clo).skip_direct_recursion) {}
-
    else if VG_XACT_CLO(arg, "--collect-systime=no",
                        TG_(clo).collect_systime, systime_no) {}
    else if VG_XACT_CLO(arg, "--collect-systime=msec",
@@ -547,9 +526,6 @@ void TG_(print_usage)(void)
 "    --separate-recs=<n>       Separate function recursions up to level [2]\n"
 "    --separate-recs<n>=<f>    Separate <n> recursions for function <f>\n"
 "    --skip-plt=no|yes         Ignore calls to/from PLT sections? [yes]\n"
-"    --skip-direct-rec=no|yes  Ignore direct recursions? [yes]\n"
-"    --fn-skip=<function>      Ignore calls to/from function?\n"
-"    --obj-skip=<object>       Ignore calls to/from object?\n"
 #if TG_EXPERIMENTAL
 "    --fn-group<no>=<func>     Put function into separation group <no>\n"
 #endif
@@ -598,8 +574,6 @@ void TG_(set_clo_defaults)(void)
   TG_(clo).skip_plt         = True;
   TG_(clo).separate_callers = 0;
   TG_(clo).separate_recursions = 2;
-  TG_(clo).skip_direct_recursion = False;
-
   /* Instrumentation */
   TG_(clo).instrument_atstart = True;
   TG_(clo).simulate_cache = False;
@@ -607,8 +581,6 @@ void TG_(set_clo_defaults)(void)
 
   /* Call graph */
   TG_(clo).pop_on_jump = False;
-  TG_(clo).objs_to_skip_count = 0;
-  TG_(clo).objs_to_skip = 0;
 
 #if TG_ENABLE_DEBUG
   TG_(clo).verbose = 0;

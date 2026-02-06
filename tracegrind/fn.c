@@ -448,7 +448,6 @@ fn_node* new_fn_node(const HChar *fnname,
 
     fn->toggle_collect = False;
     fn->skip         = False;
-    fn->obj_skip_checked = False;
     fn->pop_on_jump  = TG_(clo).pop_on_jump;
     fn->group        = 0;
     fn->separate_callers    = TG_(clo).separate_callers;

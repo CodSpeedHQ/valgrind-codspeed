@@ -98,7 +98,6 @@ struct _CommandLineOptions {
   Int  separate_callers; /* Separate dependent on how many callers? */
   Int  separate_recursions; /* Max level of recursions to separate */
   Bool skip_plt;         /* Skip functions in PLT section? */
-  Bool skip_direct_recursion; /* Increment direct recursions the level? */
 
   Bool collect_atstart;  /* Start in collecting state ? */
   Bool collect_jumps;    /* Collect (cond.) jumps in functions ? */
@@ -114,8 +113,6 @@ struct _CommandLineOptions {
 
   /* Call graph generation */
   Bool pop_on_jump;       /* Handle a jump between functions as ret+call */
-  Int objs_to_skip_count; /* Number of objects to skip */
-  HChar** objs_to_skip;  /* List of objects to skip */
 
 #if TG_ENABLE_DEBUG
   Int   verbose;
@@ -391,7 +388,6 @@ struct _fn_node {
 
   Bool toggle_collect :1;
   Bool skip :1;
-  Bool obj_skip_checked : 1;
   Bool pop_on_jump : 1;
 
   Int  group;

@@ -671,19 +671,6 @@ void TG_(setup_bbcc)(BB* bb)
   if (jmpkind == jk_Call) {
     fn_node* node = TG_(get_fn_node)(bb);
     skip = node->skip;
-    if (!skip && !node->obj_skip_checked){
-      HChar* obj_name = node->file->obj->name;
-      // VG_(printf)("  %s\n", obj_name);
-      for (int i=0; i<TG_(clo).objs_to_skip_count; i++) {
-        // VG_(printf)("     %s\n", TG_(clo).objs_to_skip[i]);
-        if (VG_(strcmp)(obj_name, TG_(clo).objs_to_skip[i]) == 0) {
-          node->skip = True;
-          skip = True;
-          break;
-        }
-      }
-      node->obj_skip_checked = True;
-    }
   }
 
   TG_DEBUGIF(1) {
@@ -789,14 +776,7 @@ void TG_(setup_bbcc)(BB* bb)
     level = *TG_(get_fn_entry)(top->number);
 
     if (delayed_push && !skip) {
-      if (TG_(clo).skip_direct_recursion) {
-        /* a call was detected, which means that the source BB != 0 */
-	TG_ASSERT(TG_(current_state).bbcc != 0);
-	/* only increment rec. level if called from different function */ 
-	if (TG_(current_state).bbcc->cxt->fn[0] != bbcc->cxt->fn[0])
-	  level++;
-      }
-      else level++;
+      level++;
     }
     if (level> top->separate_recursions)
       level = top->separate_recursions;
