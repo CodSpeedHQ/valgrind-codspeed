@@ -1432,13 +1432,6 @@ void cachesim_clear(void)
 }
 
 
-static void cachesim_dump_desc(VgFile *fp)
-{
-  VG_(fprintf)(fp, "\ndesc: I1 cache: %s\n", I1.desc_line);
-  VG_(fprintf)(fp, "desc: D1 cache: %s\n", D1.desc_line);
-  VG_(fprintf)(fp, "desc: LL cache: %s\n", LL.desc_line);
-}
-
 static
 void cachesim_print_opts(void)
 {
@@ -1622,9 +1615,6 @@ void TG_(init_eventsets)(void)
     if (TG_(clo).collect_bus)
 	TG_(register_event_group)(EG_BUS, "Ge");
 
-    if (TG_(clo).collect_alloc)
-	TG_(register_event_group2)(EG_ALLOC, "allocCount", "allocSize");
-
     if (TG_(clo).collect_systime != systime_no) {
        if (TG_(clo).collect_systime == systime_nsec)
           TG_(register_event_group3)(EG_SYS, "sysCount", "sysTime", "sysCpuTime");
@@ -1639,7 +1629,7 @@ void TG_(init_eventsets)(void)
     TG_(sets).full = TG_(add_event_group2)(TG_(sets).base, EG_DR, EG_DW);
     TG_(sets).full = TG_(add_event_group2)(TG_(sets).full, EG_BC, EG_BI);
     TG_(sets).full = TG_(add_event_group) (TG_(sets).full, EG_BUS);
-    TG_(sets).full = TG_(add_event_group2)(TG_(sets).full, EG_ALLOC, EG_SYS);
+    TG_(sets).full = TG_(add_event_group) (TG_(sets).full, EG_SYS);
 
     TG_DEBUGIF(1) {
 	TG_DEBUG(1, "EventSets:\n");
@@ -1678,18 +1668,6 @@ void TG_(init_eventsets)(void)
 }
 
 
-/* this is called at dump time for every instruction executed */
-static void cachesim_add_icost(SimCost cost, BBCC* bbcc,
-			       InstrInfo* ii, ULong exe_count)
-{
-    if (!TG_(clo).simulate_cache)
-	cost[ fullOffset(EG_IR) ] += exe_count;
-
-    if (ii->eventset)
-	TG_(add_and_zero_cost2)( TG_(sets).full, cost,
-				  ii->eventset, bbcc->cost + ii->cost_offset);
-}
-
 static
 void cachesim_finish(void)
 {
@@ -1706,9 +1684,7 @@ struct cachesim_if TG_(cachesim) = {
   .parse_opt     = cachesim_parse_opt,
   .post_clo_init = cachesim_post_clo_init,
   .clear         = cachesim_clear,
-  .dump_desc     = cachesim_dump_desc,
   .printstat     = cachesim_printstat,
-  .add_icost     = cachesim_add_icost,
   .finish        = cachesim_finish,
 
   /* these will be set by cachesim_post_clo_init */

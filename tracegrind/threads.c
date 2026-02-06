@@ -112,9 +112,7 @@ thread_info* new_thread(void)
 
     /* event counters */
     t->lastdump_cost   = TG_(get_eventset_cost)( TG_(sets).full );
-    t->sighandler_cost = TG_(get_eventset_cost)( TG_(sets).full );
     TG_(init_cost)( TG_(sets).full, t->lastdump_cost );
-    TG_(init_cost)( TG_(sets).full, t->sighandler_cost );
 
     /* CSV trace: per-thread sample snapshot (allocated lazily in trace_emit_sample) */
     t->last_sample_cost = 0;
@@ -266,12 +264,10 @@ void TG_(post_signal)(ThreadId tid, Int sigNum)
 	TG_(current_fn_stack).top--;
     }
 
-    /* sum up costs */
+    /* zero signal handler costs before restoring previous context */
     TG_ASSERT(TG_(current_state).cost == es->cost);
-    TG_(add_and_zero_cost)( TG_(sets).full,
-			    thread[TG_(current_tid)]->sighandler_cost,
-			    TG_(current_state).cost );
-    
+    TG_(zero_cost)( TG_(sets).full, TG_(current_state).cost );
+
     /* restore previous context */
     es->sig = -1;
     current_states.sp--;

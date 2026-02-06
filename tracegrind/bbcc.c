@@ -75,62 +75,6 @@ void TG_(set_current_bbcc_hash)(bbcc_hash* h)
   current_bbccs.table   = h->table;
 }
 
-/*
- * Zero all costs of a BBCC
- */
-void TG_(zero_bbcc)(BBCC* bbcc)
-{
-  Int i;
-  jCC* jcc;
-
-  TG_ASSERT(bbcc->cxt != 0);
-  TG_DEBUG(1, "  zero_bbcc: BB %#lx, Cxt %u "
-	   "(fn '%s', rec %u)\n", 
-	   bb_addr(bbcc->bb),
-	   bbcc->cxt->base_number + bbcc->rec_index,
-	   bbcc->cxt->fn[0]->name,
-	   bbcc->rec_index);
-
-  if ((bbcc->ecounter_sum ==0) &&
-      (bbcc->ret_counter ==0)) return;
-
-  for(i=0;i<bbcc->bb->cost_count;i++)
-    bbcc->cost[i] = 0;
-  for(i=0;i <= bbcc->bb->cjmp_count;i++) {
-    bbcc->jmp[i].ecounter = 0;
-    for(jcc=bbcc->jmp[i].jcc_list; jcc; jcc=jcc->next_from) {
-      TG_(init_cost)( TG_(sets).full, jcc->cost );
-      jcc->call_counter = 0;
-    }
-  }
-  bbcc->ecounter_sum = 0;
-  bbcc->ret_counter = 0;
-}
-
-
-
-void TG_(forall_bbccs)(void (*func)(BBCC*))
-{
-  BBCC *bbcc, *bbcc2;
-  int i, j;
-	
-  for (i = 0; i < current_bbccs.size; i++) {
-    if ((bbcc=current_bbccs.table[i]) == NULL) continue;
-    while (bbcc) {
-      /* every bbcc should have a rec_array */
-      TG_ASSERT(bbcc->rec_array != 0);
-
-      for(j=0;j<bbcc->cxt->fn[0]->separate_recursions;j++) {
-	if ((bbcc2 = bbcc->rec_array[j]) == 0) continue;
-
-	(*func)(bbcc2);
-      }
-      bbcc = bbcc->next;
-    }
-  }
-}
-
-
 /* All BBCCs for recursion level 0 are inserted into a
  * thread specific hash table with key
  * - address of BB structure (unique, as never freed)
@@ -277,7 +221,6 @@ BBCC* new_bbcc(BB* bb)
    bbcc->bb  = bb;
    bbcc->tid = TG_(current_tid);
 
-   bbcc->ret_counter = 0;
    bbcc->skipped = 0;
    bbcc->cost = TG_(get_costarray)(bb->cost_count);
    for(i=0;i<bb->cost_count;i++)

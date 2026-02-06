@@ -399,17 +399,11 @@ Bool TG_(process_cmd_line_option)(const HChar* arg)
    /* compatibility alias, deprecated option */
    else if VG_BOOL_CLO(arg, "--trace-jump",    TG_(clo).collect_jumps) {}
 
-   else if VG_BOOL_CLO(arg, "--combine-dumps", TG_(clo).combine_dumps) {}
-
    else if VG_BOOL_CLO(arg, "--collect-atstart", TG_(clo).collect_atstart) {}
 
    else if VG_BOOL_CLO(arg, "--instr-atstart", TG_(clo).instrument_atstart) {}
 
    else if VG_BOOL_CLO(arg, "--separate-threads", TG_(clo).separate_threads) {}
-
-   else if VG_BOOL_CLO(arg, "--compress-strings", TG_(clo).compress_strings) {}
-   else if VG_BOOL_CLO(arg, "--compress-mangled", TG_(clo).compress_mangled) {}
-   else if VG_BOOL_CLO(arg, "--compress-pos",     TG_(clo).compress_pos) {}
 
    else if VG_STR_CLO(arg, "--fn-skip", tmp_str) {
        fn_config* fnc = get_fnc(tmp_str);
@@ -488,20 +482,9 @@ Bool TG_(process_cmd_line_option)(const HChar* arg)
 
    else if VG_STR_CLO(arg, "--tracegrind-out-file", TG_(clo).out_format) {}
 
-   else if VG_XACT_CLO(arg, "--output-format=msgpack",
-                       TG_(clo).output_format, output_format_msgpack) {}
-
-   else if VG_BOOL_CLO(arg, "--mangle-names", TG_(clo).mangle_names) {}
-
    else if VG_BOOL_CLO(arg, "--skip-direct-rec",
                             TG_(clo).skip_direct_recursion) {}
 
-   else if VG_BOOL_CLO(arg, "--dump-bbs",   TG_(clo).dump_bbs) {}
-   else if VG_BOOL_CLO(arg, "--dump-line",  TG_(clo).dump_line) {}
-   else if VG_BOOL_CLO(arg, "--dump-instr", TG_(clo).dump_instr) {}
-   else if VG_BOOL_CLO(arg, "--dump-bb",    TG_(clo).dump_bb) {}
-
-   else if VG_BOOL_CLO(arg, "--collect-alloc",   TG_(clo).collect_alloc) {}
    else if VG_XACT_CLO(arg, "--collect-systime=no",
                        TG_(clo).collect_systime, systime_no) {}
    else if VG_XACT_CLO(arg, "--collect-systime=msec",
@@ -542,25 +525,8 @@ Bool TG_(process_cmd_line_option)(const HChar* arg)
 void TG_(print_usage)(void)
 {
    VG_(printf)(
-"\n   dump creation options:\n"
+"\n   output options:\n"
 "    --tracegrind-out-file=<f>  Output file name [tracegrind.out.%%p]\n"
-"    --dump-line=no|yes        Dump source lines of costs? [yes]\n"
-"    --dump-instr=no|yes       Dump instruction address of costs? [no]\n"
-"    --compress-strings=no|yes Compress strings in profile dump? [yes]\n"
-"    --compress-pos=no|yes     Compress positions in profile dump? [yes]\n"
-"    --combine-dumps=no|yes    Concat all dumps into same file [no]\n"
-#if TG_EXPERIMENTAL
-"    --compress-events=no|yes  Compress events in profile dump? [no]\n"
-"    --dump-bb=no|yes          Dump basic block address of costs? [no]\n"
-"    --dump-bbs=no|yes         Dump basic block info? [no]\n"
-"    --dump-skipped=no|yes     Dump info on skipped functions in calls? [no]\n"
-"    --mangle-names=no|yes     Mangle separation into names? [yes]\n"
-#endif
-
-"\n   activity options (for interactivity use tracegrind_control):\n"
-#if TG_EXPERIMENTAL
-"    --dump-objs=no|yes        Dump static object information [no]\n"
-#endif
 
 "\n   data collection options:\n"
 "    --instr-atstart=no|yes    Do instrumentation at tracegrind start [yes]\n"
@@ -568,9 +534,6 @@ void TG_(print_usage)(void)
 "    --toggle-collect=<func>   Toggle collection on enter/leave function\n"
 "    --collect-jumps=no|yes    Collect jumps? [no]\n"
 "    --collect-bus=no|yes      Collect global bus events? [no]\n"
-#if TG_EXPERIMENTAL
-"    --collect-alloc=no|yes    Collect memory allocation info? [no]\n"
-#endif
 "    --collect-systime=no|yes|msec|usec|nsec  Collect system call time info? [no]\n"
 "        no         Do not collect system call time info.\n"
 "        msec|yes   Collect syscount, syscall elapsed time (milli-seconds).\n"
@@ -622,24 +585,13 @@ void TG_(set_clo_defaults)(void)
 {
   /* Default values for command line arguments */
 
-  /* dump options */
+  /* Output */
   TG_(clo).out_format       = 0;
-  TG_(clo).combine_dumps    = False;
-  TG_(clo).compress_strings = True;
-  TG_(clo).compress_mangled = False;
-  TG_(clo).compress_events  = False;
-  TG_(clo).compress_pos     = True;
-  TG_(clo).mangle_names     = True;
-  TG_(clo).dump_line        = True;
-  TG_(clo).dump_instr       = False;
-  TG_(clo).dump_bb          = False;
-  TG_(clo).dump_bbs         = False;
 
   /* Collection */
   TG_(clo).separate_threads = False;
   TG_(clo).collect_atstart  = True;
   TG_(clo).collect_jumps    = False;
-  TG_(clo).collect_alloc    = False;
   TG_(clo).collect_systime  = systime_no;
   TG_(clo).collect_bus      = False;
 
@@ -662,6 +614,4 @@ void TG_(set_clo_defaults)(void)
   TG_(clo).verbose = 0;
   TG_(clo).verbose_start = 0;
 #endif
-
-  TG_(clo).output_format = output_format_msgpack;
 }

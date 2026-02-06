@@ -79,10 +79,6 @@ typedef enum {
    systime_nsec
 } Collect_Systime;
 
-typedef enum {
-   output_format_msgpack = 0
-} OutputFormat;
-
 /* Trace event types */
 typedef enum {
    TG_EV_MARKER = 0,
@@ -94,19 +90,9 @@ typedef enum {
 typedef struct _CommandLineOptions CommandLineOptions;
 struct _CommandLineOptions {
 
-  /* Dump format options */
+  /* Output options */
   const HChar* out_format;  /* Format string for tracegrind output file name */
-  Bool combine_dumps;       /* Dump trace parts into same file? */
-  Bool compress_strings;
-  Bool compress_events;
-  Bool compress_pos;
-  Bool mangle_names;
-  Bool compress_mangled;
-  Bool dump_line;
-  Bool dump_instr;
-  Bool dump_bb;
-  Bool dump_bbs;         /* Dump basic block information? */
-  
+
   /* Collection options */
   Bool separate_threads; /* Separate threads in dump? */
   Int  separate_callers; /* Separate dependent on how many callers? */
@@ -117,7 +103,6 @@ struct _CommandLineOptions {
   Bool collect_atstart;  /* Start in collecting state ? */
   Bool collect_jumps;    /* Collect (cond.) jumps in functions ? */
 
-  Bool collect_alloc;    /* Collect size of allocated memory */
   Collect_Systime collect_systime;  /* Collect time for system calls */
 
   Bool collect_bus;      /* Collect global bus events */
@@ -136,8 +121,6 @@ struct _CommandLineOptions {
   Int   verbose;
   ULong verbose_start;
 #endif
-
-  OutputFormat output_format;  /* csv or msgpack */
 };
 
 /*------------------------------------------------------------*/
@@ -202,7 +185,6 @@ typedef struct _CC          CC;
 typedef struct _BB          BB;
 typedef struct _BBCC        BBCC;
 typedef struct _jCC         jCC;
-typedef struct _fCC         fCC;
 typedef struct _fn_node     fn_node;
 typedef struct _file_node   file_node;
 typedef struct _obj_node    obj_node;
@@ -210,10 +192,8 @@ typedef struct _fn_config   fn_config;
 typedef struct _call_entry  call_entry;
 typedef struct _thread_info thread_info;
 
-/* Costs of event sets. Aliases to arrays of 64-bit values */
-typedef ULong* SimCost;  /* All events the simulator can produce */
-typedef ULong* UserCost;
-typedef ULong* FullCost; /* Simulator + User */
+/* Cost arrays: aliases to arrays of 64-bit event counters */
+typedef ULong* FullCost;
 
 
 /* The types of control flow changes that can happen between
@@ -256,7 +236,6 @@ struct _jCC {
   UInt jmp;         /* jump no. in source */
 
   ULong call_counter; /* no wraparound with 64 bit */
-  ULong creation_seq; /* creation order sequence number for correct dump order */
 
   FullCost cost; /* simulator + user counters */
 };
@@ -385,11 +364,8 @@ struct _BBCC {
     Context* cxt;          /* execution context of this BBCC */
     ThreadId tid;          /* only for assertion check purpose */
     UInt     rec_index;    /* Recursion index in rec->bbcc for this bbcc */
-    BBCC**   rec_array;    /* Variable sized array of pointers to 
+    BBCC**   rec_array;    /* Variable sized array of pointers to
 			    * recursion BBCCs. Shared. */
-    ULong    ret_counter;  /* how often returned from jccs of this bbcc;
-			    * used to check if a dump for this BBCC is needed */
-    
     BBCC*    next_bbcc;    /* Chain of BBCCs for same BB */
     BBCC*    lru_next_bbcc; /* BBCC executed next the last time */
     
@@ -405,10 +381,6 @@ struct _BBCC {
 };
 
 
-/* the <number> of fn_node, file_node and obj_node are for compressed dumping
- * and a index into the dump boolean table and fn_info_table
- */
-
 struct _fn_node {
   HChar*     name;
   UInt       number;
@@ -421,10 +393,6 @@ struct _fn_node {
   Bool skip :1;
   Bool obj_skip_checked : 1;
   Bool pop_on_jump : 1;
-
-  Bool is_malloc :1;
-  Bool is_realloc :1;
-  Bool is_free :1;
 
   Int  group;
   Int  separate_callers;
@@ -443,7 +411,6 @@ struct _fn_node {
 struct _file_node {
    HChar*     name;
    fn_node*   fns[N_FN_ENTRIES];
-   UInt       number;
    obj_node*  obj;
    file_node* next;
 };
@@ -593,9 +560,8 @@ struct _thread_info {
   call_stack calls;   /* context call arc stack */
   exec_stack states;  /* execution states interrupted by signals */
 
-  /* dump statistics */
-  FullCost lastdump_cost;    /* Cost at last dump */
-  FullCost sighandler_cost;
+  /* cost tracking */
+  FullCost lastdump_cost;    /* Cost at last total cost computation */
 
   /* CSV trace: per-thread snapshot of cost at last sample emission */
   FullCost last_sample_cost;
@@ -604,39 +570,6 @@ struct _thread_info {
   fn_array fn_active;
   jcc_hash jccs;
   bbcc_hash bbccs;
-};
-
-/* Structs used for dumping */
-
-/* Address position inside of a BBCC:
- * This includes
- * - the address offset from the BB start address
- * - file/line from debug info for that address (can change inside a BB)
- */
-typedef struct _AddrPos AddrPos;
-struct _AddrPos {
-    Addr addr;
-    Addr bb_addr;
-    file_node* file;
-    UInt line;
-};
-
-/* a simulator cost entity that can be written out in one line */
-typedef struct _AddrCost AddrCost;
-struct _AddrCost {
-    AddrPos p;
-    SimCost cost;
-};
-
-/* A function in an execution context */
-typedef struct _FnPos FnPos;
-struct _FnPos {
-    file_node* file;
-    fn_node* fn;
-    obj_node* obj;
-    Context* cxt;
-    int rec_index;
-    UInt line;
 };
 
 /*------------------------------------------------------------*/
@@ -649,9 +582,7 @@ struct cachesim_if
     Bool (*parse_opt)(const HChar* arg);
     void (*post_clo_init)(void);
     void (*clear)(void);
-    void (*dump_desc)(VgFile *fp);
     void (*printstat)(Int,Int,Int);
-    void (*add_icost)(SimCost, BBCC*, InstrInfo*, ULong);
     void (*finish)(void);
     
     void (*log_1I0D)(InstrInfo*) VG_REGPARM(1);
@@ -678,8 +609,7 @@ struct cachesim_if
 #define EG_BC    4
 #define EG_BI    5
 #define EG_BUS   6
-#define EG_ALLOC 7
-#define EG_SYS   8
+#define EG_SYS   7
 
 struct event_sets {
     EventSet *base, *full;
@@ -754,10 +684,7 @@ void TG_(init_bbcc_hash)(bbcc_hash* bbccs);
 void TG_(copy_current_bbcc_hash)(bbcc_hash* dst);
 bbcc_hash* TG_(get_current_bbcc_hash)(void);
 void TG_(set_current_bbcc_hash)(bbcc_hash*);
-void TG_(forall_bbccs)(void (*func)(BBCC*));
-void TG_(zero_bbcc)(BBCC* bbcc);
 BBCC* TG_(get_bbcc)(BB* bb);
-BBCC* TG_(clone_bbcc)(BBCC* orig, Context* cxt, Int rec_index);
 void TG_(setup_bbcc)(BB* bb) VG_REGPARM(1);
 
 

@@ -392,7 +392,6 @@ file_node* new_file_node(const HChar *filename,
     file->fns[i] = NULL;
   }
   TG_(stat).distinct_files++;
-  file->number  = TG_(stat).distinct_files;
   file->obj     = obj;
   file->next      = next;
   return file;
@@ -451,10 +450,6 @@ fn_node* new_fn_node(const HChar *fnname,
     fn->skip         = False;
     fn->obj_skip_checked = False;
     fn->pop_on_jump  = TG_(clo).pop_on_jump;
-    fn->is_malloc    = False;
-    fn->is_realloc   = False;
-    fn->is_free      = False;
-
     fn->group        = 0;
     fn->separate_callers    = TG_(clo).separate_callers;
     fn->separate_recursions = TG_(clo).separate_recursions;
@@ -672,10 +667,6 @@ fn_node* TG_(get_fn_node)(BB* bb)
 		      bb->obj->name + bb->obj->last_slash_pos,
                       (UWord)bb->offset, bb_addr(bb));
       }
-
-      fn->is_malloc  = (VG_(strcmp)(fn->name, "malloc")==0);
-      fn->is_realloc = (VG_(strcmp)(fn->name, "realloc")==0);
-      fn->is_free    = (VG_(strcmp)(fn->name, "free")==0);
 
       /* apply config options from function name patterns
        * given on command line */

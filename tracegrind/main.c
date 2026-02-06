@@ -2063,11 +2063,6 @@ void TG_(post_clo_init)(void)
    TG_DEBUG(1, "  call sep. : %d\n", TG_(clo).separate_callers);
    TG_DEBUG(1, "  rec. sep. : %d\n", TG_(clo).separate_recursions);
 
-   if (!TG_(clo).dump_line && !TG_(clo).dump_instr && !TG_(clo).dump_bb) {
-       VG_(message)(Vg_UserMsg, "Using source line as position.\n");
-       TG_(clo).dump_line = True;
-   }
-
    (*TG_(cachesim).post_clo_init)();
 
    TG_(init_eventsets)();
@@ -2102,7 +2097,7 @@ void TG_(pre_clo_init)(void)
 {
     VG_(details_name)            ("Tracegrind");
     VG_(details_version)         (NULL);
-    VG_(details_description)     ("a streaming CSV trace cache profiler");
+    VG_(details_description)     ("a streaming trace cache profiler");
     VG_(details_copyright_author)("Copyright (C) 2026, and GNU GPL'd, "
 				  "by CodSpeed Technology SAS. "
 				  "Based on Callgrind by Josef Weidendorfer et al.");

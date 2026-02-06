@@ -338,10 +338,6 @@ void TG_(pop_call_stack)(void)
 				    lower_entry->enter_cost,
 				    TG_(current_state).cost) ) {
 	    
-	  /* only count this call if it attributed some cost.
-	   * the ret_counter is used to check if a BBCC dump is needed.
-	   */
-	  jcc->from->ret_counter++;
 	}
 	TG_(stat).ret_counter++;
 
