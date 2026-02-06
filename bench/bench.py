@@ -41,16 +41,17 @@ class ValgrindRunner:
             raise RuntimeError(f"Valgrind not found at: {self.valgrind_path}")
         self.valgrind_version = result.stdout.strip()
 
-    def run_valgrind(self, *args: str) -> None:
-        """Execute valgrind with given arguments.
+    def run_valgrind(self, tool: str, *args: str) -> None:
+        """Execute valgrind with given tool and arguments.
 
         Args:
+            tool: Valgrind tool to use (callgrind, tracegrind)
             *args: Valgrind arguments
         """
 
         cmd = [
             self.valgrind_path,
-            "--tool=callgrind",
+            f"--tool={tool}",
             "--log-file=/dev/null",
             *args,
             *shlex.split(self.cmd),
@@ -77,16 +78,19 @@ def runner(request):
 
 def pytest_generate_tests(metafunc):
     """Parametrize tests with valgrind configurations."""
-    if "valgrind_args" in metafunc.fixturenames:
+    if "tool_and_args" in metafunc.fixturenames:
         runner = getattr(metafunc.config, "_valgrind_runner", None)
         if not runner:
             return
 
-        # Define valgrind configurations
+        # Define configurations for each tool
+        # Format: (tool, args, config_name)
         configs = [
-            (["--read-inline-info=no"], "no-inline"),
-            (["--read-inline-info=yes"], "inline"),
+            # Callgrind configurations
+            ("callgrind", ["--read-inline-info=no"], "callgrind/no-inline"),
+            ("callgrind", ["--read-inline-info=yes"], "callgrind/inline"),
             (
+                "callgrind",
                 [
                     "--trace-children=yes",
                     "--cache-sim=yes",
@@ -99,9 +103,10 @@ def pytest_generate_tests(metafunc):
                     "--dump-line=no",
                     "--read-inline-info=yes",
                 ],
-                "full-with-inline",
+                "callgrind/full-with-inline",
             ),
             (
+                "callgrind",
                 [
                     "--trace-children=yes",
                     "--cache-sim=yes",
@@ -113,38 +118,62 @@ def pytest_generate_tests(metafunc):
                     "--combine-dumps=yes",
                     "--dump-line=no",
                 ],
-                "full-no-inline",
+                "callgrind/full-no-inline",
+            ),
+            # Tracegrind configurations
+            ("tracegrind", [], "tracegrind/default"),
+            (
+                "tracegrind",
+                [
+                    "--cache-sim=yes",
+                    "--I1=32768,8,64",
+                    "--D1=32768,8,64",
+                    "--LL=8388608,16,64",
+                ],
+                "tracegrind/cache-sim",
+            ),
+            (
+                "tracegrind",
+                [
+                    "--cache-sim=yes",
+                    "--I1=32768,8,64",
+                    "--D1=32768,8,64",
+                    "--LL=8388608,16,64",
+                    "--collect-systime=nsec",
+                ],
+                "tracegrind/cache-sim+systime",
             ),
         ]
 
         # If the valgrind version is from CodSpeed, we don't want to display the exact version
-        # to allow comparison against older versions. 
+        # to allow comparison against older versions.
         if ".codspeed" in runner.valgrind_version:
             runner.valgrind_version = "valgrind.codspeed"
 
         # Create test IDs with format: valgrind-version, command, config-name
         test_ids = [
             f"{runner.valgrind_version}, {runner.cmd}, {config_name}"
-            for _, config_name in configs
+            for _, _, config_name in configs
         ]
 
-        # Parametrize with just the args
+        # Parametrize with (tool, args) tuples
         metafunc.parametrize(
-            "valgrind_args",
-            [args for args, _ in configs],
+            "tool_and_args",
+            [(tool, args) for tool, args, _ in configs],
             ids=test_ids,
         )
 
 
 @pytest.mark.benchmark
-def test_valgrind(runner, valgrind_args):
+def test_valgrind(runner, tool_and_args):
     if runner:
-        runner.run_valgrind(*valgrind_args)
+        tool, args = tool_and_args
+        runner.run_valgrind(tool, *args)
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Benchmark Valgrind with pytest-codspeed",
+        description="Benchmark Valgrind tools (callgrind, tracegrind) with pytest-codspeed",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
