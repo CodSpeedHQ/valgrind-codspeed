@@ -41,6 +41,22 @@ class ValgrindRunner:
             raise RuntimeError(f"Valgrind not found at: {self.valgrind_path}")
         self.valgrind_version = result.stdout.strip()
 
+        # Check which tools are available
+        self.available_tools = self._detect_available_tools()
+
+    def _detect_available_tools(self) -> set:
+        """Detect which valgrind tools are available."""
+        tools = set()
+        for tool in ["callgrind", "tracegrind"]:
+            result = subprocess.run(
+                [self.valgrind_path, f"--tool={tool}", "--help"],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode == 0:
+                tools.add(tool)
+        return tools
+
     def run_valgrind(self, tool: str, *args: str) -> None:
         """Execute valgrind with given tool and arguments.
 
@@ -85,7 +101,7 @@ def pytest_generate_tests(metafunc):
 
         # Define configurations for each tool
         # Format: (tool, args, config_name)
-        configs = [
+        all_configs = [
             # Callgrind configurations
             ("callgrind", ["--read-inline-info=no"], "callgrind/no-inline"),
             ("callgrind", ["--read-inline-info=yes"], "callgrind/inline"),
@@ -120,7 +136,7 @@ def pytest_generate_tests(metafunc):
                 ],
                 "callgrind/full-no-inline",
             ),
-            # Tracegrind configurations
+            # Tracegrind configurations (only available in codspeed fork)
             ("tracegrind", [], "tracegrind/default"),
             (
                 "tracegrind",
@@ -144,6 +160,16 @@ def pytest_generate_tests(metafunc):
                 "tracegrind/cache-sim+systime",
             ),
         ]
+
+        # Filter configs to only include available tools
+        configs = [
+            (tool, args, name)
+            for tool, args, name in all_configs
+            if tool in runner.available_tools
+        ]
+
+        if not configs:
+            return
 
         # If the valgrind version is from CodSpeed, we don't want to display the exact version
         # to allow comparison against older versions.
@@ -208,6 +234,7 @@ Examples:
         valgrind_path=args.valgrind_path,
     )
     print(f"Valgrind version: {runner.valgrind_version}")
+    print(f"Available tools: {', '.join(sorted(runner.available_tools))}")
     print(f"Command: {args.cmd}")
 
     # Plugin to pass runner to tests
