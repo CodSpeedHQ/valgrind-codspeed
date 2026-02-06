@@ -1,0 +1,5 @@
+prereq: ../../tracegrind/scripts/tracegrind-analyzer --help 2>/dev/null
+prog: test_marker.bin
+vgopts: --tracegrind-out-file=tracegrind.out.test_marker
+post: ../../tracegrind/scripts/tracegrind-analyzer tracegrind.out.test_marker.msgpack.lz4 --event MARKER --raw | ./filter_trace
+cleanup: rm -f tracegrind.out.test_marker.msgpack.lz4

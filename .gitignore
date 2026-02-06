@@ -187,6 +187,7 @@
 /tracegrind/tests/Makefile.in
 /tracegrind/tests/tracegrind.out.*
 /tracegrind/tests/fibo
+/tracegrind/tests/*.bin
 
 # /coregrind/
 /coregrind/*.a

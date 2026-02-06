@@ -1,0 +1,18 @@
+Format Version: N
+Format Name: tracegrind-msgpack
+Schema Version: N
+
+Event Schemas (discriminated union):
+  0 (MARKER): ['seq', 'tid', 'event', 'marker']
+  1 (ENTER): ['seq', 'tid', 'event', 'fn', 'obj', 'file', 'line', 'Ir']
+  2 (EXIT): ['seq', 'tid', 'event', 'fn', 'obj', 'file', 'line', 'Ir']
+  3 (FORK): ['seq', 'tid', 'event', 'child_pid']
+
+Total rows: N
+
+Events by type:
+  ENTER: N (P%)
+  EXIT: N (P%)
+
+Threads: 1
+Sequence range: N - N

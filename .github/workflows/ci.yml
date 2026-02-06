@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  test-callgrind:
+  test:
     strategy:
       matrix:
         runner:
@@ -16,6 +16,9 @@ jobs:
             ubuntu-version: 22.04
           - platform: ubuntu-24.04
             ubuntu-version: 24.04
+        tool:
+          - callgrind
+          - tracegrind
 
     runs-on: ${{ matrix.runner.platform }}
 
@@ -32,7 +35,7 @@ jobs:
           path-exclude /usr/share/man/*
           path-exclude /usr/share/info/*
           EOF
-          
+
       - name: Update apt-get cache
         run: sudo apt-get update
 
@@ -51,6 +54,10 @@ jobs:
             docbook-xml \
             xsltproc
 
+      - name: Install uv
+        if: matrix.tool == 'tracegrind'
+        uses: astral-sh/setup-uv@v7
+
       - name: Run autogen
         run: ./autogen.sh
 
@@ -63,11 +70,11 @@ jobs:
       - name: Build test dependencies
         run: |
           make -C tests arch_test os_test true
-          make -C callgrind/tests check
+          make -C ${{ matrix.tool }}/tests check
 
-      - name: Run Callgrind tests
+      - name: Run tests
         run: |
-          cd callgrind/tests
+          cd ${{ matrix.tool }}/tests
           TESTS=$(ls *.vgtest | grep -v bug497723.vgtest)
           perl ../../tests/vg_regtest --valgrind=../../vg-in-place $TESTS
 
@@ -75,5 +82,5 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: callgrind-test-logs-${{ matrix.runner.ubuntu-version }}
-          path: callgrind/tests/*.log
+          name: ${{ matrix.tool }}-test-logs-${{ matrix.runner.ubuntu-version }}
+          path: ${{ matrix.tool }}/tests/*.log

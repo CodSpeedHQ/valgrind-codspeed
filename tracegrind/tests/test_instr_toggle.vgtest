@@ -1,0 +1,5 @@
+prereq: ../../tracegrind/scripts/tracegrind-analyzer --help 2>/dev/null
+prog: test_instr_toggle.bin
+vgopts: --tracegrind-out-file=tracegrind.out.test_instr_toggle --instr-atstart=no
+post: ../../tracegrind/scripts/tracegrind-analyzer tracegrind.out.test_instr_toggle.msgpack.lz4 | ./filter_trace
+cleanup: rm -f tracegrind.out.test_instr_toggle.msgpack.lz4

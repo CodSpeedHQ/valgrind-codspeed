@@ -1,0 +1,54 @@
+#!/bin/sh
+#
+# Filter tracegrind trace output (from tracegrind-analyzer)
+# to normalize machine-dependent values for regression testing.
+#
+
+# Normalize format/schema version numbers
+sed 's/^Format Version: [0-9]\+$/Format Version: N/' |
+sed 's/^Schema Version: [0-9]\+$/Schema Version: N/' |
+
+# Normalize object paths: replace full path to test binary with just the basename
+# e.g. obj=/home/user/valgrind/tracegrind/tests/test_marker -> obj=test_marker
+sed 's|obj=[^ |]*[/]||g' |
+
+# Normalize file paths: replace full source paths with just the basename
+# e.g. file=/home/user/.../test_marker.c -> file=test_marker.c
+sed 's|file=[^ |]*[/]||g' |
+
+# Normalize function address/stats that vary: Ir counts
+# Replace Ir=<number> with Ir=N
+sed 's|Ir=[0-9]\+|Ir=N|g' |
+
+# Remove the separator line
+sed '/^-\{10,\}$/d' |
+
+# Normalize "Total rows:" count
+sed 's/^Total rows: [0-9,]\+$/Total rows: N/' |
+
+# Normalize "Showing X of Y rows"
+sed 's/^Showing [0-9,]\+ of [0-9,]\+ rows$/Showing N of N rows/' |
+
+# Normalize "Sequence range:" numbers
+sed 's/^Sequence range: [0-9,]\+ - [0-9,]\+$/Sequence range: N - N/' |
+
+# Normalize event count percentages in stats
+sed 's/\([0-9,]\+\) ([0-9.]\+%)/N (P%)/g' |
+
+# Normalize "Threads: N ([...])"
+sed 's/^Threads: \([0-9]\+\) (\[.*\])/Threads: \1/' |
+
+# Remove "Top 10 functions" section (platform-dependent)
+sed '/^Top 10 functions/,/^$/d' |
+
+# Remove "Fork events" section (platform-dependent)
+sed '/^Fork events/,/^$/d' |
+
+# Normalize seq numbers in raw arrays: [1234, ...] -> [N, ...]
+sed 's/^\[\([0-9]\+\),/[N,/g' |
+
+# Normalize seq=<number> in formatted output
+sed 's/seq=[0-9]\+/seq=N/g' |
+
+# Strip GCC optimization suffixes from function names (e.g. .constprop.0, .isra.0, .part.0)
+sed 's/\.\(constprop\|isra\|part\|cold\|lto_priv\)\.[0-9]*//g'

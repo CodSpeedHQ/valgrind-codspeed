@@ -1,0 +1,15 @@
+Format Version: N
+Format Name: tracegrind-msgpack
+Schema Version: N
+
+Event Schemas (discriminated union):
+  0 (MARKER): ['seq', 'tid', 'event', 'marker']
+  1 (ENTER): ['seq', 'tid', 'event', 'fn', 'obj', 'file', 'line', 'Ir']
+  2 (EXIT): ['seq', 'tid', 'event', 'fn', 'obj', 'file', 'line', 'Ir']
+  3 (FORK): ['seq', 'tid', 'event', 'child_pid']
+
+Showing N of N rows
+seq=N | tid=1 | event=MARKER | marker=start
+seq=N | tid=1 | event=ENTER | fn=not_inlined_work | test_inline | ... | line=0 | Ir=N
+seq=N | tid=1 | event=EXIT | fn=not_inlined_work | test_inline | ... | line=0 | Ir=N
+seq=N | tid=1 | event=MARKER | marker=end
