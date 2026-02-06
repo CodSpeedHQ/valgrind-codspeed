@@ -518,8 +518,6 @@ Bool TG_(process_cmd_line_option)(const HChar* arg)
 
    else if VG_STR_CLO(arg, "--tracegrind-out-file", TG_(clo).out_format) {}
 
-   else if VG_XACT_CLO(arg, "--output-format=csv",
-                       TG_(clo).output_format, output_format_csv) {}
    else if VG_XACT_CLO(arg, "--output-format=msgpack",
                        TG_(clo).output_format, output_format_msgpack) {}
 
@@ -578,7 +576,6 @@ void TG_(print_usage)(void)
    VG_(printf)(
 "\n   dump creation options:\n"
 "    --tracegrind-out-file=<f>  Output file name [tracegrind.out.%%p]\n"
-"    --output-format=csv|msgpack  Output format [csv]\n"
 "    --dump-line=no|yes        Dump source lines of costs? [yes]\n"
 "    --dump-instr=no|yes       Dump instruction address of costs? [no]\n"
 "    --compress-strings=no|yes Compress strings in profile dump? [yes]\n"
@@ -704,5 +701,5 @@ void TG_(set_clo_defaults)(void)
   TG_(clo).verbose_start = 0;
 #endif
 
-  TG_(clo).output_format = output_format_csv;
+  TG_(clo).output_format = output_format_msgpack;
 }

@@ -30,6 +30,7 @@
 
 #include "pub_tool_basics.h"
 #include "pub_tool_vki.h"
+#include "pub_tool_vkiscnums.h"
 #include "pub_tool_debuginfo.h"
 #include "pub_tool_libcbase.h"
 #include "pub_tool_libcassert.h"
@@ -79,9 +80,15 @@ typedef enum {
 } Collect_Systime;
 
 typedef enum {
-   output_format_csv,
-   output_format_msgpack
+   output_format_msgpack = 0
 } OutputFormat;
+
+/* Trace event types */
+typedef enum {
+   TG_EV_ENTER = 0,
+   TG_EV_EXIT  = 1,
+   TG_EV_FORK  = 2
+} TraceEventType;
 
 typedef struct _CommandLineOptions CommandLineOptions;
 struct _CommandLineOptions {
@@ -687,14 +694,14 @@ struct event_sets {
 
 
 /*------------------------------------------------------------*/
-/*--- CSV trace output state                               ---*/
+/*--- Trace output state                                   ---*/
 /*------------------------------------------------------------*/
 
 typedef struct {
     Int       fd;              /* Output file descriptor (-1 if not open) */
     ULong     seq;             /* Global sequence counter */
     Bool      initialized;     /* Has the output been opened? */
-    Bool      header_written;  /* Has the CSV header been written? */
+    Bool      header_written;  /* Has the schema chunk been written? */
 } trace_output;
 
 
@@ -805,9 +812,11 @@ void TG_(run_post_signal_on_call_stack_bottom)(void);
 /* from dump.c */
 void TG_(init_dumps)(void);
 
-/* CSV trace output (from dump.c) */
+/* Trace output (from dump.c) */
 void TG_(trace_open_output)(void);
+void TG_(trace_reopen_child)(void);
 void TG_(trace_emit_sample)(ThreadId tid, Bool is_enter, fn_node* fn);
+void TG_(trace_emit_fork)(ThreadId tid, Int child_pid);
 void TG_(trace_close_output)(void);
 
 /*------------------------------------------------------------*/

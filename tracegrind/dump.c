@@ -51,7 +51,7 @@ Int TG_(get_dump_counter)(void)
 }
 
 /* ================================================================== */
-/* === CSV trace output                                           === */
+/* === Trace output                                                === */
 /* ================================================================== */
 
 trace_output TG_(trace_out) = { .fd = -1, .seq = 0,
@@ -118,31 +118,50 @@ static void msgpack_flush_chunk(void)
     mp_state.rows_in_chunk = 0;
 }
 
-/* Write file header with schema metadata */
+/* Write file header with schema metadata (discriminated union format) */
 static void msgpack_write_header(void)
 {
     msgpack_buffer hdr;
-    msgpack_init(&hdr, 1024);
+    msgpack_init(&hdr, 2048);
 
     /* Header is a map with metadata */
     msgpack_write_map_header(&hdr, 3);
 
     /* version */
     msgpack_write_key(&hdr, "version");
-    msgpack_write_uint(&hdr, 1);
+    msgpack_write_uint(&hdr, 2);
 
     /* format */
     msgpack_write_key(&hdr, "format");
     msgpack_write_str(&hdr, "tracegrind-msgpack", -1);
 
-    /* columns */
-    msgpack_write_key(&hdr, "columns");
+    /* event_schemas - discriminated union: each event type has its own schema */
+    msgpack_write_key(&hdr, "event_schemas");
+    msgpack_write_map_header(&hdr, 3);  /* 3 event types: ENTER, EXIT, FORK */
+
+    /* Event type 0 (ENTER) schema */
+    msgpack_write_key(&hdr, "0");
     msgpack_write_array_header(&hdr, mp_state.ncols);
     for (Int i = 0; i < mp_state.ncols; i++) {
         msgpack_write_str(&hdr, mp_state.col_names[i], -1);
     }
 
-    /* Compress and write header chunk (with special marker) */
+    /* Event type 1 (EXIT) schema - same as ENTER */
+    msgpack_write_key(&hdr, "1");
+    msgpack_write_array_header(&hdr, mp_state.ncols);
+    for (Int i = 0; i < mp_state.ncols; i++) {
+        msgpack_write_str(&hdr, mp_state.col_names[i], -1);
+    }
+
+    /* Event type 2 (FORK) schema - minimal: seq, tid, event, child_pid */
+    msgpack_write_key(&hdr, "2");
+    msgpack_write_array_header(&hdr, 4);
+    msgpack_write_str(&hdr, "seq", -1);
+    msgpack_write_str(&hdr, "tid", -1);
+    msgpack_write_str(&hdr, "event", -1);
+    msgpack_write_str(&hdr, "child_pid", -1);
+
+    /* Compress and write header chunk */
     SizeT src_size = hdr.size;
     SizeT dst_capacity = tg_lz4_compress_bound(src_size);
     UChar* compressed = VG_(malloc)("tg.mp.hdr", dst_capacity);
@@ -150,8 +169,8 @@ static void msgpack_write_header(void)
     SizeT compressed_size = tg_lz4_compress(
         compressed, dst_capacity, hdr.data, src_size);
 
-    /* Magic + version (8 bytes): "TGMP" + version(4) */
-    UChar magic[8] = {'T', 'G', 'M', 'P', 0x01, 0x00, 0x00, 0x00};
+    /* Magic + version (8 bytes): "TGMP" + version(4) - version 2 */
+    UChar magic[8] = {'T', 'G', 'M', 'P', 0x02, 0x00, 0x00, 0x00};
     VG_(write)(TG_(trace_out).fd, magic, 8);
 
     /* Header chunk size (4 bytes uncompressed, 4 bytes compressed) */
@@ -223,7 +242,7 @@ static void msgpack_init_state(void)
     msgpack_write_header();
 }
 
-/* Add a row to the msgpack output */
+/* Add an ENTER/EXIT row to the msgpack output */
 static void msgpack_add_row(ULong seq, Int tid, Int event,
                             const HChar* fn_name, const HChar* obj_name,
                             const HChar* file_name, Int line,
@@ -254,6 +273,24 @@ static void msgpack_add_row(ULong seq, Int tid, Int event,
     }
 }
 
+/* Add a FORK row to the msgpack output (minimal schema: seq, tid, event, child_pid) */
+static void msgpack_add_fork_row(ULong seq, Int tid, Int child_pid)
+{
+    /* FORK row is a 4-element array */
+    msgpack_write_array_header(&mp_state.buf, 4);
+    msgpack_write_uint(&mp_state.buf, seq);
+    msgpack_write_int(&mp_state.buf, tid);
+    msgpack_write_int(&mp_state.buf, TG_EV_FORK);  /* 2 = FORK */
+    msgpack_write_int(&mp_state.buf, child_pid);
+
+    mp_state.rows_in_chunk++;
+
+    /* Flush if chunk is full */
+    if (mp_state.rows_in_chunk >= MSGPACK_CHUNK_ROWS) {
+        msgpack_flush_chunk();
+    }
+}
+
 /* Close msgpack output */
 static void msgpack_close_output(void)
 {
@@ -272,52 +309,6 @@ static void msgpack_close_output(void)
     }
 }
 
-/* Write a string to the trace output fd */
-static void trace_write(const HChar* buf, Int len)
-{
-    if (TG_(trace_out).fd < 0) return;
-    VG_(write)(TG_(trace_out).fd, buf, len);
-}
-
-/* Escape a string for CSV: if it contains comma, quote, or newline,
- * wrap in quotes and double any quotes.  Otherwise just copy.
- * Writes to buf, returns chars written. buf must be large enough.
- */
-static Int csv_escape(HChar* buf, Int bufsize, const HChar* src)
-{
-    Bool needs_quote = False;
-    const HChar* p;
-    Int i;
-
-    for (p = src; *p; p++) {
-        if (*p == ',' || *p == '"' || *p == '\n') {
-            needs_quote = True;
-            break;
-        }
-    }
-
-    if (!needs_quote) {
-        i = 0;
-        for (p = src; *p && i < bufsize - 1; p++, i++)
-            buf[i] = *p;
-        buf[i] = '\0';
-        return i;
-    }
-
-    i = 0;
-    if (i < bufsize - 1) buf[i++] = '"';
-    for (p = src; *p && i < bufsize - 2; p++) {
-        if (*p == '"' && i < bufsize - 3) {
-            buf[i++] = '"';
-            buf[i++] = '"';
-        } else {
-            buf[i++] = *p;
-        }
-    }
-    if (i < bufsize - 1) buf[i++] = '"';
-    buf[i] = '\0';
-    return i;
-}
 
 void TG_(trace_open_output)(void)
 {
@@ -335,13 +326,11 @@ void TG_(trace_open_output)(void)
     filename[sizeof(filename) - 1] = '\0';
     VG_(free)(expanded);
 
-    /* Append format-specific suffix */
-    if (TG_(clo).output_format == output_format_msgpack) {
-        SizeT len = VG_(strlen)(filename);
-        if (len + 12 < sizeof(filename)) {
-            VG_(strncpy)(filename + len, ".msgpack.lz4", sizeof(filename) - len - 1);
-            filename[sizeof(filename) - 1] = '\0';
-        }
+    /* Append .msgpack.lz4 suffix */
+    SizeT len = VG_(strlen)(filename);
+    if (len + 12 < sizeof(filename)) {
+        VG_(strncpy)(filename + len, ".msgpack.lz4", sizeof(filename) - len - 1);
+        filename[sizeof(filename) - 1] = '\0';
     }
 
     res = VG_(open)(filename,
@@ -358,42 +347,33 @@ void TG_(trace_open_output)(void)
     TG_(trace_out).initialized = True;
     TG_(trace_out).header_written = False;
 
-    /* Initialize format-specific writer */
-    if (TG_(clo).output_format == output_format_msgpack) {
-        msgpack_init_state();
-    }
+    /* Initialize msgpack writer */
+    msgpack_init_state();
 
     if (VG_(clo_verbosity) > 1)
         VG_(message)(Vg_DebugMsg, "Trace output to %s\n", filename);
 }
 
-/* Write the CSV header row.
- * Called lazily on first sample emission so that event sets are fully configured.
+/*
+ * Called in child process after fork.
+ * Closes the inherited file descriptor (without writing end marker)
+ * and opens a new trace file with the child's PID.
  */
-static void trace_write_header(void)
+void TG_(trace_reopen_child)(void)
 {
-    HChar buf[4096];
-    Int pos = 0;
-
-    if (TG_(trace_out).header_written) return;
-    TG_(trace_out).header_written = True;
-
-    pos += VG_(sprintf)(buf + pos, "seq,tid,event,fn,obj,file,line");
-
-    /* Emit column names for all events in the full event set */
-    EventSet* es = TG_(sets).full;
-    Int g, i;
-    for (g = 0; g < MAX_EVENTGROUP_COUNT; g++) {
-        if (!(es->mask & (1u << g))) continue;
-        EventGroup* eg = TG_(get_event_group)(g);
-        if (!eg) continue;
-        for (i = 0; i < eg->size; i++) {
-            pos += VG_(sprintf)(buf + pos, ",%s", eg->name[i]);
-        }
+    /* Close inherited fd without flushing/finalizing (that's parent's job) */
+    if (TG_(trace_out).fd >= 0) {
+        VG_(close)(TG_(trace_out).fd);
     }
 
-    pos += VG_(sprintf)(buf + pos, "\n");
-    trace_write(buf, pos);
+    /* Reset state completely */
+    TG_(trace_out).fd = -1;
+    TG_(trace_out).seq = 0;
+    TG_(trace_out).initialized = False;
+    TG_(trace_out).header_written = False;
+
+    /* Open new trace file with child's PID (also re-inits msgpack state) */
+    TG_(trace_open_output)();
 }
 
 void TG_(trace_emit_sample)(ThreadId tid, Bool is_enter,
@@ -441,53 +421,27 @@ void TG_(trace_emit_sample)(ThreadId tid, Bool is_enter,
     }
 
     /* Event type: 0=ENTER, 1=EXIT */
-    Int event_val = is_enter ? 0 : 1;
-    const HChar* event_str = is_enter ? "ENTER" : "EXIT";
+    Int event_val = is_enter ? TG_EV_ENTER : TG_EV_EXIT;
 
-    if (TG_(clo).output_format == output_format_msgpack) {
-        /* --- MsgPack + LZ4 path --- */
-        msgpack_add_row(TG_(trace_out).seq, (Int)tid, event_val,
-                        fn_name, obj_name, file_name, (Int)line,
-                        deltas, es->size);
-    } else {
-        /* --- CSV path --- */
-        HChar buf[4096];
-        HChar escaped[1024];
-        Int pos = 0;
+    msgpack_add_row(TG_(trace_out).seq, (Int)tid, event_val,
+                    fn_name, obj_name, file_name, (Int)line,
+                    deltas, es->size);
+}
 
-        /* Lazily write header on first sample */
-        if (!TG_(trace_out).header_written)
-            trace_write_header();
+/*
+ * Emit a FORK event when a child process is created.
+ * Called from the post-syscall handler when fork/clone returns in parent.
+ * child_pid is the PID of the newly created child process.
+ */
+void TG_(trace_emit_fork)(ThreadId tid, Int child_pid)
+{
+    if (!TG_(trace_out).initialized) return;
+    if (TG_(trace_out).fd < 0) return;
 
-        /* seq, tid, event */
-        pos += VG_(sprintf)(buf + pos, "%llu,%u,%s,",
-                            TG_(trace_out).seq,
-                            (UInt)tid,
-                            event_str);
+    TG_(trace_out).seq++;
 
-        /* fn (escaped) */
-        csv_escape(escaped, sizeof(escaped), fn_name);
-        pos += VG_(sprintf)(buf + pos, "%s,", escaped);
-
-        /* obj (escaped) */
-        csv_escape(escaped, sizeof(escaped), obj_name);
-        pos += VG_(sprintf)(buf + pos, "%s,", escaped);
-
-        /* file (escaped) */
-        csv_escape(escaped, sizeof(escaped), file_name);
-        pos += VG_(sprintf)(buf + pos, "%s,", escaped);
-
-        /* line */
-        pos += VG_(sprintf)(buf + pos, "%u", line);
-
-        /* event deltas */
-        for (i = 0; i < es->size; i++) {
-            pos += VG_(sprintf)(buf + pos, ",%llu", deltas[i]);
-        }
-
-        pos += VG_(sprintf)(buf + pos, "\n");
-        trace_write(buf, pos);
-    }
+    /* FORK uses minimal schema: [seq, tid, event, child_pid] */
+    msgpack_add_fork_row(TG_(trace_out).seq, (Int)tid, child_pid);
 }
 
 void TG_(trace_close_output)(void)
@@ -495,28 +449,9 @@ void TG_(trace_close_output)(void)
     if (!TG_(trace_out).initialized) return;
     if (TG_(trace_out).fd < 0) return;
 
-    if (TG_(clo).output_format == output_format_msgpack) {
-        /* MsgPack close flushes remaining rows, writes end marker, closes fd */
-        msgpack_close_output();
-        VG_(close)(TG_(trace_out).fd);
-    } else {
-        /* Write a totals summary comment at the end for verification */
-        if (TG_(total_cost)) {
-            HChar buf[4096];
-            Int pos = 0;
-            Int i;
-            EventSet* es = TG_(sets).full;
-
-            pos += VG_(sprintf)(buf + pos, "# totals:");
-            for (i = 0; i < es->size; i++) {
-                pos += VG_(sprintf)(buf + pos, " %llu", TG_(total_cost)[i]);
-            }
-            pos += VG_(sprintf)(buf + pos, "\n");
-            trace_write(buf, pos);
-        }
-
-        VG_(close)(TG_(trace_out).fd);
-    }
+    /* Flush remaining rows, write end marker */
+    msgpack_close_output();
+    VG_(close)(TG_(trace_out).fd);
 
     TG_(trace_out).fd = -1;
     TG_(trace_out).initialized = False;

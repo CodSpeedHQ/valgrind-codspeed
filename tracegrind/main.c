@@ -1742,11 +1742,14 @@ void collect_time (struct vki_timespec *systime, struct vki_timespec *syscputime
 }
 
 static
-void TG_(pre_syscalltime)(ThreadId tid, UInt syscallno,
-                           UWord* args, UInt nArgs)
+void TG_(pre_syscall)(ThreadId tid, UInt syscallno,
+                      UWord* args, UInt nArgs)
 {
-  collect_time(&syscalltime[tid],
-               TG_(clo).collect_systime == systime_nsec ? &syscallcputime[tid] : NULL);
+  /* Collect time for systime tracking if enabled */
+  if (TG_(clo).collect_systime != systime_no) {
+    collect_time(&syscalltime[tid],
+                 TG_(clo).collect_systime == systime_nsec ? &syscallcputime[tid] : NULL);
+  }
 }
 
 /* Returns "after - before" in the unit as specified by --collect-systime.
@@ -1772,11 +1775,35 @@ ULong vki_timespec_diff (struct vki_timespec after, struct vki_timespec before)
   return ((ULong) diff_sec * 1000000000ULL + diff_nsec) / nsec_factor;
 }
 
-static
-void TG_(post_syscalltime)(ThreadId tid, UInt syscallno,
-                            UWord* args, UInt nArgs, SysRes res)
+/* Check if syscall is a fork-like call that creates a new process */
+static Bool is_fork_syscall(UInt syscallno)
 {
-  if (TG_(current_state).bbcc) {
+#if defined(VGO_linux)
+   return syscallno == __NR_clone
+       || syscallno == __NR_fork
+       || syscallno == __NR_vfork
+#  if defined(__NR_clone3)
+       || syscallno == __NR_clone3
+#  endif
+       ;
+#else
+   return False;  /* TODO: support other OSes */
+#endif
+}
+
+static
+void TG_(post_syscall)(ThreadId tid, UInt syscallno,
+                       UWord* args, UInt nArgs, SysRes res)
+{
+  /* Handle fork/clone: emit FORK event with child PID */
+  if (is_fork_syscall(syscallno) && !sr_isError(res) && sr_Res(res) > 0) {
+    /* We're in the parent, sr_Res(res) is the child PID */
+    Int child_pid = (Int)sr_Res(res);
+    TG_(trace_emit_fork)(tid, child_pid);
+  }
+
+  /* Handle systime collection if enabled */
+  if (TG_(clo).collect_systime != systime_no && TG_(current_state).bbcc) {
     Int o;
     struct vki_timespec ts_now;
     struct vki_timespec ts_cpunow;
@@ -2020,6 +2047,15 @@ static void tg_start_client_code_callback ( ThreadId tid, ULong blocks_done )
    TG_(run_thread)( tid );
 }
 
+/*
+ * Called after fork() in the child process.
+ * Reopens the trace file with the child's PID.
+ */
+static void tg_atfork_child(ThreadId tid)
+{
+   TG_(trace_reopen_child)();
+}
+
 static
 void TG_(post_clo_init)(void)
 {
@@ -2033,9 +2069,11 @@ void TG_(post_clo_init)(void)
                 "sp-at-mem-access\n");
    }
 
+   /* Always register syscall wrappers for fork/clone detection.
+      Also handles systime collection if enabled. */
+   VG_(needs_syscall_wrapper)(TG_(pre_syscall), TG_(post_syscall));
+
    if (TG_(clo).collect_systime != systime_no) {
-      VG_(needs_syscall_wrapper)(TG_(pre_syscalltime),
-                                 TG_(post_syscalltime));
       syscalltime = TG_MALLOC("cl.main.pci.1",
                                VG_N_THREADS * sizeof syscalltime[0]);
       for (UInt i = 0; i < VG_N_THREADS; ++i) {
@@ -2101,12 +2139,15 @@ void TG_(post_clo_init)(void)
 
    TG_(instrument_state) = TG_(clo).instrument_atstart;
 
-   /* Open CSV trace output file */
+   /* Open trace output file */
    TG_(trace_open_output)();
+
+   /* Register fork handler to emit FORK events */
+   VG_(atfork)(NULL, NULL, tg_atfork_child);
 
    if (VG_(clo_verbosity) > 0) {
       VG_(message)(Vg_UserMsg,
-                   "Streaming CSV trace output to tracegrind.out.%d\n",
+                   "Streaming trace output to tracegrind.out.%d\n",
                    VG_(getpid)());
    }
 }

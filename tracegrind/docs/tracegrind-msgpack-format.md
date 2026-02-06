@@ -2,7 +2,7 @@
 
 ## Overview
 
-Tracegrind's `--output-format=msgpack` produces a binary trace file combining MsgPack serialization with LZ4 block compression. Files use the `.msgpack.lz4` extension.
+Tracegrind produces a binary trace file combining MsgPack serialization with LZ4 block compression. Files use the `.msgpack.lz4` extension.
 
 ## File Structure
 
@@ -23,7 +23,7 @@ Tracegrind's `--output-format=msgpack` produces a binary trace file combining Ms
 | Offset | Size | Field   | Description |
 |--------|------|---------|-------------|
 | 0      | 4    | magic   | ASCII `TGMP` (0x54 0x47 0x4D 0x50) |
-| 4      | 4    | version | Format version, uint32 LE (currently 1) |
+| 4      | 4    | version | Format version, uint32 LE (currently 2) |
 
 ## Chunk Format
 
@@ -37,17 +37,31 @@ Each chunk (schema and data) has the same header:
 
 ## Schema Chunk
 
-The first chunk contains a MsgPack map:
+The first chunk contains a MsgPack map describing the discriminated union schema:
 
 ```json
 {
-    "version": 1,
+    "version": 2,
     "format": "tracegrind-msgpack",
-    "columns": ["seq", "tid", "event", "fn", "obj", "file", "line", "Ir", ...]
+    "event_schemas": {
+        "0": ["seq", "tid", "event", "fn", "obj", "file", "line", "Ir", ...],
+        "1": ["seq", "tid", "event", "fn", "obj", "file", "line", "Ir", ...],
+        "2": ["seq", "tid", "event", "child_pid"]
+    }
 }
 ```
 
-### Fixed Columns
+### Event Types
+
+| Type | Name  | Description |
+|------|-------|-------------|
+| 0    | ENTER | Function entry |
+| 1    | EXIT  | Function exit |
+| 2    | FORK  | Child process created |
+
+### Row Schemas
+
+**ENTER/EXIT rows (event 0, 1):**
 
 | Index | Name  | Type   | Description |
 |-------|-------|--------|-------------|
@@ -58,17 +72,31 @@ The first chunk contains a MsgPack map:
 | 4     | obj   | string | Shared object path |
 | 5     | file  | string | Source file path |
 | 6     | line  | int32  | Line number (0 if unknown) |
+| 7+    | ...   | int64  | Event counter deltas (Ir, Dr, Dw, etc.) |
 
-### Event Columns (index 7+)
+**FORK rows (event 2):**
 
-Event counters as delta values: `Ir`, `Dr`, `Dw`, `I1mr`, `D1mr`, `D1mw`, `ILmr`, `DLmr`, `DLmw`, `Bc`, `Bcm`, `Bi`, `Bim`. Which columns are present depends on Tracegrind options.
+| Index | Name      | Type   | Description |
+|-------|-----------|--------|-------------|
+| 0     | seq       | uint64 | Sequence number |
+| 1     | tid       | int32  | Thread ID that called fork |
+| 2     | event     | int    | 2 = FORK |
+| 3     | child_pid | int32  | PID of the new child process |
+
+### Event Counter Columns
+
+For ENTER/EXIT rows, event counters appear as delta values starting at index 7. Which counters are present depends on Tracegrind options:
+
+`Ir`, `Dr`, `Dw`, `I1mr`, `D1mr`, `D1mw`, `ILmr`, `DLmr`, `DLmw`, `Bc`, `Bcm`, `Bi`, `Bim`
 
 ## Data Chunks
 
-Each data chunk contains concatenated MsgPack arrays (one per row):
+Each data chunk contains concatenated MsgPack arrays. The row format depends on the event type (index 2):
 
 ```
-[seq, tid, event, fn, obj, file, line, delta_Ir, ...]
+[seq, tid, 0, fn, obj, file, line, delta_Ir, ...]  # ENTER
+[seq, tid, 1, fn, obj, file, line, delta_Ir, ...]  # EXIT
+[seq, tid, 2, child_pid]                            # FORK
 ```
 
 The reference implementation writes 4096 rows per chunk.
@@ -86,13 +114,16 @@ def read_tracegrind(filepath):
     with open(filepath, 'rb') as f:
         assert f.read(4) == b'TGMP'
         version = struct.unpack('<I', f.read(4))[0]
+        assert version == 2
 
         # Read schema chunk
         usize, csize = struct.unpack('<II', f.read(8))
         schema = msgpack.unpackb(
             lz4.block.decompress(f.read(csize), uncompressed_size=usize))
-        columns = [c.decode() if isinstance(c, bytes) else c
-                   for c in schema[b'columns']]
+        event_schemas = {
+            int(k): [c.decode() if isinstance(c, bytes) else c for c in v]
+            for k, v in schema[b'event_schemas'].items()
+        }
 
         # Read data chunks
         rows = []
@@ -104,9 +135,11 @@ def read_tracegrind(filepath):
             unpacker = msgpack.Unpacker(raw=False)
             unpacker.feed(chunk)
             for row in unpacker:
+                event_type = row[2]
+                columns = event_schemas[event_type]
                 rows.append(dict(zip(columns, row)))
 
-        return columns, rows
+        return event_schemas, rows
 ```
 
 ## References
