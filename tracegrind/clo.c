@@ -505,7 +505,7 @@ void TG_(print_usage)(void)
 {
    VG_(printf)(
 "\n   output options:\n"
-"    --tracegrind-out-file=<f>  Output file name [tracegrind.out.%%p]\n"
+"    --tracegrind-out-file=<f>  Output file name [tracegrind.out.%%p.msgpack.lz4]\n"
 
 "\n   data collection options:\n"
 "    --instr-atstart=no|yes    Do instrumentation at tracegrind start [yes]\n"

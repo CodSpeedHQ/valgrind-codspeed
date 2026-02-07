@@ -1,5 +1,5 @@
 prereq: ../../tracegrind/scripts/tracegrind-analyzer --help 2>/dev/null
 prog: test_thread_interleave.bin
-vgopts: --tracegrind-out-file=tracegrind.out.test_thread_interleave --instr-atstart=no
+vgopts: --tracegrind-out-file=tracegrind.out.test_thread_interleave.msgpack.lz4 --instr-atstart=no
 post: ../../tracegrind/scripts/tracegrind-analyzer tracegrind.out.test_thread_interleave.msgpack.lz4 | ./filter_trace | grep -E '(Format |Schema |Event Schemas|Showing |\(|MARKER|THREAD_CREATE|fn=work_a |fn=work_b |fn=work_c |fn=depth_a1 |fn=depth_a2 |fn=depth_b1 |fn=depth_c1 |fn=depth_c2 )' | sort -t'|' -k2,2 -s
 cleanup: rm -f tracegrind.out.test_thread_interleave.msgpack.lz4

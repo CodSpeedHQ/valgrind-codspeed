@@ -2,7 +2,7 @@
 
 ## Overview
 
-Tracegrind produces a binary trace file combining MsgPack serialization with LZ4 block compression. Files use the `.msgpack.lz4` extension.
+Tracegrind produces a binary trace file combining MsgPack serialization with LZ4 block compression. The default output file name is `tracegrind.out.<pid>.msgpack.lz4`.
 
 ## File Structure
 

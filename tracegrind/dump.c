@@ -406,13 +406,6 @@ void TG_(trace_open_output)(void)
     filename[sizeof(filename) - 1] = '\0';
     VG_(free)(expanded);
 
-    /* Append .msgpack.lz4 suffix */
-    SizeT len = VG_(strlen)(filename);
-    if (len + 12 < sizeof(filename)) {
-        VG_(strncpy)(filename + len, ".msgpack.lz4", sizeof(filename) - len - 1);
-        filename[sizeof(filename) - 1] = '\0';
-    }
-
     res = VG_(open)(filename,
                     VKI_O_CREAT|VKI_O_WRONLY|VKI_O_TRUNC,
                     VKI_S_IRUSR|VKI_S_IWUSR);

@@ -1,5 +1,5 @@
 prereq: ../../tracegrind/scripts/tracegrind-analyzer --help 2>/dev/null
 prog: test_tailcall.bin
-vgopts: --tracegrind-out-file=tracegrind.out.test_tailcall --instr-atstart=no
+vgopts: --tracegrind-out-file=tracegrind.out.test_tailcall.msgpack.lz4 --instr-atstart=no
 post: ../../tracegrind/scripts/tracegrind-analyzer tracegrind.out.test_tailcall.msgpack.lz4 | ./filter_trace | grep -E '(Format |Schema |Event Schemas|Showing |MARKER|fn=chain_)'
 cleanup: rm -f tracegrind.out.test_tailcall.msgpack.lz4

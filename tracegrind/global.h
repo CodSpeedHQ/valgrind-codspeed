@@ -67,7 +67,7 @@
 /*--- Command line options                                 ---*/
 /*------------------------------------------------------------*/
 
-#define DEFAULT_OUTFORMAT   "tracegrind.out.%p"
+#define DEFAULT_OUTFORMAT   "tracegrind.out.%p.msgpack.lz4"
 
 /* If and how to collect syscall time.
    systime_no : do not collect systime
