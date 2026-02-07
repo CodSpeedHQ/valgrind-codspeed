@@ -831,17 +831,37 @@ void TG_(setup_bbcc)(BB* bb)
   
   TG_(current_state).bbcc = bbcc;
 
-  /* Check for inline function transition */
+  /* Check for inline function transitions */
   if (TG_(current_state).collect) {
       thread_info* ti = TG_(get_current_thread)();
-      if (ti && bb->inl_fn != ti->cur_inl_fn) {
-          if (ti->cur_inl_fn != NULL) {
-              TG_(trace_emit_exit_inlined)(TG_(current_tid), bb, ti->cur_inl_fn);
+      if (ti) {
+          UInt old_depth = ti->cur_inl_depth;
+          UInt new_depth = bb->inl_depth;
+
+          /* Fast path: both empty (most BBs) */
+          if (old_depth != 0 || new_depth != 0) {
+              /* Find longest common prefix */
+              UInt common = 0;
+              UInt min_depth = old_depth < new_depth ? old_depth : new_depth;
+              while (common < min_depth &&
+                     ti->cur_inl_fns[common] == bb->inl_fns[common])
+                  common++;
+
+              /* EXIT from deepest down to common level */
+              for (Int i = (Int)old_depth - 1; i >= (Int)common; i--)
+                  TG_(trace_emit_exit_inlined)(TG_(current_tid), bb,
+                                                ti->cur_inl_fns[i]);
+
+              /* ENTER from common level up to new deepest */
+              for (UInt i = common; i < new_depth; i++)
+                  TG_(trace_emit_enter_inlined)(TG_(current_tid), bb,
+                                                 bb->inl_fns[i]);
+
+              /* Update thread state */
+              for (UInt i = 0; i < new_depth; i++)
+                  ti->cur_inl_fns[i] = bb->inl_fns[i];
+              ti->cur_inl_depth = new_depth;
           }
-          if (bb->inl_fn != NULL) {
-              TG_(trace_emit_enter_inlined)(TG_(current_tid), bb);
-          }
-          ti->cur_inl_fn = bb->inl_fn;
       }
   }
 

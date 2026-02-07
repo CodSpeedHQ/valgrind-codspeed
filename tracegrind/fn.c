@@ -594,11 +594,30 @@ fn_node* TG_(get_fn_node)(BB* bb)
 
     DiEpoch ep = VG_(current_DiEpoch)();
 
-    /* Check if BB start address is in inlined code */
+    /* Build inline stack for this BB using InlIPCursor */
     {
-        const HChar* inl_fn_name = NULL;
-        VG_(get_inline_fnname)(ep, bb_addr(bb), &inl_fn_name);
-        bb->inl_fn = inl_fn_name;  /* NULL if not inlined */
+        InlIPCursor* iipc = VG_(new_IIPC)(ep, bb_addr(bb));
+        if (iipc) {
+            const HChar* tmp[TG_MAX_INL_DEPTH + 1];
+            Int total = 0;
+            do {
+                const HChar* fn_name = NULL;
+                VG_(get_fnname_inl)(ep, bb_addr(bb), &fn_name, iipc);
+                if (fn_name && total < TG_MAX_INL_DEPTH + 1)
+                    tmp[total++] = fn_name;
+            } while (VG_(next_IIPC)(iipc));
+            VG_(delete_IIPC)(iipc);
+
+            /* tmp[] is innermost-first; last entry is the non-inlined function (skip it) */
+            Int inl_count = total - 1;
+            if (inl_count > 0) {
+                bb->inl_depth = inl_count;
+                bb->inl_fns = VG_(malloc)("tg.bb.inl", inl_count * sizeof(HChar*));
+                /* Reverse into outermost-first order */
+                for (Int i = 0; i < inl_count; i++)
+                    bb->inl_fns[i] = tmp[inl_count - 1 - i];
+            }
+        }
     }
 
     if (0 == VG_(strcmp)(fnname, "???")) {

@@ -453,7 +453,7 @@ void TG_(trace_emit_sample)(ThreadId tid, Bool is_enter,
                     deltas, es->size);
 }
 
-void TG_(trace_emit_enter_inlined)(ThreadId tid, BB* bb)
+void TG_(trace_emit_enter_inlined)(ThreadId tid, BB* bb, const HChar* inl_fn)
 {
     Int i;
 
@@ -473,7 +473,7 @@ void TG_(trace_emit_enter_inlined)(ThreadId tid, BB* bb)
 
     TG_(trace_out).seq++;
 
-    const HChar* fn_name = bb->inl_fn;
+    const HChar* fn_name = inl_fn;
     const HChar* obj_name = bb->obj ? bb->obj->name : "???";
     const HChar* file_name = (bb->fn && bb->fn->file) ? bb->fn->file->name : "???";
     UInt line = bb->line;

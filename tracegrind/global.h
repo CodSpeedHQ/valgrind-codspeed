@@ -59,6 +59,9 @@
 /* Enable experimental features? */
 #define TG_EXPERIMENTAL 0
 
+/* Maximum depth of inline call stack tracking */
+#define TG_MAX_INL_DEPTH 16
+
 
 /*------------------------------------------------------------*/
 /*--- Command line options                                 ---*/
@@ -301,7 +304,8 @@ struct _BB {
 			   * allocated directly after this struct */
   Bool       cjmp_inverted; /* is last side exit actually fall through? */
 
-  const HChar* inl_fn;    /* inlined function name at BB start, or NULL */
+  const HChar** inl_fns;  /* inlined fn names at BB start (outermost first), or NULL */
+  UInt       inl_depth;  /* number of entries in inl_fns */
 
   UInt       instr_len;
   UInt       cost_count;
@@ -566,8 +570,9 @@ struct _thread_info {
   /* CSV trace: per-thread snapshot of cost at last sample emission */
   FullCost last_sample_cost;
 
-  /* Inline tracking: current inlined function name (NULL if not in inlined code) */
-  const HChar* cur_inl_fn;
+  /* Inline tracking: current inline call stack (outermost first) */
+  const HChar* cur_inl_fns[TG_MAX_INL_DEPTH];
+  UInt cur_inl_depth;
 
   /* thread specific data structure containers */
   fn_array fn_active;
@@ -738,7 +743,7 @@ void TG_(run_post_signal_on_call_stack_bottom)(void);
 void TG_(trace_open_output)(void);
 void TG_(trace_reopen_child)(void);
 void TG_(trace_emit_sample)(ThreadId tid, Bool is_enter, fn_node* fn);
-void TG_(trace_emit_enter_inlined)(ThreadId tid, BB* bb);
+void TG_(trace_emit_enter_inlined)(ThreadId tid, BB* bb, const HChar* inl_fn);
 void TG_(trace_emit_exit_inlined)(ThreadId tid, BB* bb, const HChar* inl_fn);
 void TG_(trace_emit_fork)(ThreadId tid, Int child_pid);
 void TG_(trace_emit_marker)(ThreadId tid, const HChar* marker);

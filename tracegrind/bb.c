@@ -143,7 +143,8 @@ static BB* new_bb(obj_node* obj, PtrdiffT offset,
    bb->fn          = 0;
    bb->line        = 0;
    bb->is_entry    = 0;
-   bb->inl_fn      = NULL;
+   bb->inl_fns     = NULL;
+   bb->inl_depth   = 0;
    bb->bbcc_list   = 0;
    bb->last_bbcc   = 0;
 
@@ -331,6 +332,8 @@ void TG_(delete_bb)(Addr addr)
 
     if (bb->bbcc_list == 0) {
 	/* can be safely deleted */
+
+	if (bb->inl_fns) VG_(free)(bb->inl_fns);
 
 	/* Fill the block up with junk and then free it, so we will
 	   hopefully get a segfault if it is used again by mistake. */

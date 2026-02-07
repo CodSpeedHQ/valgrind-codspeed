@@ -234,13 +234,14 @@ void TG_(push_call_stack)(BBCC* from, UInt jmp, BBCC* to, Addr sp, Bool skip)
 
     /* Emit trace sample on function entry */
     if (!skip && TG_(current_state).collect) {
-	/* Emit EXIT_INLINED if we're entering a new function while inside inlined code */
+	/* Exit entire inline stack, deepest first */
 	thread_info* ti = TG_(get_current_thread)();
-	if (ti && ti->cur_inl_fn != NULL && TG_(current_state).bbcc) {
-	    TG_(trace_emit_exit_inlined)(TG_(current_tid),
-					 TG_(current_state).bbcc->bb,
-					 ti->cur_inl_fn);
-	    ti->cur_inl_fn = NULL;
+	if (ti && ti->cur_inl_depth > 0 && TG_(current_state).bbcc) {
+	    for (Int i = (Int)ti->cur_inl_depth - 1; i >= 0; i--)
+		TG_(trace_emit_exit_inlined)(TG_(current_tid),
+					     TG_(current_state).bbcc->bb,
+					     ti->cur_inl_fns[i]);
+	    ti->cur_inl_depth = 0;
 	}
 	fn_node* to_fn = to->cxt->fn[0];
 	TG_(trace_emit_sample)(TG_(current_tid), True, to_fn);
@@ -343,13 +344,14 @@ void TG_(pop_call_stack)(void)
 
 	/* Emit trace sample on function exit */
 	if (TG_(current_state).collect) {
-	    /* Emit EXIT_INLINED if we're leaving while inside inlined code */
+	    /* Exit entire inline stack, deepest first */
 	    thread_info* ti = TG_(get_current_thread)();
-	    if (ti && ti->cur_inl_fn != NULL && TG_(current_state).bbcc) {
-		TG_(trace_emit_exit_inlined)(TG_(current_tid),
-					     TG_(current_state).bbcc->bb,
-					     ti->cur_inl_fn);
-		ti->cur_inl_fn = NULL;
+	    if (ti && ti->cur_inl_depth > 0 && TG_(current_state).bbcc) {
+		for (Int i = (Int)ti->cur_inl_depth - 1; i >= 0; i--)
+		    TG_(trace_emit_exit_inlined)(TG_(current_tid),
+						 TG_(current_state).bbcc->bb,
+						 ti->cur_inl_fns[i]);
+		ti->cur_inl_depth = 0;
 	    }
 	    TG_(trace_emit_sample)(TG_(current_tid), False, to_fn);
 	}

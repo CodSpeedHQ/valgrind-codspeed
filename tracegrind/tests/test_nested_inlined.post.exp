@@ -14,8 +14,8 @@ Showing N of N rows
 seq=N | tid=1 | event=MARKER | marker=start
 seq=N | tid=1 | event=ENTER | fn=caller | obj=test_nested_inlined.bin | file=test_nested_inlined.c | line=0 | Ir=N
 seq=N | tid=1 | event=ENTER_INLINED | fn=outer_inline | obj=test_nested_inlined.bin | file=test_nested_inlined.c | line=26 | Ir=N
-seq=N | tid=1 | event=EXIT_INLINED | fn=outer_inline | obj=test_nested_inlined.bin | file=test_nested_inlined.c | line=9 | Ir=N
 seq=N | tid=1 | event=ENTER_INLINED | fn=inner_inline | obj=test_nested_inlined.bin | file=test_nested_inlined.c | line=9 | Ir=N
 seq=N | tid=1 | event=EXIT_INLINED | fn=inner_inline | obj=test_nested_inlined.bin | file=test_nested_inlined.c | line=9 | Ir=N
+seq=N | tid=1 | event=EXIT_INLINED | fn=outer_inline | obj=test_nested_inlined.bin | file=test_nested_inlined.c | line=9 | Ir=N
 seq=N | tid=1 | event=EXIT | fn=caller | obj=test_nested_inlined.bin | file=test_nested_inlined.c | line=0 | Ir=N
 seq=N | tid=1 | event=MARKER | marker=end
