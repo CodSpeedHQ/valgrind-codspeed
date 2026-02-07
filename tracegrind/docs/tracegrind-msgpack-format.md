@@ -53,6 +53,10 @@ The first chunk contains a MsgPack map describing the discriminated union schema
         "4": ["seq", "tid", "event", "fn", "obj", "file", "line", "Ir", ...],
         "5": ["seq", "tid", "event", "child_pid"],
         "6": ["seq", "tid", "event", "child_tid"]
+    },
+    "counter_units": {
+        "sysTime": "ns",
+        "sysCpuTime": "ns"
     }
 }
 ```
@@ -131,6 +135,18 @@ Same schema as ENTER_FN/EXIT_FN rows.
 For ENTER_FN/EXIT_FN/ENTER_INLINED_FN/EXIT_INLINED_FN rows, event counters appear as delta values starting at index 7. Which counters are present depends on Tracegrind options:
 
 `Ir`, `Dr`, `Dw`, `I1mr`, `D1mr`, `D1mw`, `ILmr`, `DLmr`, `DLmw`, `Bc`, `Bcm`, `Bi`, `Bim`
+
+### Counter Units
+
+The `counter_units` field is a map from event counter name to its unit string. Only time-based counters are listed; counters absent from the map are dimensionless.
+
+| `--collect-systime` | Entries in `counter_units` |
+|---------------------|--------------------|
+| `msec`              | `"sysTime": "ms"` |
+| `usec`              | `"sysTime": "us"` |
+| `nsec`              | `"sysTime": "ns"`, `"sysCpuTime": "ns"` |
+
+When `--collect-systime` is not set, the `counter_units` map is empty.
 
 ## Data Chunks
 

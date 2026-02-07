@@ -112,7 +112,7 @@ static void msgpack_write_header(void)
     msgpack_init(&hdr, 2048);
 
     /* Header is a map with metadata */
-    msgpack_write_map_header(&hdr, 5);
+    msgpack_write_map_header(&hdr, 6);
 
     /* version */
     msgpack_write_key(&hdr, "version");
@@ -185,6 +185,29 @@ static void msgpack_write_header(void)
     msgpack_write_str(&hdr, "tid", -1);
     msgpack_write_str(&hdr, "event", -1);
     msgpack_write_str(&hdr, "child_tid", -1);
+
+    /* counter_units - map from counter name to unit string.
+       Following callgrind's convention: only time counters get units. */
+    msgpack_write_key(&hdr, "counter_units");
+    {
+        Int n_units = 0;
+        const HChar* unit_str = NULL;
+        switch (TG_(clo).collect_systime) {
+            case systime_no:   break;
+            case systime_msec: unit_str = "ms"; n_units = 1; break;
+            case systime_usec: unit_str = "us"; n_units = 1; break;
+            case systime_nsec: unit_str = "ns"; n_units = 2; break;
+        }
+        msgpack_write_map_header(&hdr, n_units);
+        if (unit_str) {
+            msgpack_write_key(&hdr, "sysTime");
+            msgpack_write_str(&hdr, unit_str, -1);
+            if (TG_(clo).collect_systime == systime_nsec) {
+                msgpack_write_key(&hdr, "sysCpuTime");
+                msgpack_write_str(&hdr, unit_str, -1);
+            }
+        }
+    }
 
     /* Compress and write header chunk */
     SizeT src_size = hdr.size;

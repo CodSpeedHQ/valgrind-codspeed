@@ -136,6 +136,9 @@ def print_schema(schema: Dict[str, Any], version: int) -> None:
             print(f"  {event_type} ({event_name}): {columns}")
     elif 'columns' in schema:
         print(f"Columns: {schema['columns']}")
+
+    if schema.get('counter_units'):
+        print(f"Counter Units: {dict(sorted(schema['counter_units'].items()))}")
     print()
 
 
