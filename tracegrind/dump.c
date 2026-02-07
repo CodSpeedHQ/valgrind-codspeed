@@ -112,7 +112,7 @@ static void msgpack_write_header(void)
     msgpack_init(&hdr, 2048);
 
     /* Header is a map with metadata */
-    msgpack_write_map_header(&hdr, 3);
+    msgpack_write_map_header(&hdr, 5);
 
     /* version */
     msgpack_write_key(&hdr, "version");
@@ -121,6 +121,14 @@ static void msgpack_write_header(void)
     /* format */
     msgpack_write_key(&hdr, "format");
     msgpack_write_str(&hdr, "tracegrind-msgpack", -1);
+
+    /* creator */
+    msgpack_write_key(&hdr, "creator");
+    msgpack_write_str(&hdr, "valgrind-tracegrind", -1);
+
+    /* creator_version */
+    msgpack_write_key(&hdr, "creator_version");
+    msgpack_write_str(&hdr, VERSION, -1);
 
     /* event_schemas - discriminated union: each event type has its own schema */
     msgpack_write_key(&hdr, "event_schemas");

@@ -43,6 +43,8 @@ The first chunk contains a MsgPack map describing the discriminated union schema
 {
     "version": 3,
     "format": "tracegrind-msgpack",
+    "creator": "valgrind-tracegrind",
+    "creator_version": "3.26.0.codspeed",
     "event_schemas": {
         "0": ["seq", "tid", "event", "marker"],
         "1": ["seq", "tid", "event", "fn", "obj", "file", "line", "Ir", ...],
