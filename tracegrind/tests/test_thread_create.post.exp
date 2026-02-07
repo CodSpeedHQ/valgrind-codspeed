@@ -12,6 +12,6 @@ Event Schemas (discriminated union):
 Showing N of N rows
 seq=N | tid=1 | event=MARKER | marker=start
 seq=N | tid=1 | event=THREAD_CREATE | child_tid=2
-seq=N | tid=2 | event=ENTER_FN | fn=thread_fn | obj=test_thread_create.bin | file=??? | line=0 | Ir=N
-seq=N | tid=2 | event=EXIT_FN | fn=thread_fn | obj=test_thread_create.bin | file=??? | line=0 | Ir=N
+seq=N | tid=2 | event=ENTER_FN | fn=thread_fn | obj=test_thread_create.bin | file=test_thread_create.c | line=0 | Ir=N
+seq=N | tid=2 | event=EXIT_FN | fn=thread_fn | obj=test_thread_create.bin | file=test_thread_create.c | line=0 | Ir=N
 seq=N | tid=1 | event=MARKER | marker=end
