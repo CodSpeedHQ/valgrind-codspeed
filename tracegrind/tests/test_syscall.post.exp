@@ -1,0 +1,24 @@
+Format Version: N
+Format Name: tracegrind-msgpack
+Schema Version: N
+Event Schemas (discriminated union):
+  0 (MARKER): ['seq', 'tid', 'event', 'marker']
+  1 (ENTER_FN): ['seq', 'tid', 'event', 'fn', 'obj', 'file', 'line', 'Ir', 'sysCount', 'sysTime', 'sysCpuTime']
+  2 (EXIT_FN): ['seq', 'tid', 'event', 'fn', 'obj', 'file', 'line', 'Ir', 'sysCount', 'sysTime', 'sysCpuTime']
+  3 (ENTER_INLINED_FN): ['seq', 'tid', 'event', 'fn', 'obj', 'file', 'line', 'Ir', 'sysCount', 'sysTime', 'sysCpuTime']
+  4 (EXIT_INLINED_FN): ['seq', 'tid', 'event', 'fn', 'obj', 'file', 'line', 'Ir', 'sysCount', 'sysTime', 'sysCpuTime']
+  5 (FORK): ['seq', 'tid', 'event', 'child_pid']
+  6 (THREAD_CREATE): ['seq', 'tid', 'event', 'child_tid']
+Showing N of N rows
+seq=N | tid=1 | event=MARKER | marker=start
+seq=N | tid=1 | event=ENTER_FN | fn=caller | obj=test_syscall.bin | file=test_syscall.c | line=0 | Ir=N | sysCount=0 | sysTime=0 | sysCpuTime=0
+seq=N | tid=1 | event=ENTER_FN | fn=do_getpid | obj=test_syscall.bin | file=test_syscall.c | line=0 | Ir=N | sysCount=0 | sysTime=0 | sysCpuTime=0
+seq=N | tid=1 | event=ENTER_FN | fn=getpid | obj=libc.so.6 | file=syscall-template.S | line=0 | Ir=N | sysCount=0 | sysTime=0 | sysCpuTime=0
+seq=N | tid=1 | event=EXIT_FN | fn=getpid | obj=libc.so.6 | file=syscall-template.S | line=0 | Ir=N | sysCount=1 | sysTime=T | sysCpuTime=T
+seq=N | tid=1 | event=EXIT_FN | fn=do_getpid | obj=test_syscall.bin | file=test_syscall.c | line=0 | Ir=N | sysCount=0 | sysTime=0 | sysCpuTime=0
+seq=N | tid=1 | event=ENTER_FN | fn=do_write | obj=test_syscall.bin | file=test_syscall.c | line=0 | Ir=N | sysCount=0 | sysTime=0 | sysCpuTime=0
+seq=N | tid=1 | event=ENTER_FN | fn=write | obj=libc.so.6 | file=write.c | line=0 | Ir=N | sysCount=0 | sysTime=0 | sysCpuTime=0
+seq=N | tid=1 | event=EXIT_FN | fn=write | obj=libc.so.6 | file=write.c | line=0 | Ir=N | sysCount=1 | sysTime=T | sysCpuTime=T
+seq=N | tid=1 | event=EXIT_FN | fn=do_write | obj=test_syscall.bin | file=test_syscall.c | line=0 | Ir=N | sysCount=0 | sysTime=0 | sysCpuTime=0
+seq=N | tid=1 | event=EXIT_FN | fn=caller | obj=test_syscall.bin | file=test_syscall.c | line=0 | Ir=N | sysCount=0 | sysTime=0 | sysCpuTime=0
+seq=N | tid=1 | event=MARKER | marker=end

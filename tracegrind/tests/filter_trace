@@ -20,6 +20,11 @@ sed 's|file=[^ |]*[/]||g' |
 # Replace Ir=<number> with Ir=N
 sed 's|Ir=[0-9]\+|Ir=N|g' |
 
+# Normalize syscall timing values (non-deterministic)
+# Replace nonzero sysTime/sysCpuTime with >0 to assert they are measured
+sed 's|sysTime=[1-9][0-9]*|sysTime=T|g' |
+sed 's|sysCpuTime=[1-9][0-9]*|sysCpuTime=T|g' |
+
 # Remove the separator line
 sed '/^-\{10,\}$/d' |
 
