@@ -1,5 +1,5 @@
 prereq: ../../tracegrind/scripts/tracegrind-analyzer --help 2>/dev/null
 prog: test_recursion.bin
 vgopts: --tracegrind-out-file=tracegrind.out.test_recursion --instr-atstart=no
-post: ../../tracegrind/scripts/tracegrind-analyzer tracegrind.out.test_recursion.msgpack.lz4 | ./filter_trace | grep -E '(event=MARKER|fn=recurse)' | awk '/MARKER/{print} /ENTER/{e++} /EXIT/{x++} END{print "ENTER count: "e; print "EXIT count: "x}'
+post: ../../tracegrind/scripts/tracegrind-analyzer tracegrind.out.test_recursion.msgpack.lz4 | ./filter_trace | grep -E '(event=MARKER|fn=recurse)' | awk '/MARKER/{print} /ENTER_FN/{e++} /EXIT_FN/{x++} END{print "ENTER_FN count: "e; print "EXIT_FN count: "x}'
 cleanup: rm -f tracegrind.out.test_recursion.msgpack.lz4

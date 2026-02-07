@@ -84,12 +84,13 @@ typedef enum {
 
 /* Trace event types */
 typedef enum {
-   TG_EV_MARKER         = 0,
-   TG_EV_ENTER          = 1,
-   TG_EV_EXIT           = 2,
-   TG_EV_FORK           = 3,
-   TG_EV_ENTER_INLINED  = 4,
-   TG_EV_EXIT_INLINED   = 5
+   TG_EV_MARKER            = 0,
+   TG_EV_ENTER_FN          = 1,
+   TG_EV_EXIT_FN           = 2,
+   TG_EV_ENTER_INLINED_FN  = 3,
+   TG_EV_EXIT_INLINED_FN   = 4,
+   TG_EV_FORK              = 5,
+   TG_EV_THREAD_CREATE     = 6
 } TraceEventType;
 
 typedef struct _CommandLineOptions CommandLineOptions;
@@ -746,6 +747,7 @@ void TG_(trace_emit_sample)(ThreadId tid, Bool is_enter, fn_node* fn);
 void TG_(trace_emit_enter_inlined)(ThreadId tid, BB* bb, const HChar* inl_fn);
 void TG_(trace_emit_exit_inlined)(ThreadId tid, BB* bb, const HChar* inl_fn);
 void TG_(trace_emit_fork)(ThreadId tid, Int child_pid);
+void TG_(trace_emit_thread_create)(ThreadId tid, ThreadId child);
 void TG_(trace_emit_marker)(ThreadId tid, const HChar* marker);
 void TG_(trace_close_output)(void);
 

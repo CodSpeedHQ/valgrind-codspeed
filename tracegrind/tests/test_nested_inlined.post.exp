@@ -4,18 +4,19 @@ Schema Version: N
 
 Event Schemas (discriminated union):
   0 (MARKER): ['seq', 'tid', 'event', 'marker']
-  1 (ENTER): ['seq', 'tid', 'event', 'fn', 'obj', 'file', 'line', 'Ir']
-  2 (EXIT): ['seq', 'tid', 'event', 'fn', 'obj', 'file', 'line', 'Ir']
-  3 (FORK): ['seq', 'tid', 'event', 'child_pid']
-  4 (ENTER_INLINED): ['seq', 'tid', 'event', 'fn', 'obj', 'file', 'line', 'Ir']
-  5 (EXIT_INLINED): ['seq', 'tid', 'event', 'fn', 'obj', 'file', 'line', 'Ir']
+  1 (ENTER_FN): ['seq', 'tid', 'event', 'fn', 'obj', 'file', 'line', 'Ir']
+  2 (EXIT_FN): ['seq', 'tid', 'event', 'fn', 'obj', 'file', 'line', 'Ir']
+  3 (ENTER_INLINED_FN): ['seq', 'tid', 'event', 'fn', 'obj', 'file', 'line', 'Ir']
+  4 (EXIT_INLINED_FN): ['seq', 'tid', 'event', 'fn', 'obj', 'file', 'line', 'Ir']
+  5 (FORK): ['seq', 'tid', 'event', 'child_pid']
+  6 (THREAD_CREATE): ['seq', 'tid', 'event', 'child_tid']
 
 Showing N of N rows
 seq=N | tid=1 | event=MARKER | marker=start
-seq=N | tid=1 | event=ENTER | fn=caller | obj=test_nested_inlined.bin | file=test_nested_inlined.c | line=0 | Ir=N
-seq=N | tid=1 | event=ENTER_INLINED | fn=outer_inline | obj=test_nested_inlined.bin | file=test_nested_inlined.c | line=26 | Ir=N
-seq=N | tid=1 | event=ENTER_INLINED | fn=inner_inline | obj=test_nested_inlined.bin | file=test_nested_inlined.c | line=9 | Ir=N
-seq=N | tid=1 | event=EXIT_INLINED | fn=inner_inline | obj=test_nested_inlined.bin | file=test_nested_inlined.c | line=9 | Ir=N
-seq=N | tid=1 | event=EXIT_INLINED | fn=outer_inline | obj=test_nested_inlined.bin | file=test_nested_inlined.c | line=9 | Ir=N
-seq=N | tid=1 | event=EXIT | fn=caller | obj=test_nested_inlined.bin | file=test_nested_inlined.c | line=0 | Ir=N
+seq=N | tid=1 | event=ENTER_FN | fn=caller | obj=test_nested_inlined.bin | file=test_nested_inlined.c | line=0 | Ir=N
+seq=N | tid=1 | event=ENTER_INLINED_FN | fn=outer_inline | obj=test_nested_inlined.bin | file=test_nested_inlined.c | line=26 | Ir=N
+seq=N | tid=1 | event=ENTER_INLINED_FN | fn=inner_inline | obj=test_nested_inlined.bin | file=test_nested_inlined.c | line=9 | Ir=N
+seq=N | tid=1 | event=EXIT_INLINED_FN | fn=inner_inline | obj=test_nested_inlined.bin | file=test_nested_inlined.c | line=9 | Ir=N
+seq=N | tid=1 | event=EXIT_INLINED_FN | fn=outer_inline | obj=test_nested_inlined.bin | file=test_nested_inlined.c | line=9 | Ir=N
+seq=N | tid=1 | event=EXIT_FN | fn=caller | obj=test_nested_inlined.bin | file=test_nested_inlined.c | line=0 | Ir=N
 seq=N | tid=1 | event=MARKER | marker=end

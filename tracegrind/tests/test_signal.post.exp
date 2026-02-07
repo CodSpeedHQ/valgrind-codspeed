@@ -5,6 +5,6 @@ Event Schemas (discriminated union):
   0 (MARKER): ['seq', 'tid', 'event', 'marker']
 Showing N of N rows
 seq=N | tid=1 | event=MARKER | marker=start
-seq=N | tid=1 | event=ENTER | fn=caller | obj=test_signal.bin | file=test_signal.c | line=0 | Ir=N
-seq=N | tid=1 | event=EXIT | fn=caller | obj=test_signal.bin | file=test_signal.c | line=0 | Ir=N
+seq=N | tid=1 | event=ENTER_FN | fn=caller | obj=test_signal.bin | file=test_signal.c | line=0 | Ir=N
+seq=N | tid=1 | event=EXIT_FN | fn=caller | obj=test_signal.bin | file=test_signal.c | line=0 | Ir=N
 seq=N | tid=1 | event=MARKER | marker=end

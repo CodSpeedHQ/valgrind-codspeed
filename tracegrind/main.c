@@ -1742,11 +1742,27 @@ static
 void TG_(post_syscall)(ThreadId tid, UInt syscallno,
                        UWord* args, UInt nArgs, SysRes res)
 {
-  /* Handle fork/clone: emit FORK event with child PID */
+  /* Handle fork/clone: emit FORK event with child PID.
+     Skip if this was a thread-creating clone (CLONE_THREAD),
+     since we emit THREAD_CREATE via track_pre_thread_ll_create instead. */
   if (is_fork_syscall(syscallno) && !sr_isError(res) && sr_Res(res) > 0) {
-    /* We're in the parent, sr_Res(res) is the child PID */
-    Int child_pid = (Int)sr_Res(res);
-    TG_(trace_emit_fork)(tid, child_pid);
+    Bool is_thread = False;
+#if defined(VGO_linux)
+    if (syscallno == __NR_clone && nArgs > 0)
+      is_thread = (args[0] & VKI_CLONE_THREAD) != 0;
+#  if defined(__NR_clone3)
+    if (syscallno == __NR_clone3 && nArgs > 0) {
+      /* clone3 first arg is pointer to struct clone_args;
+         flags is the first field (ULong / __u64). */
+      ULong flags = *(ULong*)(Addr)args[0];
+      is_thread = (flags & VKI_CLONE_THREAD) != 0;
+    }
+#  endif
+#endif
+    if (!is_thread) {
+      Int child_pid = (Int)sr_Res(res);
+      TG_(trace_emit_fork)(tid, child_pid);
+    }
   }
 
   /* Handle systime collection if enabled */
@@ -2003,6 +2019,14 @@ static void tg_atfork_child(ThreadId tid)
    TG_(trace_reopen_child)();
 }
 
+static void tg_pre_thread_ll_create(ThreadId tid, ThreadId child)
+{
+    /* Skip Valgrind's internal scheduler thread (tid 0) creating the
+       initial client thread -- that's not a user-visible thread creation. */
+    if (tid == 0) return;
+    TG_(trace_emit_thread_create)(tid, child);
+}
+
 static
 void TG_(post_clo_init)(void)
 {
@@ -2128,6 +2152,7 @@ void TG_(pre_clo_init)(void)
     VG_(track_start_client_code)  ( & tg_start_client_code_callback );
     VG_(track_pre_deliver_signal) ( & TG_(pre_signal) );
     VG_(track_post_deliver_signal)( & TG_(post_signal) );
+    VG_(track_pre_thread_ll_create)( & tg_pre_thread_ll_create );
 
     TG_(set_clo_defaults)();
 

@@ -44,6 +44,9 @@ sed '/^Top 10 functions/,/^$/d' |
 # Remove "Fork events" section (platform-dependent)
 sed '/^Fork events/,/^$/d' |
 
+# Remove "Thread create events" section (platform-dependent)
+sed '/^Thread create events/,/^$/d' |
+
 # Normalize seq numbers in raw arrays: [1234, ...] -> [N, ...]
 sed 's/^\[\([0-9]\+\),/[N,/g' |
 

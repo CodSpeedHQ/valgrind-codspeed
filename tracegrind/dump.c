@@ -124,7 +124,7 @@ static void msgpack_write_header(void)
 
     /* event_schemas - discriminated union: each event type has its own schema */
     msgpack_write_key(&hdr, "event_schemas");
-    msgpack_write_map_header(&hdr, 6);  /* 6 event types: MARKER, ENTER, EXIT, FORK, ENTER_INLINED, EXIT_INLINED */
+    msgpack_write_map_header(&hdr, 7);  /* 7 event types */
 
     /* Event type 0 (MARKER) schema */
     msgpack_write_key(&hdr, "0");
@@ -134,41 +134,49 @@ static void msgpack_write_header(void)
     msgpack_write_str(&hdr, "event", -1);
     msgpack_write_str(&hdr, "marker", -1);
 
-    /* Event type 1 (ENTER) schema */
+    /* Event type 1 (ENTER_FN) schema */
     msgpack_write_key(&hdr, "1");
     msgpack_write_array_header(&hdr, mp_state.ncols);
     for (Int i = 0; i < mp_state.ncols; i++) {
         msgpack_write_str(&hdr, mp_state.col_names[i], -1);
     }
 
-    /* Event type 2 (EXIT) schema - same as ENTER */
+    /* Event type 2 (EXIT_FN) schema - same as ENTER_FN */
     msgpack_write_key(&hdr, "2");
     msgpack_write_array_header(&hdr, mp_state.ncols);
     for (Int i = 0; i < mp_state.ncols; i++) {
         msgpack_write_str(&hdr, mp_state.col_names[i], -1);
     }
 
-    /* Event type 3 (FORK) schema */
+    /* Event type 3 (ENTER_INLINED_FN) schema - same columns as ENTER_FN/EXIT_FN */
     msgpack_write_key(&hdr, "3");
-    msgpack_write_array_header(&hdr, 4);
-    msgpack_write_str(&hdr, "seq", -1);
-    msgpack_write_str(&hdr, "tid", -1);
-    msgpack_write_str(&hdr, "event", -1);
-    msgpack_write_str(&hdr, "child_pid", -1);
+    msgpack_write_array_header(&hdr, mp_state.ncols);
+    for (Int i = 0; i < mp_state.ncols; i++) {
+        msgpack_write_str(&hdr, mp_state.col_names[i], -1);
+    }
 
-    /* Event type 4 (ENTER_INLINED) schema - same columns as ENTER/EXIT */
+    /* Event type 4 (EXIT_INLINED_FN) schema - same columns as ENTER_FN/EXIT_FN */
     msgpack_write_key(&hdr, "4");
     msgpack_write_array_header(&hdr, mp_state.ncols);
     for (Int i = 0; i < mp_state.ncols; i++) {
         msgpack_write_str(&hdr, mp_state.col_names[i], -1);
     }
 
-    /* Event type 5 (EXIT_INLINED) schema - same columns as ENTER/EXIT */
+    /* Event type 5 (FORK) schema */
     msgpack_write_key(&hdr, "5");
-    msgpack_write_array_header(&hdr, mp_state.ncols);
-    for (Int i = 0; i < mp_state.ncols; i++) {
-        msgpack_write_str(&hdr, mp_state.col_names[i], -1);
-    }
+    msgpack_write_array_header(&hdr, 4);
+    msgpack_write_str(&hdr, "seq", -1);
+    msgpack_write_str(&hdr, "tid", -1);
+    msgpack_write_str(&hdr, "event", -1);
+    msgpack_write_str(&hdr, "child_pid", -1);
+
+    /* Event type 6 (THREAD_CREATE) schema */
+    msgpack_write_key(&hdr, "6");
+    msgpack_write_array_header(&hdr, 4);
+    msgpack_write_str(&hdr, "seq", -1);
+    msgpack_write_str(&hdr, "tid", -1);
+    msgpack_write_str(&hdr, "event", -1);
+    msgpack_write_str(&hdr, "child_tid", -1);
 
     /* Compress and write header chunk */
     SizeT src_size = hdr.size;
@@ -263,7 +271,7 @@ static void msgpack_add_row(ULong seq, Int tid, Int event,
     /* Fixed columns */
     msgpack_write_uint(&mp_state.buf, seq);
     msgpack_write_int(&mp_state.buf, tid);
-    msgpack_write_int(&mp_state.buf, event);  /* 0=ENTER, 1=EXIT */
+    msgpack_write_int(&mp_state.buf, event);
     msgpack_write_str(&mp_state.buf, fn_name, -1);
     msgpack_write_str(&mp_state.buf, obj_name, -1);
     msgpack_write_str(&mp_state.buf, file_name, -1);
@@ -289,12 +297,28 @@ static void msgpack_add_fork_row(ULong seq, Int tid, Int child_pid)
     msgpack_write_array_header(&mp_state.buf, 4);
     msgpack_write_uint(&mp_state.buf, seq);
     msgpack_write_int(&mp_state.buf, tid);
-    msgpack_write_int(&mp_state.buf, TG_EV_FORK);  /* 2 = FORK */
+    msgpack_write_int(&mp_state.buf, TG_EV_FORK);
     msgpack_write_int(&mp_state.buf, child_pid);
 
     mp_state.rows_in_chunk++;
 
     /* Flush if chunk is full */
+    if (mp_state.rows_in_chunk >= MSGPACK_CHUNK_ROWS) {
+        msgpack_flush_chunk();
+    }
+}
+
+/* Add a THREAD_CREATE row to the msgpack output (seq, tid, event, child_tid) */
+static void msgpack_add_thread_create_row(ULong seq, Int tid, Int child_tid)
+{
+    msgpack_write_array_header(&mp_state.buf, 4);
+    msgpack_write_uint(&mp_state.buf, seq);
+    msgpack_write_int(&mp_state.buf, tid);
+    msgpack_write_int(&mp_state.buf, TG_EV_THREAD_CREATE);
+    msgpack_write_int(&mp_state.buf, child_tid);
+
+    mp_state.rows_in_chunk++;
+
     if (mp_state.rows_in_chunk >= MSGPACK_CHUNK_ROWS) {
         msgpack_flush_chunk();
     }
@@ -445,8 +469,7 @@ void TG_(trace_emit_sample)(ThreadId tid, Bool is_enter,
         }
     }
 
-    /* Event type: 0=ENTER, 1=EXIT */
-    Int event_val = is_enter ? TG_EV_ENTER : TG_EV_EXIT;
+    Int event_val = is_enter ? TG_EV_ENTER_FN : TG_EV_EXIT_FN;
 
     msgpack_add_row(TG_(trace_out).seq, (Int)tid, event_val,
                     fn_name, obj_name, file_name, (Int)line,
@@ -491,7 +514,7 @@ void TG_(trace_emit_enter_inlined)(ThreadId tid, BB* bb, const HChar* inl_fn)
         }
     }
 
-    msgpack_add_row(TG_(trace_out).seq, (Int)tid, TG_EV_ENTER_INLINED,
+    msgpack_add_row(TG_(trace_out).seq, (Int)tid, TG_EV_ENTER_INLINED_FN,
                     fn_name, obj_name, file_name, (Int)line,
                     deltas, es->size);
 }
@@ -534,7 +557,7 @@ void TG_(trace_emit_exit_inlined)(ThreadId tid, BB* bb, const HChar* inl_fn)
         }
     }
 
-    msgpack_add_row(TG_(trace_out).seq, (Int)tid, TG_EV_EXIT_INLINED,
+    msgpack_add_row(TG_(trace_out).seq, (Int)tid, TG_EV_EXIT_INLINED_FN,
                     fn_name, obj_name, file_name, (Int)line,
                     deltas, es->size);
 }
@@ -553,6 +576,16 @@ void TG_(trace_emit_fork)(ThreadId tid, Int child_pid)
 
     /* FORK uses minimal schema: [seq, tid, event, child_pid] */
     msgpack_add_fork_row(TG_(trace_out).seq, (Int)tid, child_pid);
+}
+
+void TG_(trace_emit_thread_create)(ThreadId tid, ThreadId child)
+{
+    if (!TG_(trace_out).initialized) return;
+    if (TG_(trace_out).fd < 0) return;
+
+    TG_(trace_out).seq++;
+
+    msgpack_add_thread_create_row(TG_(trace_out).seq, (Int)tid, (Int)child);
 }
 
 void TG_(trace_emit_marker)(ThreadId tid, const HChar* marker)

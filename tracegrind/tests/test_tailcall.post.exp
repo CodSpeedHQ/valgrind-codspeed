@@ -5,10 +5,10 @@ Event Schemas (discriminated union):
   0 (MARKER): ['seq', 'tid', 'event', 'marker']
 Showing N of N rows
 seq=N | tid=1 | event=MARKER | marker=start
-seq=N | tid=1 | event=ENTER | fn=chain_a | obj=test_tailcall.bin | file=test_tailcall.c | line=0 | Ir=N
-seq=N | tid=1 | event=ENTER | fn=chain_b | obj=test_tailcall.bin | file=test_tailcall.c | line=0 | Ir=N
-seq=N | tid=1 | event=ENTER | fn=chain_c | obj=test_tailcall.bin | file=test_tailcall.c | line=0 | Ir=N
-seq=N | tid=1 | event=EXIT | fn=chain_c | obj=test_tailcall.bin | file=test_tailcall.c | line=0 | Ir=N
-seq=N | tid=1 | event=EXIT | fn=chain_b | obj=test_tailcall.bin | file=test_tailcall.c | line=0 | Ir=N
-seq=N | tid=1 | event=EXIT | fn=chain_a | obj=test_tailcall.bin | file=test_tailcall.c | line=0 | Ir=N
+seq=N | tid=1 | event=ENTER_FN | fn=chain_a | obj=test_tailcall.bin | file=test_tailcall.c | line=0 | Ir=N
+seq=N | tid=1 | event=ENTER_FN | fn=chain_b | obj=test_tailcall.bin | file=test_tailcall.c | line=0 | Ir=N
+seq=N | tid=1 | event=ENTER_FN | fn=chain_c | obj=test_tailcall.bin | file=test_tailcall.c | line=0 | Ir=N
+seq=N | tid=1 | event=EXIT_FN | fn=chain_c | obj=test_tailcall.bin | file=test_tailcall.c | line=0 | Ir=N
+seq=N | tid=1 | event=EXIT_FN | fn=chain_b | obj=test_tailcall.bin | file=test_tailcall.c | line=0 | Ir=N
+seq=N | tid=1 | event=EXIT_FN | fn=chain_a | obj=test_tailcall.bin | file=test_tailcall.c | line=0 | Ir=N
 seq=N | tid=1 | event=MARKER | marker=end

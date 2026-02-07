@@ -5,10 +5,10 @@ Event Schemas (discriminated union):
   0 (MARKER): ['seq', 'tid', 'event', 'marker']
 Showing N of N rows
 seq=N | tid=1 | event=MARKER | marker=start
-seq=N | tid=1 | event=ENTER | fn=catcher(int) | obj=test_exception.bin | file=test_exception.cpp | line=0 | Ir=N
-seq=N | tid=1 | event=ENTER | fn=thrower(int) | obj=test_exception.bin | file=test_exception.cpp | line=0 | Ir=N
-seq=N | tid=1 | event=ENTER | fn=do_throw(int) | obj=test_exception.bin | file=test_exception.cpp | line=0 | Ir=N
-seq=N | tid=1 | event=EXIT | fn=do_throw(int) | obj=test_exception.bin | file=test_exception.cpp | line=0 | Ir=N
-seq=N | tid=1 | event=EXIT | fn=thrower(int) | obj=test_exception.bin | file=test_exception.cpp | line=0 | Ir=N
-seq=N | tid=1 | event=EXIT | fn=catcher(int) | obj=test_exception.bin | file=test_exception.cpp | line=0 | Ir=N
+seq=N | tid=1 | event=ENTER_FN | fn=catcher(int) | obj=test_exception.bin | file=test_exception.cpp | line=0 | Ir=N
+seq=N | tid=1 | event=ENTER_FN | fn=thrower(int) | obj=test_exception.bin | file=test_exception.cpp | line=0 | Ir=N
+seq=N | tid=1 | event=ENTER_FN | fn=do_throw(int) | obj=test_exception.bin | file=test_exception.cpp | line=0 | Ir=N
+seq=N | tid=1 | event=EXIT_FN | fn=do_throw(int) | obj=test_exception.bin | file=test_exception.cpp | line=0 | Ir=N
+seq=N | tid=1 | event=EXIT_FN | fn=thrower(int) | obj=test_exception.bin | file=test_exception.cpp | line=0 | Ir=N
+seq=N | tid=1 | event=EXIT_FN | fn=catcher(int) | obj=test_exception.bin | file=test_exception.cpp | line=0 | Ir=N
 seq=N | tid=1 | event=MARKER | marker=end
