@@ -1,0 +1,5 @@
+prereq: ../../tracegrind/scripts/tracegrind-analyzer --help 2>/dev/null
+prog: test_exception.bin
+vgopts: --tracegrind-out-file=tracegrind.out.test_exception --instr-atstart=no
+post: ../../tracegrind/scripts/tracegrind-analyzer tracegrind.out.test_exception.msgpack.lz4 | ./filter_trace | grep -E '(Format |Schema |Event Schemas|Showing |MARKER|fn=catcher|fn=thrower|fn=do_throw)'
+cleanup: rm -f tracegrind.out.test_exception.msgpack.lz4
