@@ -830,6 +830,21 @@ void TG_(setup_bbcc)(BB* bb)
   }
   
   TG_(current_state).bbcc = bbcc;
+
+  /* Check for inline function transition */
+  if (TG_(current_state).collect) {
+      thread_info* ti = TG_(get_current_thread)();
+      if (ti && bb->inl_fn != ti->cur_inl_fn) {
+          if (ti->cur_inl_fn != NULL) {
+              TG_(trace_emit_exit_inlined)(TG_(current_tid), bb, ti->cur_inl_fn);
+          }
+          if (bb->inl_fn != NULL) {
+              TG_(trace_emit_enter_inlined)(TG_(current_tid), bb);
+          }
+          ti->cur_inl_fn = bb->inl_fn;
+      }
+  }
+
   /* Even though this will be set in instrumented code directly before
    * side exits, it needs to be set to 0 here in case an exception
    * happens in first instructions of the BB */

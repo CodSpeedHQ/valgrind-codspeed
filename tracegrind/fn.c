@@ -593,6 +593,14 @@ fn_node* TG_(get_fn_node)(BB* bb)
                          &dirname, &filename, &fnname, &line_num, &di);
 
     DiEpoch ep = VG_(current_DiEpoch)();
+
+    /* Check if BB start address is in inlined code */
+    {
+        const HChar* inl_fn_name = NULL;
+        VG_(get_inline_fnname)(ep, bb_addr(bb), &inl_fn_name);
+        bb->inl_fn = inl_fn_name;  /* NULL if not inlined */
+    }
+
     if (0 == VG_(strcmp)(fnname, "???")) {
 	int p;
         static HChar buf[32];  // for sure large enough

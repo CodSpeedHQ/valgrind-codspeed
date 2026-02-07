@@ -7,6 +7,8 @@ Event Schemas (discriminated union):
   1 (ENTER): ['seq', 'tid', 'event', 'fn', 'obj', 'file', 'line', 'Ir']
   2 (EXIT): ['seq', 'tid', 'event', 'fn', 'obj', 'file', 'line', 'Ir']
   3 (FORK): ['seq', 'tid', 'event', 'child_pid']
+  4 (ENTER_INLINED): ['seq', 'tid', 'event', 'fn', 'obj', 'file', 'line', 'Ir']
+  5 (EXIT_INLINED): ['seq', 'tid', 'event', 'fn', 'obj', 'file', 'line', 'Ir']
 
 Total rows: N
 
@@ -16,3 +18,4 @@ Events by type:
 
 Threads: 1
 Sequence range: N - N
+

@@ -1458,10 +1458,6 @@ static Bool cachesim_parse_opt(const HChar* arg)
    else if VG_BOOL_CLO(arg, "--simulate-sectors", clo_simulate_sectors)   {}
 
    else if VG_BOOL_CLO(arg, "--cacheuse", clo_collect_cacheuse) {
-      if (clo_collect_cacheuse) {
-         /* Use counters only make sense with fine dumping */
-         TG_(clo).dump_instr = True;
-      }
    }
 
    else if (VG_(str_clo_cache_opt)(arg,

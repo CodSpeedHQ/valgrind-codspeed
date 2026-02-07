@@ -116,7 +116,7 @@ static void msgpack_write_header(void)
 
     /* version */
     msgpack_write_key(&hdr, "version");
-    msgpack_write_uint(&hdr, 2);
+    msgpack_write_uint(&hdr, 3);
 
     /* format */
     msgpack_write_key(&hdr, "format");
@@ -124,7 +124,7 @@ static void msgpack_write_header(void)
 
     /* event_schemas - discriminated union: each event type has its own schema */
     msgpack_write_key(&hdr, "event_schemas");
-    msgpack_write_map_header(&hdr, 4);  /* 4 event types: MARKER, ENTER, EXIT, FORK */
+    msgpack_write_map_header(&hdr, 6);  /* 6 event types: MARKER, ENTER, EXIT, FORK, ENTER_INLINED, EXIT_INLINED */
 
     /* Event type 0 (MARKER) schema */
     msgpack_write_key(&hdr, "0");
@@ -156,6 +156,20 @@ static void msgpack_write_header(void)
     msgpack_write_str(&hdr, "event", -1);
     msgpack_write_str(&hdr, "child_pid", -1);
 
+    /* Event type 4 (ENTER_INLINED) schema - same columns as ENTER/EXIT */
+    msgpack_write_key(&hdr, "4");
+    msgpack_write_array_header(&hdr, mp_state.ncols);
+    for (Int i = 0; i < mp_state.ncols; i++) {
+        msgpack_write_str(&hdr, mp_state.col_names[i], -1);
+    }
+
+    /* Event type 5 (EXIT_INLINED) schema - same columns as ENTER/EXIT */
+    msgpack_write_key(&hdr, "5");
+    msgpack_write_array_header(&hdr, mp_state.ncols);
+    for (Int i = 0; i < mp_state.ncols; i++) {
+        msgpack_write_str(&hdr, mp_state.col_names[i], -1);
+    }
+
     /* Compress and write header chunk */
     SizeT src_size = hdr.size;
     SizeT dst_capacity = tg_lz4_compress_bound(src_size);
@@ -164,8 +178,8 @@ static void msgpack_write_header(void)
     SizeT compressed_size = tg_lz4_compress(
         compressed, dst_capacity, hdr.data, src_size);
 
-    /* Magic + version (8 bytes): "TGMP" + version(4) - version 2 */
-    UChar magic[8] = {'T', 'G', 'M', 'P', 0x02, 0x00, 0x00, 0x00};
+    /* Magic + version (8 bytes): "TGMP" + version(4) - version 3 */
+    UChar magic[8] = {'T', 'G', 'M', 'P', 0x03, 0x00, 0x00, 0x00};
     VG_(write)(TG_(trace_out).fd, magic, 8);
 
     /* Header chunk size (4 bytes uncompressed, 4 bytes compressed) */
@@ -435,6 +449,92 @@ void TG_(trace_emit_sample)(ThreadId tid, Bool is_enter,
     Int event_val = is_enter ? TG_EV_ENTER : TG_EV_EXIT;
 
     msgpack_add_row(TG_(trace_out).seq, (Int)tid, event_val,
+                    fn_name, obj_name, file_name, (Int)line,
+                    deltas, es->size);
+}
+
+void TG_(trace_emit_enter_inlined)(ThreadId tid, BB* bb)
+{
+    Int i;
+
+    if (!TG_(trace_out).initialized) return;
+    if (TG_(trace_out).fd < 0) return;
+
+    thread_info* ti = TG_(get_current_thread)();
+    if (!ti) return;
+
+    EventSet* es = TG_(sets).full;
+    FullCost current_cost = TG_(current_state).cost;
+
+    if (!ti->last_sample_cost) {
+        ti->last_sample_cost = TG_(get_eventset_cost)(es);
+        TG_(init_cost)(es, ti->last_sample_cost);
+    }
+
+    TG_(trace_out).seq++;
+
+    const HChar* fn_name = bb->inl_fn;
+    const HChar* obj_name = bb->obj ? bb->obj->name : "???";
+    const HChar* file_name = (bb->fn && bb->fn->file) ? bb->fn->file->name : "???";
+    UInt line = bb->line;
+
+    ULong deltas[64];
+    tl_assert(es->size <= 64);
+    if (current_cost && ti->last_sample_cost) {
+        for (i = 0; i < es->size; i++) {
+            deltas[i] = current_cost[i] - ti->last_sample_cost[i];
+        }
+        TG_(copy_cost)(es, ti->last_sample_cost, current_cost);
+    } else {
+        for (i = 0; i < es->size; i++) {
+            deltas[i] = 0;
+        }
+    }
+
+    msgpack_add_row(TG_(trace_out).seq, (Int)tid, TG_EV_ENTER_INLINED,
+                    fn_name, obj_name, file_name, (Int)line,
+                    deltas, es->size);
+}
+
+void TG_(trace_emit_exit_inlined)(ThreadId tid, BB* bb, const HChar* inl_fn)
+{
+    Int i;
+
+    if (!TG_(trace_out).initialized) return;
+    if (TG_(trace_out).fd < 0) return;
+
+    thread_info* ti = TG_(get_current_thread)();
+    if (!ti) return;
+
+    EventSet* es = TG_(sets).full;
+    FullCost current_cost = TG_(current_state).cost;
+
+    if (!ti->last_sample_cost) {
+        ti->last_sample_cost = TG_(get_eventset_cost)(es);
+        TG_(init_cost)(es, ti->last_sample_cost);
+    }
+
+    TG_(trace_out).seq++;
+
+    const HChar* fn_name = inl_fn;
+    const HChar* obj_name = bb->obj ? bb->obj->name : "???";
+    const HChar* file_name = (bb->fn && bb->fn->file) ? bb->fn->file->name : "???";
+    UInt line = bb->line;
+
+    ULong deltas[64];
+    tl_assert(es->size <= 64);
+    if (current_cost && ti->last_sample_cost) {
+        for (i = 0; i < es->size; i++) {
+            deltas[i] = current_cost[i] - ti->last_sample_cost[i];
+        }
+        TG_(copy_cost)(es, ti->last_sample_cost, current_cost);
+    } else {
+        for (i = 0; i < es->size; i++) {
+            deltas[i] = 0;
+        }
+    }
+
+    msgpack_add_row(TG_(trace_out).seq, (Int)tid, TG_EV_EXIT_INLINED,
                     fn_name, obj_name, file_name, (Int)line,
                     deltas, es->size);
 }

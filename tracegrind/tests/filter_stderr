@@ -5,7 +5,7 @@ dir=`dirname $0`
 $dir/../../tests/filter_stderr_basic                |
 
 # Remove "Tracegrind, ..." line and the following copyright line.
-sed "/^Tracegrind, a call-graph generating cache profiler/ , /./ d" |
+sed "/^Tracegrind, a streaming trace cache profiler/ , /./ d" |
 
 # Remove pointer to tracegrind_control
 sed "/^For interactive control,.*$/d" |
@@ -33,4 +33,4 @@ sed "/warning: specified LL cache: line_size .*$/d" |
 sed "/warning: simulated LL cache: line_size .*$/d" |
 
 # Remove trace output file path messages
-sed "/^Trace output to /d"
+sed "/^Streaming trace output to /d"

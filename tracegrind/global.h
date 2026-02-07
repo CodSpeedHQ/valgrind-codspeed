@@ -81,10 +81,12 @@ typedef enum {
 
 /* Trace event types */
 typedef enum {
-   TG_EV_MARKER = 0,
-   TG_EV_ENTER  = 1,
-   TG_EV_EXIT   = 2,
-   TG_EV_FORK   = 3
+   TG_EV_MARKER         = 0,
+   TG_EV_ENTER          = 1,
+   TG_EV_EXIT           = 2,
+   TG_EV_FORK           = 3,
+   TG_EV_ENTER_INLINED  = 4,
+   TG_EV_EXIT_INLINED   = 5
 } TraceEventType;
 
 typedef struct _CommandLineOptions CommandLineOptions;
@@ -142,7 +144,7 @@ struct _Statistics {
   ULong bb_executions;
 
   Int  context_counter;
-  Int  bb_retranslations;  
+  Int  bb_retranslations;
 
   Int  distinct_objs;
   Int  distinct_files;
@@ -238,7 +240,7 @@ struct _jCC {
 };
 
 
-/* 
+/*
  * Info for one instruction of a basic block.
  */
 typedef struct _InstrInfo InstrInfo;
@@ -284,12 +286,12 @@ struct _BB {
 
   VgSectKind sect_kind;  /* section of this BB, e.g. PLT */
   UInt       instr_count;
-  
+
   /* filled by TG_(get_fn_node) if debug info is available */
   fn_node*   fn;          /* debug info for this BB */
   UInt       line;
   Bool       is_entry;    /* True if this BB is a function entry */
-        
+
   BBCC*      bbcc_list;  /* BBCCs for same BB (see next_bbcc in BBCC) */
   BBCC*      last_bbcc;  /* Temporary: Cached for faster access (LRU) */
 
@@ -298,6 +300,8 @@ struct _BB {
   CJmpInfo*  jmp;         /* array of info for condition jumps,
 			   * allocated directly after this struct */
   Bool       cjmp_inverted; /* is last side exit actually fall through? */
+
+  const HChar* inl_fn;    /* inlined function name at BB start, or NULL */
 
   UInt       instr_len;
   UInt       cost_count;
@@ -365,12 +369,12 @@ struct _BBCC {
 			    * recursion BBCCs. Shared. */
     BBCC*    next_bbcc;    /* Chain of BBCCs for same BB */
     BBCC*    lru_next_bbcc; /* BBCC executed next the last time */
-    
+
     jCC*     lru_from_jcc; /* Temporary: Cached for faster access (LRU) */
     jCC*     lru_to_jcc;   /* Temporary: Cached for faster access (LRU) */
-    FullCost skipped;      /* cost for skipped functions called from 
+    FullCost skipped;      /* cost for skipped functions called from
 			    * jmp_addr. Allocated lazy */
-    
+
     BBCC*    next;         /* entry chain in hash */
     ULong*   cost;         /* start of 64bit costs for this BBCC */
     ULong    ecounter_sum; /* execution counter for first instruction of BB */
@@ -432,7 +436,7 @@ struct _obj_node {
  *
  * <nonskipped> is 0 if the function called is not skipped (usual case).
  * Otherwise, it is the last non-skipped BBCC. This one gets all
- * the calls to non-skipped functions and all costs in skipped 
+ * the calls to non-skipped functions and all costs in skipped
  * instructions.
  */
 struct _call_entry {
@@ -464,14 +468,14 @@ struct _exec_state {
   /* the signum of the handler, 0 for main thread context
    */
   Int sig;
-  
+
   /* the old call stack pointer at entering the signal handler */
   Int orig_sp;
-  
+
   FullCost cost;
   Bool     collect;
   Context* cxt;
-  
+
   /* number of conditional jumps passed in last BB */
   Int   jmps_passed;
   BBCC* bbcc;      /* last BB executed */
@@ -491,7 +495,7 @@ typedef struct _cxt_hash cxt_hash;
 struct _cxt_hash {
   UInt size, entries;
   Context** table;
-};  
+};
 
 /* Thread specific state structures, i.e. parts of a thread state.
  * There are variables for the current state of each part,
@@ -540,7 +544,7 @@ struct _exec_stack {
   exec_state* entry[MAX_SIGHANDLERS];
 };
 
-/* Thread State 
+/* Thread State
  *
  * This structure stores thread specific info while a thread is *not*
  * running. See function switch_thread() for save/restore on thread switch.
@@ -562,6 +566,9 @@ struct _thread_info {
   /* CSV trace: per-thread snapshot of cost at last sample emission */
   FullCost last_sample_cost;
 
+  /* Inline tracking: current inlined function name (NULL if not in inlined code) */
+  const HChar* cur_inl_fn;
+
   /* thread specific data structure containers */
   fn_array fn_active;
   jcc_hash jccs;
@@ -580,7 +587,7 @@ struct cachesim_if
     void (*clear)(void);
     void (*printstat)(Int,Int,Int);
     void (*finish)(void);
-    
+
     void (*log_1I0D)(InstrInfo*) VG_REGPARM(1);
     void (*log_2I0D)(InstrInfo*, InstrInfo*) VG_REGPARM(2);
     void (*log_3I0D)(InstrInfo*, InstrInfo*, InstrInfo*) VG_REGPARM(3);
@@ -731,6 +738,8 @@ void TG_(run_post_signal_on_call_stack_bottom)(void);
 void TG_(trace_open_output)(void);
 void TG_(trace_reopen_child)(void);
 void TG_(trace_emit_sample)(ThreadId tid, Bool is_enter, fn_node* fn);
+void TG_(trace_emit_enter_inlined)(ThreadId tid, BB* bb);
+void TG_(trace_emit_exit_inlined)(ThreadId tid, BB* bb, const HChar* inl_fn);
 void TG_(trace_emit_fork)(ThreadId tid, Int child_pid);
 void TG_(trace_emit_marker)(ThreadId tid, const HChar* marker);
 void TG_(trace_close_output)(void);

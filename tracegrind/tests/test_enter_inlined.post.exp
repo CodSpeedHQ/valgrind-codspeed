@@ -12,6 +12,8 @@ Event Schemas (discriminated union):
 
 Showing N of N rows
 seq=N | tid=1 | event=MARKER | marker=start
-seq=N | tid=1 | event=ENTER | fn=not_inlined_work | obj=test_inline.bin | file=test_inline.c | line=0 | Ir=N
-seq=N | tid=1 | event=EXIT | fn=not_inlined_work | obj=test_inline.bin | file=test_inline.c | line=0 | Ir=N
+seq=N | tid=1 | event=ENTER | fn=not_inlined_caller | obj=test_enter_inlined.bin | file=test_enter_inlined.c | line=0 | Ir=N
+seq=N | tid=1 | event=ENTER_INLINED | fn=inlined_work | obj=test_enter_inlined.bin | file=test_enter_inlined.c | line=10 | Ir=N
+seq=N | tid=1 | event=EXIT_INLINED | fn=inlined_work | obj=test_enter_inlined.bin | file=test_enter_inlined.c | line=10 | Ir=N
+seq=N | tid=1 | event=EXIT | fn=not_inlined_caller | obj=test_enter_inlined.bin | file=test_enter_inlined.c | line=0 | Ir=N
 seq=N | tid=1 | event=MARKER | marker=end
