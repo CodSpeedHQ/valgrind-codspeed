@@ -21,6 +21,7 @@ check_PROGRAMS = \
 	test_tailcall.bin \
 	test_recursion.bin \
 	test_thread_create.bin \
+	test_thread_interleave.bin \
 	test_syscall.bin
 
 AM_CPPFLAGS += -I$(top_srcdir)/tracegrind
@@ -46,6 +47,8 @@ test_tailcall_bin_CFLAGS = $(AM_CFLAGS) -O2 -g
 test_recursion_bin_SOURCES = test_recursion.c
 test_thread_create_bin_SOURCES = test_thread_create.c
 test_thread_create_bin_LDADD = -lpthread
+test_thread_interleave_bin_SOURCES = test_thread_interleave.c
+test_thread_interleave_bin_LDADD = -lpthread
 test_syscall_bin_SOURCES = test_syscall.c
 
 EXTRA_DIST = \
@@ -63,5 +66,6 @@ EXTRA_DIST = \
 	test_tailcall.vgtest test_tailcall.stderr.exp test_tailcall.post.exp \
 	test_recursion.vgtest test_recursion.stderr.exp test_recursion.post.exp \
 	test_thread_create.vgtest test_thread_create.stderr.exp test_thread_create.post.exp \
+	test_thread_interleave.vgtest test_thread_interleave.stderr.exp test_thread_interleave.post.exp \
 	test_syscall.vgtest test_syscall.stderr.exp test_syscall.post.exp \
 	test_schema.vgtest test_schema.stderr.exp test_schema.post.exp
