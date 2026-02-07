@@ -92,6 +92,13 @@ def runner(request):
     return request.config._valgrind_runner
 
 
+CACHE_SIM_OPTIONS = [
+    "--cache-sim=yes",
+    "--I1=32768,8,64",
+    "--D1=32768,8,64",
+    "--LL=8388608,16,64",
+]
+
 def pytest_generate_tests(metafunc):
     """Parametrize tests with valgrind configurations."""
     if "tool_and_args" in metafunc.fixturenames:
@@ -103,61 +110,56 @@ def pytest_generate_tests(metafunc):
         # Format: (tool, args, config_name)
         all_configs = [
             # Callgrind configurations
-            ("callgrind", ["--read-inline-info=no"], "callgrind/no-inline"),
-            ("callgrind", ["--read-inline-info=yes"], "callgrind/inline"),
+            ("callgrind", ["--read-inline-info=no"], "cg/no-inline"),
+            ("callgrind", ["--read-inline-info=yes"], "cg/inline"),
             (
                 "callgrind",
                 [
+                    *CACHE_SIM_OPTIONS,
                     "--trace-children=yes",
-                    "--cache-sim=yes",
-                    "--I1=32768,8,64",
-                    "--D1=32768,8,64",
-                    "--LL=8388608,16,64",
                     "--collect-systime=nsec",
                     "--compress-strings=no",
                     "--combine-dumps=yes",
                     "--dump-line=no",
                     "--read-inline-info=yes",
                 ],
-                "callgrind/full-with-inline",
+                "cg/full-inline",
             ),
             (
                 "callgrind",
                 [
+                    *CACHE_SIM_OPTIONS,
                     "--trace-children=yes",
-                    "--cache-sim=yes",
-                    "--I1=32768,8,64",
-                    "--D1=32768,8,64",
-                    "--LL=8388608,16,64",
                     "--collect-systime=nsec",
                     "--compress-strings=no",
                     "--combine-dumps=yes",
                     "--dump-line=no",
+                    "--read-inline-info=no",
                 ],
-                "callgrind/full-no-inline",
+                "cg/full-no-inline",
             ),
             # Tracegrind configurations (only available in codspeed fork)
-            ("tracegrind", [], "tracegrind/default"),
+            ("tracegrind", ["--read-inline-info=no"], "tg/no-inline"),
+            ("tracegrind", ["--read-inline-info=yes"], "tg/inline"),
             (
                 "tracegrind",
                 [
-                    "--cache-sim=yes",
-                    "--I1=32768,8,64",
-                    "--D1=32768,8,64",
-                    "--LL=8388608,16,64",
+                    *CACHE_SIM_OPTIONS,
+                    "--trace-children=yes",
+                    "--collect-systime=nsec",
+                    "--read-inline-info=no",
                 ],
-                "tracegrind/cache-sim",
+                "tg/full-no-inline",
             ),
             (
                 "tracegrind",
                 [
-                    "--cache-sim=yes",
-                    "--I1=32768,8,64",
-                    "--D1=32768,8,64",
-                    "--LL=8388608,16,64",
+                    *CACHE_SIM_OPTIONS,
+                    "--trace-children=yes",
                     "--collect-systime=nsec",
+                    "--read-inline-info=yes",
                 ],
-                "tracegrind/cache-sim+systime",
+                "tg/full-inline",
             ),
         ]
 
@@ -174,11 +176,14 @@ def pytest_generate_tests(metafunc):
         # If the valgrind version is from CodSpeed, we don't want to display the exact version
         # to allow comparison against older versions.
         if ".codspeed" in runner.valgrind_version:
-            runner.valgrind_version = "valgrind.codspeed"
+            runner.valgrind_version = "codspeed"
+        # Clean valgrind version names
+        else:
+            runner.valgrind_version.removeprefix("valgrind-")
 
         # Create test IDs with format: valgrind-version, command, config-name
         test_ids = [
-            f"{runner.valgrind_version}, {runner.cmd}, {config_name}"
+            f"{runner.valgrind_version}/{config_name}, {runner.cmd}"
             for _, _, config_name in configs
         ]
 
@@ -243,7 +248,7 @@ Examples:
             config._valgrind_runner = runner
 
     exit_code = pytest.main(
-        [__file__, "-v", "--codspeed", "--codspeed-warmup-time=0", "--codspeed-max-time=5"],
+        [__file__, "-v", "--codspeed", "--codspeed-warmup-time=0", "--codspeed-max-time=30"],
         plugins=[RunnerPlugin()],
     )
     if exit_code != 0 and exit_code != 5:
