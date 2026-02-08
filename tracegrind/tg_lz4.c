@@ -86,8 +86,9 @@ SizeT tg_lz4_compress_bound(SizeT src_size)
 SizeT tg_lz4_compress(void* dst, SizeT dst_capacity,
                       const void* src, SizeT src_size)
 {
-    int result = LZ4_compress_default((const char*)src, (char*)dst,
-                                      (int)src_size, (int)dst_capacity);
+    int result = LZ4_compress_fast((const char*)src, (char*)dst,
+                                   (int)src_size, (int)dst_capacity,
+                                   2 /* acceleration */);
     if (result <= 0) {
         return 0;
     }

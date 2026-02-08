@@ -389,6 +389,7 @@ struct _BBCC {
 
 struct _fn_node {
   HChar*     name;
+  UInt       name_len;
   UInt       number;
   Context*   last_cxt; /* LRU info */
   Context*   pure_cxt; /* the context with only the function itself */
@@ -415,6 +416,7 @@ struct _fn_node {
 
 struct _file_node {
    HChar*     name;
+   UInt       name_len;
    fn_node*   fns[N_FN_ENTRIES];
    obj_node*  obj;
    file_node* next;
@@ -426,6 +428,7 @@ struct _file_node {
  */
 struct _obj_node {
    const HChar* name;
+   UInt       name_len;
    UInt       last_slash_pos;
 
    Addr       start;  /* Start address of text segment mapping */

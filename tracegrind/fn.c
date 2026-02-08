@@ -350,6 +350,7 @@ obj_node* new_obj_node(DebugInfo* di, obj_node* next)
 	if (obj->name[i]=='/') obj->last_slash_pos = i+1;
 	i++;
    }
+   obj->name_len = i;
 
    if (runtime_resolve_addrs == 0) search_runtime_resolve(obj);
 
@@ -388,6 +389,7 @@ file_node* new_file_node(const HChar *filename,
   file_node* file = (file_node*) TG_MALLOC("cl.fn.nfn.1",
                                            sizeof(file_node));
   file->name  = VG_(strdup)("cl.fn.nfn.2", filename);
+  file->name_len = VG_(strlen)(filename);
   for (i = 0; i < N_FN_ENTRIES; i++) {
     file->fns[i] = NULL;
   }
@@ -438,6 +440,7 @@ fn_node* new_fn_node(const HChar *fnname,
     fn_node* fn = (fn_node*) TG_MALLOC("cl.fn.nfnnd.1",
                                          sizeof(fn_node));
     fn->name = VG_(strdup)("cl.fn.nfnnd.2", fnname);
+    fn->name_len = VG_(strlen)(fnname);
 
     TG_(stat).distinct_fns++;
     fn->number   = TG_(stat).distinct_fns;

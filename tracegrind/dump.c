@@ -292,8 +292,10 @@ static void msgpack_init_state(void)
 
 /* Add an ENTER/EXIT row to the msgpack output */
 static void msgpack_add_row(ULong seq, Int tid, Int event,
-                            const HChar* fn_name, const HChar* obj_name,
-                            const HChar* file_name, Int line,
+                            const HChar* fn_name, Int fn_len,
+                            const HChar* obj_name, Int obj_len,
+                            const HChar* file_name, Int file_len,
+                            Int line,
                             const ULong* deltas, Int n_deltas)
 {
     /* Each row is a msgpack array: 7 fixed + 1 counters sub-array */
@@ -303,9 +305,9 @@ static void msgpack_add_row(ULong seq, Int tid, Int event,
     msgpack_write_uint(&mp_state.buf, seq);
     msgpack_write_int(&mp_state.buf, tid);
     msgpack_write_int(&mp_state.buf, event);
-    msgpack_write_str(&mp_state.buf, fn_name, -1);
-    msgpack_write_str(&mp_state.buf, obj_name, -1);
-    msgpack_write_str(&mp_state.buf, file_name, -1);
+    msgpack_write_str(&mp_state.buf, fn_name, fn_len);
+    msgpack_write_str(&mp_state.buf, obj_name, obj_len);
+    msgpack_write_str(&mp_state.buf, file_name, file_len);
     msgpack_write_int(&mp_state.buf, line);
 
     /* Counters sub-array */
@@ -473,12 +475,35 @@ void TG_(trace_emit_sample)(ThreadId tid, Bool is_enter,
 
     TG_(trace_out).seq++;
 
-    /* Resolve function info */
-    const HChar* fn_name = fn ? fn->name : "???";
-    const HChar* obj_name = (fn && fn->file && fn->file->obj)
-                            ? fn->file->obj->name : "???";
-    const HChar* file_name = (fn && fn->file) ? fn->file->name : "???";
-    UInt line = 0;
+    /* Resolve function info with cached lengths */
+    const HChar* fn_name;
+    Int fn_len;
+    const HChar* obj_name;
+    Int obj_len;
+    const HChar* file_name;
+    Int file_len;
+
+    if (fn) {
+        fn_name = fn->name;
+        fn_len = (Int)fn->name_len;
+        if (fn->file) {
+            file_name = fn->file->name;
+            file_len = (Int)fn->file->name_len;
+            if (fn->file->obj) {
+                obj_name = fn->file->obj->name;
+                obj_len = (Int)fn->file->obj->name_len;
+            } else {
+                obj_name = "???"; obj_len = 3;
+            }
+        } else {
+            file_name = "???"; file_len = 3;
+            obj_name = "???"; obj_len = 3;
+        }
+    } else {
+        fn_name = "???"; fn_len = 3;
+        obj_name = "???"; obj_len = 3;
+        file_name = "???"; file_len = 3;
+    }
 
     /* Compute deltas for all event counters */
     ULong deltas[64]; /* es->size is always small */
@@ -497,7 +522,8 @@ void TG_(trace_emit_sample)(ThreadId tid, Bool is_enter,
     Int event_val = is_enter ? TG_EV_ENTER_FN : TG_EV_EXIT_FN;
 
     msgpack_add_row(TG_(trace_out).seq, (Int)tid, event_val,
-                    fn_name, obj_name, file_name, (Int)line,
+                    fn_name, fn_len, obj_name, obj_len,
+                    file_name, file_len, 0,
                     deltas, es->size);
 }
 
@@ -522,9 +548,24 @@ void TG_(trace_emit_enter_inlined)(ThreadId tid, BB* bb, const HChar* inl_fn)
     TG_(trace_out).seq++;
 
     const HChar* fn_name = inl_fn;
-    const HChar* obj_name = bb->obj ? bb->obj->name : "???";
-    const HChar* file_name = (bb->fn && bb->fn->file) ? bb->fn->file->name : "???";
-    UInt line = bb->line;
+    Int fn_len = -1; /* inlined fn names not cached, use strlen */
+    const HChar* obj_name;
+    Int obj_len;
+    const HChar* file_name;
+    Int file_len;
+
+    if (bb->obj) {
+        obj_name = bb->obj->name;
+        obj_len = (Int)bb->obj->name_len;
+    } else {
+        obj_name = "???"; obj_len = 3;
+    }
+    if (bb->fn && bb->fn->file) {
+        file_name = bb->fn->file->name;
+        file_len = (Int)bb->fn->file->name_len;
+    } else {
+        file_name = "???"; file_len = 3;
+    }
 
     ULong deltas[64];
     tl_assert(es->size <= 64);
@@ -540,7 +581,8 @@ void TG_(trace_emit_enter_inlined)(ThreadId tid, BB* bb, const HChar* inl_fn)
     }
 
     msgpack_add_row(TG_(trace_out).seq, (Int)tid, TG_EV_ENTER_INLINED_FN,
-                    fn_name, obj_name, file_name, (Int)line,
+                    fn_name, fn_len, obj_name, obj_len,
+                    file_name, file_len, (Int)bb->line,
                     deltas, es->size);
 }
 
@@ -565,9 +607,24 @@ void TG_(trace_emit_exit_inlined)(ThreadId tid, BB* bb, const HChar* inl_fn)
     TG_(trace_out).seq++;
 
     const HChar* fn_name = inl_fn;
-    const HChar* obj_name = bb->obj ? bb->obj->name : "???";
-    const HChar* file_name = (bb->fn && bb->fn->file) ? bb->fn->file->name : "???";
-    UInt line = bb->line;
+    Int fn_len = -1; /* inlined fn names not cached, use strlen */
+    const HChar* obj_name;
+    Int obj_len;
+    const HChar* file_name;
+    Int file_len;
+
+    if (bb->obj) {
+        obj_name = bb->obj->name;
+        obj_len = (Int)bb->obj->name_len;
+    } else {
+        obj_name = "???"; obj_len = 3;
+    }
+    if (bb->fn && bb->fn->file) {
+        file_name = bb->fn->file->name;
+        file_len = (Int)bb->fn->file->name_len;
+    } else {
+        file_name = "???"; file_len = 3;
+    }
 
     ULong deltas[64];
     tl_assert(es->size <= 64);
@@ -583,7 +640,8 @@ void TG_(trace_emit_exit_inlined)(ThreadId tid, BB* bb, const HChar* inl_fn)
     }
 
     msgpack_add_row(TG_(trace_out).seq, (Int)tid, TG_EV_EXIT_INLINED_FN,
-                    fn_name, obj_name, file_name, (Int)line,
+                    fn_name, fn_len, obj_name, obj_len,
+                    file_name, file_len, (Int)bb->line,
                     deltas, es->size);
 }
 
