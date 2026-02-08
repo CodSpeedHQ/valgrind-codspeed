@@ -30,39 +30,39 @@
 
 #define COSTCHUNK_SIZE 100000
 
-UInt TG_(costarray_entries) = 0;
-UInt TG_(costarray_chunks) = 0;
-static CostChunk* cost_chunk_base = 0;
-static CostChunk* cost_chunk_current = 0;
+UInt              TG_(costarray_entries) = 0;
+UInt              TG_(costarray_chunks)  = 0;
+static CostChunk* cost_chunk_base        = 0;
+static CostChunk* cost_chunk_current     = 0;
 
 ULong* TG_(get_costarray)(Int size)
 {
-  ULong* ptr;
+   ULong* ptr;
 
-  if (!cost_chunk_current ||
-      (cost_chunk_current->size - cost_chunk_current->used < size)) {
-    CostChunk* cc  = (CostChunk*) TG_MALLOC("cl.costs.gc.1",
-                                              sizeof(CostChunk) +
-					      COSTCHUNK_SIZE * sizeof(ULong));
-    TG_ASSERT(size < COSTCHUNK_SIZE);
+   if (!cost_chunk_current ||
+       (cost_chunk_current->size - cost_chunk_current->used < size)) {
+      CostChunk* cc = (CostChunk*)TG_MALLOC(
+         "cl.costs.gc.1", sizeof(CostChunk) + COSTCHUNK_SIZE * sizeof(ULong));
+      TG_ASSERT(size < COSTCHUNK_SIZE);
 
-    cc->size = COSTCHUNK_SIZE;
-    cc->used = 0;
-    cc->next = 0;
+      cc->size = COSTCHUNK_SIZE;
+      cc->used = 0;
+      cc->next = 0;
 
-    if (cost_chunk_current)
-      cost_chunk_current->next = cc;
-    cost_chunk_current = cc;
+      if (cost_chunk_current)
+         cost_chunk_current->next = cc;
+      cost_chunk_current = cc;
 
-    if (!cost_chunk_base) cost_chunk_base = cc;
+      if (!cost_chunk_base)
+         cost_chunk_base = cc;
 
-    TG_(costarray_chunks)++;
-  }
-  
-  ptr = &(cost_chunk_current->data[cost_chunk_current->used]);
-  cost_chunk_current->used += size;
+      TG_(costarray_chunks)++;
+   }
 
-  TG_(costarray_entries) += size;
+   ptr = &(cost_chunk_current->data[cost_chunk_current->used]);
+   cost_chunk_current->used += size;
 
-  return ptr;
+   TG_(costarray_entries) += size;
+
+   return ptr;
 }

@@ -6,8 +6,8 @@
  */
 
 #include "pub_tool_basics.h"
-#include "pub_tool_libcbase.h"
 #include "pub_tool_libcassert.h"
+#include "pub_tool_libcbase.h"
 #include "pub_tool_mallocfree.h"
 
 #include "tg_lz4.h"
@@ -49,19 +49,14 @@
 /*--- Memory allocation functions (LZ4_USER_MEMORY_FUNCTIONS) */
 /*------------------------------------------------------------*/
 
-void* LZ4_malloc(size_t s)
-{
-    return VG_(malloc)("tg.lz4", s);
-}
+void* LZ4_malloc(size_t s) { return VG_(malloc)("tg.lz4", s); }
 
-void* LZ4_calloc(size_t n, size_t s)
-{
-    return VG_(calloc)("tg.lz4", n, s);
-}
+void* LZ4_calloc(size_t n, size_t s) { return VG_(calloc)("tg.lz4", n, s); }
 
 void LZ4_free(void* p)
 {
-    if (p) VG_(free)(p);
+   if (p)
+      VG_(free)(p);
 }
 
 /*------------------------------------------------------------*/
@@ -80,17 +75,18 @@ void LZ4_free(void* p)
 
 SizeT tg_lz4_compress_bound(SizeT src_size)
 {
-    return LZ4_compressBound((int)src_size);
+   return LZ4_compressBound((int)src_size);
 }
 
-SizeT tg_lz4_compress(void* dst, SizeT dst_capacity,
-                      const void* src, SizeT src_size)
+SizeT tg_lz4_compress(void*       dst,
+                      SizeT       dst_capacity,
+                      const void* src,
+                      SizeT       src_size)
 {
-    int result = LZ4_compress_fast((const char*)src, (char*)dst,
-                                   (int)src_size, (int)dst_capacity,
-                                   2 /* acceleration */);
-    if (result <= 0) {
-        return 0;
-    }
-    return (SizeT)result;
+   int result = LZ4_compress_fast((const char*)src, (char*)dst, (int)src_size,
+                                  (int)dst_capacity, 2 /* acceleration */);
+   if (result <= 0) {
+      return 0;
+   }
+   return (SizeT)result;
 }

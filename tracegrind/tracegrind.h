@@ -73,15 +73,14 @@
    callgrind client request macros.
  */
 
-typedef
-   enum {
-      VG_USERREQ__DUMP_STATS = VG_USERREQ_TOOL_BASE('C','T'), // ignored
-      VG_USERREQ__ZERO_STATS, // ignored
-      VG_USERREQ__TOGGLE_COLLECT,
-      VG_USERREQ__ADD_MARKER,
-      VG_USERREQ__START_INSTRUMENTATION,
-      VG_USERREQ__STOP_INSTRUMENTATION
-   } Vg_TracegrindClientRequest;
+typedef enum {
+   VG_USERREQ__DUMP_STATS = VG_USERREQ_TOOL_BASE('C', 'T'), // ignored
+   VG_USERREQ__ZERO_STATS,                                  // ignored
+   VG_USERREQ__TOGGLE_COLLECT,
+   VG_USERREQ__ADD_MARKER,
+   VG_USERREQ__START_INSTRUMENTATION,
+   VG_USERREQ__STOP_INSTRUMENTATION
+} Vg_TracegrindClientRequest;
 
 /* Toggles collection state.
    The collection state specifies whether the happening of events
@@ -90,18 +89,17 @@ typedef
 
    Same as CALLGRIND_TOGGLE_COLLECT
    */
-#define TRACEGRIND_TOGGLE_COLLECT                                \
-  VALGRIND_DO_CLIENT_REQUEST_STMT(VG_USERREQ__TOGGLE_COLLECT,   \
-                                  0, 0, 0, 0, 0)
+#define TRACEGRIND_TOGGLE_COLLECT                                              \
+   VALGRIND_DO_CLIENT_REQUEST_STMT(VG_USERREQ__TOGGLE_COLLECT, 0, 0, 0, 0, 0)
 
 /* Add a named marker into the trace output. The argument is a string
    that will be recorded as a marker label.
 
    Same as CALLGRIND_DUMP_STATS_AT
    */
-#define TRACEGRIND_ADD_MARKER(marker_str)                           \
-  VALGRIND_DO_CLIENT_REQUEST_STMT(VG_USERREQ__ADD_MARKER,          \
-                                  marker_str, 0, 0, 0, 0)
+#define TRACEGRIND_ADD_MARKER(marker_str)                                      \
+   VALGRIND_DO_CLIENT_REQUEST_STMT(VG_USERREQ__ADD_MARKER, marker_str, 0, 0,   \
+                                   0, 0)
 
 /* Start full tracegrind instrumentation if not already switched on.
    When cache simulation is done, it will flush the simulated cache;
@@ -110,9 +108,9 @@ typedef
 
    Same as CALLGRIND_START_INSTRUMENTATION
    */
-#define TRACEGRIND_START_INSTRUMENTATION                              \
-  VALGRIND_DO_CLIENT_REQUEST_STMT(VG_USERREQ__START_INSTRUMENTATION, \
-                                  0, 0, 0, 0, 0)
+#define TRACEGRIND_START_INSTRUMENTATION                                       \
+   VALGRIND_DO_CLIENT_REQUEST_STMT(VG_USERREQ__START_INSTRUMENTATION, 0, 0, 0, \
+                                   0, 0)
 
 /* Stop full tracegrind instrumentation if not already switched off.
    This flushes Valgrinds translation cache, and does no additional
@@ -124,8 +122,8 @@ typedef
 
    Same as CALLGRIND_STOP_INSTRUMENTATION
    */
-#define TRACEGRIND_STOP_INSTRUMENTATION                               \
-  VALGRIND_DO_CLIENT_REQUEST_STMT(VG_USERREQ__STOP_INSTRUMENTATION,  \
-                                  0, 0, 0, 0, 0)
+#define TRACEGRIND_STOP_INSTRUMENTATION                                        \
+   VALGRIND_DO_CLIENT_REQUEST_STMT(VG_USERREQ__STOP_INSTRUMENTATION, 0, 0, 0,  \
+                                   0, 0)
 
 #endif /* __TRACEGRIND_H */

@@ -9,9 +9,9 @@
 #include "pub_tool_basics.h"
 
 typedef struct {
-    UChar* data;
-    Int    size;
-    Int    capacity;
+   UChar* data;
+   Int    size;
+   Int    capacity;
 } msgpack_buffer;
 
 void msgpack_init(msgpack_buffer* mb, Int capacity);

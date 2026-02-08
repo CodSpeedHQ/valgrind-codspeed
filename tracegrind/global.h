@@ -29,25 +29,24 @@
 #define TG_GLOBAL
 
 #include "pub_tool_basics.h"
-#include "pub_tool_vki.h"
-#include "pub_tool_vkiscnums.h"
+#include "pub_tool_clientstate.h"
 #include "pub_tool_debuginfo.h"
-#include "pub_tool_libcbase.h"
 #include "pub_tool_libcassert.h"
+#include "pub_tool_libcbase.h"
 #include "pub_tool_libcfile.h"
 #include "pub_tool_libcprint.h"
 #include "pub_tool_libcproc.h"
 #include "pub_tool_machine.h"
+#include "pub_tool_machine.h" // VG_(fnptr_to_fnentry)
 #include "pub_tool_mallocfree.h"
 #include "pub_tool_options.h"
 #include "pub_tool_tooliface.h"
+#include "pub_tool_vki.h"
+#include "pub_tool_vkiscnums.h"
 #include "pub_tool_xarray.h"
-#include "pub_tool_clientstate.h"
-#include "pub_tool_machine.h"      // VG_(fnptr_to_fnentry)
 
-#include "events.h" // defines TG_ macro
 #include "costs.h"
-
+#include "events.h" // defines TG_ macro
 
 /*------------------------------------------------------------*/
 /*--- Tracegrind compile options                           --- */
@@ -62,12 +61,11 @@
 /* Maximum depth of inline call stack tracking */
 #define TG_MAX_INL_DEPTH 16
 
-
 /*------------------------------------------------------------*/
 /*--- Command line options                                 ---*/
 /*------------------------------------------------------------*/
 
-#define DEFAULT_OUTFORMAT   "tracegrind.out.%p.msgpack.lz4"
+#define DEFAULT_OUTFORMAT "tracegrind.out.%p.msgpack.lz4"
 
 /* If and how to collect syscall time.
    systime_no : do not collect systime
@@ -84,45 +82,45 @@ typedef enum {
 
 /* Trace event types */
 typedef enum {
-   TG_EV_MARKER            = 0,
-   TG_EV_ENTER_FN          = 1,
-   TG_EV_EXIT_FN           = 2,
-   TG_EV_ENTER_INLINED_FN  = 3,
-   TG_EV_EXIT_INLINED_FN   = 4,
-   TG_EV_FORK              = 5,
-   TG_EV_THREAD_CREATE     = 6
+   TG_EV_MARKER           = 0,
+   TG_EV_ENTER_FN         = 1,
+   TG_EV_EXIT_FN          = 2,
+   TG_EV_ENTER_INLINED_FN = 3,
+   TG_EV_EXIT_INLINED_FN  = 4,
+   TG_EV_FORK             = 5,
+   TG_EV_THREAD_CREATE    = 6
 } TraceEventType;
 
 typedef struct _CommandLineOptions CommandLineOptions;
 struct _CommandLineOptions {
 
-  /* Output options */
-  const HChar* out_format;  /* Format string for tracegrind output file name */
+   /* Output options */
+   const HChar* out_format; /* Format string for tracegrind output file name */
 
-  /* Collection options */
-  Bool separate_threads; /* Separate threads in dump? */
-  Int  separate_callers; /* Separate dependent on how many callers? */
-  Int  separate_recursions; /* Max level of recursions to separate */
-  Bool skip_plt;         /* Skip functions in PLT section? */
+   /* Collection options */
+   Bool separate_threads;    /* Separate threads in dump? */
+   Int  separate_callers;    /* Separate dependent on how many callers? */
+   Int  separate_recursions; /* Max level of recursions to separate */
+   Bool skip_plt;            /* Skip functions in PLT section? */
 
-  Bool collect_atstart;  /* Start in collecting state ? */
-  Bool collect_jumps;    /* Collect (cond.) jumps in functions ? */
+   Bool collect_atstart; /* Start in collecting state ? */
+   Bool collect_jumps;   /* Collect (cond.) jumps in functions ? */
 
-  Collect_Systime collect_systime;  /* Collect time for system calls */
+   Collect_Systime collect_systime; /* Collect time for system calls */
 
-  Bool collect_bus;      /* Collect global bus events */
+   Bool collect_bus; /* Collect global bus events */
 
-  /* Instrument options */
-  Bool instrument_atstart;  /* Instrument at start? */
-  Bool simulate_cache;      /* Call into cache simulator ? */
-  Bool simulate_branch;     /* Call into branch prediction simulator ? */
+   /* Instrument options */
+   Bool instrument_atstart; /* Instrument at start? */
+   Bool simulate_cache;     /* Call into cache simulator ? */
+   Bool simulate_branch;    /* Call into branch prediction simulator ? */
 
-  /* Call graph generation */
-  Bool pop_on_jump;       /* Handle a jump between functions as ret+call */
+   /* Call graph generation */
+   Bool pop_on_jump; /* Handle a jump between functions as ret+call */
 
 #if TG_ENABLE_DEBUG
-  Int   verbose;
-  ULong verbose_start;
+   Int   verbose;
+   ULong verbose_start;
 #endif
 };
 
@@ -131,8 +129,7 @@ struct _CommandLineOptions {
 /*------------------------------------------------------------*/
 
 /* Minimum cache line size allowed */
-#define MIN_LINE_SIZE   16
-
+#define MIN_LINE_SIZE 16
 
 /*------------------------------------------------------------*/
 /*--- Statistics                                           ---*/
@@ -140,44 +137,43 @@ struct _CommandLineOptions {
 
 typedef struct _Statistics Statistics;
 struct _Statistics {
-  ULong call_counter;
-  ULong jcnd_counter;
-  ULong jump_counter;
-  ULong rec_call_counter;
-  ULong ret_counter;
-  ULong bb_executions;
+   ULong call_counter;
+   ULong jcnd_counter;
+   ULong jump_counter;
+   ULong rec_call_counter;
+   ULong ret_counter;
+   ULong bb_executions;
 
-  Int  context_counter;
-  Int  bb_retranslations;
+   Int context_counter;
+   Int bb_retranslations;
 
-  Int  distinct_objs;
-  Int  distinct_files;
-  Int  distinct_fns;
-  Int  distinct_contexts;
-  Int  distinct_bbs;
-  Int  distinct_jccs;
-  Int  distinct_bbccs;
-  Int  distinct_instrs;
-  Int  distinct_skips;
+   Int distinct_objs;
+   Int distinct_files;
+   Int distinct_fns;
+   Int distinct_contexts;
+   Int distinct_bbs;
+   Int distinct_jccs;
+   Int distinct_bbccs;
+   Int distinct_instrs;
+   Int distinct_skips;
 
-  Int  bb_hash_resizes;
-  Int  bbcc_hash_resizes;
-  Int  jcc_hash_resizes;
-  Int  cxt_hash_resizes;
-  Int  fn_array_resizes;
-  Int  call_stack_resizes;
-  Int  fn_stack_resizes;
+   Int bb_hash_resizes;
+   Int bbcc_hash_resizes;
+   Int jcc_hash_resizes;
+   Int cxt_hash_resizes;
+   Int fn_array_resizes;
+   Int call_stack_resizes;
+   Int fn_stack_resizes;
 
-  Int  full_debug_BBs;
-  Int  file_line_debug_BBs;
-  Int  fn_name_debug_BBs;
-  Int  no_debug_BBs;
-  Int  bbcc_lru_misses;
-  Int  jcc_lru_misses;
-  Int  cxt_lru_misses;
-  Int  bbcc_clones;
+   Int full_debug_BBs;
+   Int file_line_debug_BBs;
+   Int fn_name_debug_BBs;
+   Int no_debug_BBs;
+   Int bbcc_lru_misses;
+   Int jcc_lru_misses;
+   Int cxt_lru_misses;
+   Int bbcc_clones;
 };
-
 
 /*------------------------------------------------------------*/
 /*--- Structure declarations                               ---*/
@@ -198,18 +194,16 @@ typedef struct _thread_info thread_info;
 /* Cost arrays: aliases to arrays of 64-bit event counters */
 typedef ULong* FullCost;
 
-
 /* The types of control flow changes that can happen between
  * execution of two BBs in a thread.
  */
 typedef enum {
-  jk_None = 0,   /* no explicit change by a guest instruction */
-  jk_Jump,       /* regular jump */
-  jk_Call,
-  jk_Return,
-  jk_CondJump    /* conditional jump taken (only used as jCC type) */
+   jk_None = 0, /* no explicit change by a guest instruction */
+   jk_Jump,     /* regular jump */
+   jk_Call,
+   jk_Return,
+   jk_CondJump /* conditional jump taken (only used as jCC type) */
 } TgJumpKind;
-
 
 /* JmpCall cost center
  * for subroutine call (from->bb->jmp_addr => to->bb->addr)
@@ -232,40 +226,36 @@ typedef enum {
  */
 
 struct _jCC {
-  TgJumpKind jmpkind; /* jk_Call, jk_Jump, jk_CondJump */
-  jCC* next_hash;   /* for hash entry chain */
-  jCC* next_from;   /* next JCC from a BBCC */
-  BBCC *from, *to;  /* call arc from/to this BBCC */
-  UInt jmp;         /* jump no. in source */
+   TgJumpKind jmpkind;   /* jk_Call, jk_Jump, jk_CondJump */
+   jCC*       next_hash; /* for hash entry chain */
+   jCC*       next_from; /* next JCC from a BBCC */
+   BBCC *     from, *to; /* call arc from/to this BBCC */
+   UInt       jmp;       /* jump no. in source */
 
-  ULong call_counter; /* no wraparound with 64 bit */
+   ULong call_counter; /* no wraparound with 64 bit */
 
-  FullCost cost; /* simulator + user counters */
+   FullCost cost; /* simulator + user counters */
 };
-
 
 /*
  * Info for one instruction of a basic block.
  */
 typedef struct _InstrInfo InstrInfo;
 struct _InstrInfo {
-  UInt instr_offset;
-  UInt instr_size;
-  UInt cost_offset;
-  EventSet* eventset;
+   UInt      instr_offset;
+   UInt      instr_size;
+   UInt      cost_offset;
+   EventSet* eventset;
 };
-
-
 
 /*
  * Info for a side exit in a BB
  */
 typedef struct _CJmpInfo CJmpInfo;
 struct _CJmpInfo {
-  UInt instr;          /* instruction index for BB.instr array */
-  TgJumpKind jmpkind; /* jump kind when leaving BB at this side exit */
+   UInt       instr;   /* instruction index for BB.instr array */
+   TgJumpKind jmpkind; /* jump kind when leaving BB at this side exit */
 };
-
 
 /**
  * An instrumented basic block (BB).
@@ -284,36 +274,35 @@ struct _CJmpInfo {
  * BBCC is set by setup_bbcc.
  */
 struct _BB {
-  obj_node*  obj;         /* ELF object of BB */
-  PtrdiffT   offset;      /* offset of BB in ELF object file */
-  BB*        next;       /* chaining for a hash entry */
+   obj_node* obj;    /* ELF object of BB */
+   PtrdiffT  offset; /* offset of BB in ELF object file */
+   BB*       next;   /* chaining for a hash entry */
 
-  VgSectKind sect_kind;  /* section of this BB, e.g. PLT */
-  UInt       instr_count;
+   VgSectKind sect_kind; /* section of this BB, e.g. PLT */
+   UInt       instr_count;
 
-  /* filled by TG_(get_fn_node) if debug info is available */
-  fn_node*   fn;          /* debug info for this BB */
-  UInt       line;
-  Bool       is_entry;    /* True if this BB is a function entry */
+   /* filled by TG_(get_fn_node) if debug info is available */
+   fn_node* fn; /* debug info for this BB */
+   UInt     line;
+   Bool     is_entry; /* True if this BB is a function entry */
 
-  BBCC*      bbcc_list;  /* BBCCs for same BB (see next_bbcc in BBCC) */
-  BBCC*      last_bbcc;  /* Temporary: Cached for faster access (LRU) */
+   BBCC* bbcc_list; /* BBCCs for same BB (see next_bbcc in BBCC) */
+   BBCC* last_bbcc; /* Temporary: Cached for faster access (LRU) */
 
-  /* filled by TG_(instrument) if not seen before */
-  UInt       cjmp_count;  /* number of side exits */
-  CJmpInfo*  jmp;         /* array of info for condition jumps,
-			   * allocated directly after this struct */
-  Bool       cjmp_inverted; /* is last side exit actually fall through? */
+   /* filled by TG_(instrument) if not seen before */
+   UInt      cjmp_count; /* number of side exits */
+   CJmpInfo* jmp;        /* array of info for condition jumps,
+                          * allocated directly after this struct */
+   Bool cjmp_inverted;   /* is last side exit actually fall through? */
 
-  const HChar** inl_fns;  /* inlined fn names at BB start (outermost first), or NULL */
-  UInt       inl_depth;  /* number of entries in inl_fns */
+   const HChar**
+        inl_fns;   /* inlined fn names at BB start (outermost first), or NULL */
+   UInt inl_depth; /* number of entries in inl_fns */
 
-  UInt       instr_len;
-  UInt       cost_count;
-  InstrInfo  instr[0];   /* info on instruction sizes and costs */
+   UInt      instr_len;
+   UInt      cost_count;
+   InstrInfo instr[0]; /* info on instruction sizes and costs */
 };
-
-
 
 /**
  * Function context
@@ -331,23 +320,21 @@ struct _BB {
  * For each Context, recursion index and BB, there can be a BBCC.
  */
 struct _Context {
-    UInt size;        // number of function dependencies
-    UInt base_number; // for context compression & dump array
-    Context* next;    // entry chaining for hash
-    UWord hash;       // for faster lookup...
-    fn_node* fn[0];
+   UInt     size;        // number of function dependencies
+   UInt     base_number; // for context compression & dump array
+   Context* next;        // entry chaining for hash
+   UWord    hash;        // for faster lookup...
+   fn_node* fn[0];
 };
-
 
 /*
  * Cost info for a side exits from a BB
  */
 typedef struct _JmpData JmpData;
 struct _JmpData {
-    ULong ecounter; /* number of times the BB was left at this exit */
-    jCC*  jcc_list; /* JCCs used for this exit */
+   ULong ecounter; /* number of times the BB was left at this exit */
+   jCC*  jcc_list; /* JCCs used for this exit */
 };
-
 
 /*
  * Basic Block Cost Center
@@ -365,54 +352,53 @@ struct _JmpData {
  * They are distinguishable by their tag field.
  */
 struct _BBCC {
-    BB*      bb;           /* BB for this cost center */
+   BB* bb; /* BB for this cost center */
 
-    Context* cxt;          /* execution context of this BBCC */
-    ThreadId tid;          /* only for assertion check purpose */
-    UInt     rec_index;    /* Recursion index in rec->bbcc for this bbcc */
-    BBCC**   rec_array;    /* Variable sized array of pointers to
-			    * recursion BBCCs. Shared. */
-    BBCC*    next_bbcc;    /* Chain of BBCCs for same BB */
-    BBCC*    lru_next_bbcc; /* BBCC executed next the last time */
+   Context* cxt;        /* execution context of this BBCC */
+   ThreadId tid;        /* only for assertion check purpose */
+   UInt     rec_index;  /* Recursion index in rec->bbcc for this bbcc */
+   BBCC**   rec_array;  /* Variable sized array of pointers to
+                         * recursion BBCCs. Shared. */
+   BBCC* next_bbcc;     /* Chain of BBCCs for same BB */
+   BBCC* lru_next_bbcc; /* BBCC executed next the last time */
 
-    jCC*     lru_from_jcc; /* Temporary: Cached for faster access (LRU) */
-    jCC*     lru_to_jcc;   /* Temporary: Cached for faster access (LRU) */
-    FullCost skipped;      /* cost for skipped functions called from
-			    * jmp_addr. Allocated lazy */
+   jCC*     lru_from_jcc; /* Temporary: Cached for faster access (LRU) */
+   jCC*     lru_to_jcc;   /* Temporary: Cached for faster access (LRU) */
+   FullCost skipped;      /* cost for skipped functions called from
+                           * jmp_addr. Allocated lazy */
 
-    BBCC*    next;         /* entry chain in hash */
-    ULong*   cost;         /* start of 64bit costs for this BBCC */
-    ULong    ecounter_sum; /* execution counter for first instruction of BB */
-    JmpData  jmp[0];
+   BBCC*   next;         /* entry chain in hash */
+   ULong*  cost;         /* start of 64bit costs for this BBCC */
+   ULong   ecounter_sum; /* execution counter for first instruction of BB */
+   JmpData jmp[0];
 };
 
-
 struct _fn_node {
-  HChar*     name;
-  UInt       name_len;
-  UInt       number;
-  Context*   last_cxt; /* LRU info */
-  Context*   pure_cxt; /* the context with only the function itself */
-  file_node* file;     /* reverse mapping for 2nd hash */
-  fn_node* next;
+   HChar*     name;
+   UInt       name_len;
+   UInt       number;
+   Context*   last_cxt; /* LRU info */
+   Context*   pure_cxt; /* the context with only the function itself */
+   file_node* file;     /* reverse mapping for 2nd hash */
+   fn_node*   next;
 
-  Bool toggle_collect :1;
-  Bool skip :1;
-  Bool pop_on_jump : 1;
+   Bool toggle_collect : 1;
+   Bool skip : 1;
+   Bool pop_on_jump : 1;
 
-  Int  group;
-  Int  separate_callers;
-  Int  separate_recursions;
+   Int group;
+   Int separate_callers;
+   Int separate_recursions;
 #if TG_ENABLE_DEBUG
-  Int  verbosity; /* Stores old verbosity level while in function */
+   Int verbosity; /* Stores old verbosity level while in function */
 #endif
 };
 
 /* Quite arbitrary fixed hash sizes */
 
-#define   N_OBJ_ENTRIES         47
-#define  N_FILE_ENTRIES         53
-#define    N_FN_ENTRIES         87
+#define N_OBJ_ENTRIES  47
+#define N_FILE_ENTRIES 53
+#define N_FN_ENTRIES   87
 
 struct _file_node {
    HChar*     name;
@@ -428,12 +414,12 @@ struct _file_node {
  */
 struct _obj_node {
    const HChar* name;
-   UInt       name_len;
-   UInt       last_slash_pos;
+   UInt         name_len;
+   UInt         last_slash_pos;
 
-   Addr       start;  /* Start address of text segment mapping */
-   SizeT      size;   /* Length of mapping */
-   PtrdiffT   offset; /* Offset between symbol address and file offset */
+   Addr     start;  /* Start address of text segment mapping */
+   SizeT    size;   /* Length of mapping */
+   PtrdiffT offset; /* Offset between symbol address and file offset */
 
    file_node* files[N_FILE_ENTRIES];
    UInt       number;
@@ -448,16 +434,15 @@ struct _obj_node {
  * instructions.
  */
 struct _call_entry {
-    jCC* jcc;           /* jCC for this call */
-    FullCost enter_cost; /* cost event counters at entering frame */
-    Addr sp;            /* stack pointer directly after call */
-    Addr ret_addr;      /* address to which to return to
-			 * is 0 on a simulated call */
-    BBCC* nonskipped;   /* see above */
-    Context* cxt;       /* context before call */
-    Int fn_sp;          /* function stack index before call */
+   jCC*     jcc;        /* jCC for this call */
+   FullCost enter_cost; /* cost event counters at entering frame */
+   Addr     sp;         /* stack pointer directly after call */
+   Addr     ret_addr;   /* address to which to return to
+                         * is 0 on a simulated call */
+   BBCC*    nonskipped; /* see above */
+   Context* cxt;        /* context before call */
+   Int      fn_sp;      /* function stack index before call */
 };
-
 
 /*
  * Execution state of main thread or a running signal handler in
@@ -473,36 +458,36 @@ struct _call_entry {
 typedef struct _exec_state exec_state;
 struct _exec_state {
 
-  /* the signum of the handler, 0 for main thread context
-   */
-  Int sig;
+   /* the signum of the handler, 0 for main thread context
+    */
+   Int sig;
 
-  /* the old call stack pointer at entering the signal handler */
-  Int orig_sp;
+   /* the old call stack pointer at entering the signal handler */
+   Int orig_sp;
 
-  FullCost cost;
-  Bool     collect;
-  Context* cxt;
+   FullCost cost;
+   Bool     collect;
+   Context* cxt;
 
-  /* number of conditional jumps passed in last BB */
-  Int   jmps_passed;
-  BBCC* bbcc;      /* last BB executed */
-  BBCC* nonskipped;
+   /* number of conditional jumps passed in last BB */
+   Int   jmps_passed;
+   BBCC* bbcc; /* last BB executed */
+   BBCC* nonskipped;
 
-  Int call_stack_bottom; /* Index into fn_stack */
+   Int call_stack_bottom; /* Index into fn_stack */
 };
 
 /* Global state structures */
 typedef struct _bb_hash bb_hash;
 struct _bb_hash {
-  UInt size, entries;
-  BB** table;
+   UInt size, entries;
+   BB** table;
 };
 
 typedef struct _cxt_hash cxt_hash;
 struct _cxt_hash {
-  UInt size, entries;
-  Context** table;
+   UInt      size, entries;
+   Context** table;
 };
 
 /* Thread specific state structures, i.e. parts of a thread state.
@@ -511,34 +496,34 @@ struct _cxt_hash {
  */
 typedef struct _bbcc_hash bbcc_hash;
 struct _bbcc_hash {
-  UInt size, entries;
-  BBCC** table;
+   UInt   size, entries;
+   BBCC** table;
 };
 
 typedef struct _jcc_hash jcc_hash;
 struct _jcc_hash {
-  UInt size, entries;
-  jCC** table;
-  jCC* spontaneous;
+   UInt  size, entries;
+   jCC** table;
+   jCC*  spontaneous;
 };
 
 typedef struct _fn_array fn_array;
 struct _fn_array {
-  UInt size;
-  UInt* array;
+   UInt  size;
+   UInt* array;
 };
 
 typedef struct _call_stack call_stack;
 struct _call_stack {
-  UInt size;
-  Int sp;
-  call_entry* entry;
+   UInt        size;
+   Int         sp;
+   call_entry* entry;
 };
 
 typedef struct _fn_stack fn_stack;
 struct _fn_stack {
-  UInt size;
-  fn_node **bottom, **top;
+   UInt      size;
+   fn_node **bottom, **top;
 };
 
 /* The maximum number of simultaneous running signal handlers per thread.
@@ -548,8 +533,8 @@ struct _fn_stack {
 
 typedef struct _exec_stack exec_stack;
 struct _exec_stack {
-  Int sp; /* > 0 if a handler is running */
-  exec_state* entry[MAX_SIGHANDLERS];
+   Int         sp; /* > 0 if a handler is running */
+   exec_state* entry[MAX_SIGHANDLERS];
 };
 
 /* Thread State
@@ -563,84 +548,81 @@ struct _exec_stack {
  */
 struct _thread_info {
 
-  /* state */
-  fn_stack fns;       /* function stack */
-  call_stack calls;   /* context call arc stack */
-  exec_stack states;  /* execution states interrupted by signals */
+   /* state */
+   fn_stack   fns;    /* function stack */
+   call_stack calls;  /* context call arc stack */
+   exec_stack states; /* execution states interrupted by signals */
 
-  /* cost tracking */
-  FullCost lastdump_cost;    /* Cost at last total cost computation */
+   /* cost tracking */
+   FullCost lastdump_cost; /* Cost at last total cost computation */
 
-  /* CSV trace: per-thread snapshot of cost at last sample emission */
-  FullCost last_sample_cost;
+   /* CSV trace: per-thread snapshot of cost at last sample emission */
+   FullCost last_sample_cost;
 
-  /* Inline tracking: current inline call stack (outermost first) */
-  const HChar* cur_inl_fns[TG_MAX_INL_DEPTH];
-  UInt cur_inl_depth;
+   /* Inline tracking: current inline call stack (outermost first) */
+   const HChar* cur_inl_fns[TG_MAX_INL_DEPTH];
+   UInt         cur_inl_depth;
 
-  /* thread specific data structure containers */
-  fn_array fn_active;
-  jcc_hash jccs;
-  bbcc_hash bbccs;
+   /* thread specific data structure containers */
+   fn_array  fn_active;
+   jcc_hash  jccs;
+   bbcc_hash bbccs;
 };
 
 /*------------------------------------------------------------*/
 /*--- Cache simulator interface                            ---*/
 /*------------------------------------------------------------*/
 
-struct cachesim_if
-{
-    void (*print_opts)(void);
-    Bool (*parse_opt)(const HChar* arg);
-    void (*post_clo_init)(void);
-    void (*clear)(void);
-    void (*printstat)(Int,Int,Int);
-    void (*finish)(void);
+struct cachesim_if {
+   void (*print_opts)(void);
+   Bool (*parse_opt)(const HChar* arg);
+   void (*post_clo_init)(void);
+   void (*clear)(void);
+   void (*printstat)(Int, Int, Int);
+   void (*finish)(void);
 
-    void (*log_1I0D)(InstrInfo*) VG_REGPARM(1);
-    void (*log_2I0D)(InstrInfo*, InstrInfo*) VG_REGPARM(2);
-    void (*log_3I0D)(InstrInfo*, InstrInfo*, InstrInfo*) VG_REGPARM(3);
+   void (*log_1I0D)(InstrInfo*) VG_REGPARM(1);
+   void (*log_2I0D)(InstrInfo*, InstrInfo*) VG_REGPARM(2);
+   void (*log_3I0D)(InstrInfo*, InstrInfo*, InstrInfo*) VG_REGPARM(3);
 
-    void (*log_1I1Dr)(InstrInfo*, Addr, Word) VG_REGPARM(3);
-    void (*log_1I1Dw)(InstrInfo*, Addr, Word) VG_REGPARM(3);
+   void (*log_1I1Dr)(InstrInfo*, Addr, Word) VG_REGPARM(3);
+   void (*log_1I1Dw)(InstrInfo*, Addr, Word) VG_REGPARM(3);
 
-    void (*log_0I1Dr)(InstrInfo*, Addr, Word) VG_REGPARM(3);
-    void (*log_0I1Dw)(InstrInfo*, Addr, Word) VG_REGPARM(3);
+   void (*log_0I1Dr)(InstrInfo*, Addr, Word) VG_REGPARM(3);
+   void (*log_0I1Dw)(InstrInfo*, Addr, Word) VG_REGPARM(3);
 
-    // function names of helpers (for debugging generated code)
-    const HChar *log_1I0D_name, *log_2I0D_name, *log_3I0D_name;
-    const HChar *log_1I1Dr_name, *log_1I1Dw_name;
-    const HChar *log_0I1Dr_name, *log_0I1Dw_name;
+   // function names of helpers (for debugging generated code)
+   const HChar *log_1I0D_name, *log_2I0D_name, *log_3I0D_name;
+   const HChar *log_1I1Dr_name, *log_1I1Dw_name;
+   const HChar *log_0I1Dr_name, *log_0I1Dw_name;
 };
 
 // Event groups
-#define EG_USE   0
-#define EG_IR    1
-#define EG_DR    2
-#define EG_DW    3
-#define EG_BC    4
-#define EG_BI    5
-#define EG_BUS   6
-#define EG_SYS   7
+#define EG_USE 0
+#define EG_IR  1
+#define EG_DR  2
+#define EG_DW  3
+#define EG_BC  4
+#define EG_BI  5
+#define EG_BUS 6
+#define EG_SYS 7
 
 struct event_sets {
-    EventSet *base, *full;
+   EventSet *base, *full;
 };
 
 #define fullOffset(group) (TG_(sets).full->offset[group])
-
 
 /*------------------------------------------------------------*/
 /*--- Trace output state                                   ---*/
 /*------------------------------------------------------------*/
 
 typedef struct {
-    Int       fd;              /* Output file descriptor (-1 if not open) */
-    ULong     seq;             /* Global sequence counter */
-    Bool      initialized;     /* Has the output been opened? */
-    Bool      header_written;  /* Has the schema chunk been written? */
+   Int   fd;             /* Output file descriptor (-1 if not open) */
+   ULong seq;            /* Global sequence counter */
+   Bool  initialized;    /* Has the output been opened? */
+   Bool  header_written; /* Has the schema chunk been written? */
 } trace_output;
-
 
 /*------------------------------------------------------------*/
 /*--- Functions                                            ---*/
@@ -658,47 +640,51 @@ void TG_(print_debug_usage)(void);
 void TG_(init_eventsets)(void);
 
 /* from main.c */
-Bool TG_(get_debug_info)(Addr, const HChar **dirname,
-                          const HChar **filename,
-                          const HChar **fn_name, UInt*, DebugInfo**);
+Bool TG_(get_debug_info)(Addr,
+                         const HChar** dirname,
+                         const HChar** filename,
+                         const HChar** fn_name,
+                         UInt*,
+                         DebugInfo**);
 void TG_(collectBlockInfo)(IRSB* bbIn, UInt*, UInt*, Bool*);
-void TG_(set_instrument_state)(const HChar*,Bool);
+void TG_(set_instrument_state)(const HChar*, Bool);
 void TG_(compute_total_cost)(void);
 void TG_(fini)(Int exitcode);
 
 /* from bb.c */
-void TG_(init_bb_hash)(void);
+void     TG_(init_bb_hash)(void);
 bb_hash* TG_(get_bb_hash)(void);
-BB*  TG_(get_bb)(Addr addr, IRSB* bb_in, Bool *seen_before);
-void TG_(delete_bb)(Addr addr);
+BB*      TG_(get_bb)(Addr addr, IRSB* bb_in, Bool* seen_before);
+void     TG_(delete_bb)(Addr addr);
 
-static __inline__ Addr bb_addr(BB* bb)
- { return bb->offset + bb->obj->offset; }
+static __inline__ Addr bb_addr(BB* bb) { return bb->offset + bb->obj->offset; }
 static __inline__ Addr bb_jmpaddr(BB* bb)
- { UInt off = (bb->instr_count > 0) ? bb->instr[bb->instr_count-1].instr_offset : 0;
-   return off + bb->offset + bb->obj->offset; }
+{
+   UInt off =
+      (bb->instr_count > 0) ? bb->instr[bb->instr_count - 1].instr_offset : 0;
+   return off + bb->offset + bb->obj->offset;
+}
 
 /* from fn.c */
-void TG_(init_fn_array)(fn_array*);
-void TG_(copy_current_fn_array)(fn_array* dst);
+void      TG_(init_fn_array)(fn_array*);
+void      TG_(copy_current_fn_array)(fn_array* dst);
 fn_array* TG_(get_current_fn_array)(void);
-void TG_(set_current_fn_array)(fn_array*);
-UInt* TG_(get_fn_entry)(Int n);
+void      TG_(set_current_fn_array)(fn_array*);
+UInt*     TG_(get_fn_entry)(Int n);
 
 void      TG_(init_obj_table)(void);
 obj_node* TG_(get_obj_node)(DebugInfo* si);
-file_node* TG_(get_file_node)(obj_node*, const HChar *dirname,
-                               const HChar* filename);
-fn_node*  TG_(get_fn_node)(BB* bb);
+file_node*
+   TG_(get_file_node)(obj_node*, const HChar* dirname, const HChar* filename);
+fn_node* TG_(get_fn_node)(BB* bb);
 
 /* from bbcc.c */
-void TG_(init_bbcc_hash)(bbcc_hash* bbccs);
-void TG_(copy_current_bbcc_hash)(bbcc_hash* dst);
+void       TG_(init_bbcc_hash)(bbcc_hash* bbccs);
+void       TG_(copy_current_bbcc_hash)(bbcc_hash* dst);
 bbcc_hash* TG_(get_current_bbcc_hash)(void);
-void TG_(set_current_bbcc_hash)(bbcc_hash*);
-BBCC* TG_(get_bbcc)(BB* bb);
-void TG_(setup_bbcc)(BB* bb) VG_REGPARM(1);
-
+void       TG_(set_current_bbcc_hash)(bbcc_hash*);
+BBCC*      TG_(get_bbcc)(BB* bb);
+void       TG_(setup_bbcc)(BB* bb) VG_REGPARM(1);
 
 /* from jumps.c */
 void TG_(init_jcc_hash)(jcc_hash*);
@@ -707,31 +693,31 @@ void TG_(set_current_jcc_hash)(jcc_hash*);
 jCC* TG_(get_jcc)(BBCC* from, UInt, BBCC* to);
 
 /* from callstack.c */
-void TG_(init_call_stack)(call_stack*);
-void TG_(copy_current_call_stack)(call_stack* dst);
-void TG_(set_current_call_stack)(call_stack*);
+void        TG_(init_call_stack)(call_stack*);
+void        TG_(copy_current_call_stack)(call_stack* dst);
+void        TG_(set_current_call_stack)(call_stack*);
 call_entry* TG_(get_call_entry)(Int n);
 
 void TG_(push_call_stack)(BBCC* from, UInt jmp, BBCC* to, Addr sp, Bool skip);
 void TG_(pop_call_stack)(void);
-Int TG_(unwind_call_stack)(Addr sp, Int);
+Int  TG_(unwind_call_stack)(Addr sp, Int);
 
 /* from context.c */
 void TG_(init_fn_stack)(fn_stack*);
 void TG_(copy_current_fn_stack)(fn_stack*);
 void TG_(set_current_fn_stack)(fn_stack*);
 
-void TG_(init_cxt_table)(void);
+void     TG_(init_cxt_table)(void);
 Context* TG_(get_cxt)(fn_node** fn);
-void TG_(push_cxt)(fn_node* fn);
+void     TG_(push_cxt)(fn_node* fn);
 
 /* from threads.c */
-void TG_(init_threads)(void);
+void          TG_(init_threads)(void);
 thread_info** TG_(get_threads)(void);
-thread_info* TG_(get_current_thread)(void);
-void TG_(switch_thread)(ThreadId tid);
-void TG_(forall_threads)(void (*func)(thread_info*));
-void TG_(run_thread)(ThreadId tid);
+thread_info*  TG_(get_current_thread)(void);
+void          TG_(switch_thread)(ThreadId tid);
+void          TG_(forall_threads)(void (*func)(thread_info*));
+void          TG_(run_thread)(ThreadId tid);
 
 void TG_(init_exec_state)(exec_state* es);
 void TG_(init_exec_stack)(exec_stack*);
@@ -759,20 +745,20 @@ void TG_(trace_close_output)(void);
 /*------------------------------------------------------------*/
 
 extern CommandLineOptions TG_(clo);
-extern Statistics TG_(stat);
-extern EventMapping* TG_(dumpmap);
-extern trace_output TG_(trace_out);
+extern Statistics         TG_(stat);
+extern EventMapping*      TG_(dumpmap);
+extern trace_output       TG_(trace_out);
 
 /* Function active counter array, indexed by function number */
 extern UInt* TG_(fn_active_array);
-extern Bool TG_(instrument_state);
- /* min of L1 and LL cache line sizes */
-extern Int TG_(min_line_size);
-extern call_stack TG_(current_call_stack);
-extern fn_stack   TG_(current_fn_stack);
-extern exec_state TG_(current_state);
-extern ThreadId   TG_(current_tid);
-extern FullCost   TG_(total_cost);
+extern Bool  TG_(instrument_state);
+/* min of L1 and LL cache line sizes */
+extern Int                TG_(min_line_size);
+extern call_stack         TG_(current_call_stack);
+extern fn_stack           TG_(current_fn_stack);
+extern exec_state         TG_(current_state);
+extern ThreadId           TG_(current_tid);
+extern FullCost           TG_(total_cost);
 extern struct cachesim_if TG_(cachesim);
 extern struct event_sets  TG_(sets);
 
@@ -780,33 +766,35 @@ extern struct event_sets  TG_(sets);
 extern Addr   TG_(bb_base);
 extern ULong* TG_(cost_base);
 
-
 /*------------------------------------------------------------*/
 /*--- Debug output                                         ---*/
 /*------------------------------------------------------------*/
 
 #if TG_ENABLE_DEBUG
 
-#define TG_DEBUGIF(x) \
-  if (UNLIKELY( (TG_(clo).verbose >x) && \
+#define TG_DEBUGIF(x)                                                          \
+   if (UNLIKELY((TG_(clo).verbose > x) &&                                      \
                 (TG_(stat).bb_executions >= TG_(clo).verbose_start)))
 
-#define TG_DEBUG(x,format,args...)   \
-    TG_DEBUGIF(x) {                  \
-      TG_(print_bbno)();	      \
-      VG_(printf)(format,##args);     \
-    }
+#define TG_DEBUG(x, format, args...)                                           \
+   TG_DEBUGIF(x)                                                               \
+   {                                                                           \
+      TG_(print_bbno)();                                                       \
+      VG_(printf)(format, ##args);                                             \
+   }
 
-#define TG_ASSERT(cond)              \
-    if (UNLIKELY(!(cond))) {          \
-      TG_(print_context)();          \
-      TG_(print_bbno)();	      \
-      tl_assert(cond);                \
-     }
+#define TG_ASSERT(cond)                                                        \
+   if (UNLIKELY(!(cond))) {                                                    \
+      TG_(print_context)();                                                    \
+      TG_(print_bbno)();                                                       \
+      tl_assert(cond);                                                         \
+   }
 
 #else
 #define TG_DEBUGIF(x) if (0)
-#define TG_DEBUG(x...) {}
+#define TG_DEBUG(x...)                                                         \
+   {                                                                           \
+   }
 #define TG_ASSERT(cond) tl_assert(cond);
 #endif
 
@@ -830,11 +818,11 @@ void TG_(print_addr_ln)(Addr addr);
 void* TG_(malloc)(const HChar* cc, UWord s, const HChar* f);
 void* TG_(free)(void* p, const HChar* f);
 #if 0
-#define TG_MALLOC(_cc,x) TG_(malloc)((_cc),x,__FUNCTION__)
-#define TG_FREE(p)       TG_(free)(p,__FUNCTION__)
+#define TG_MALLOC(_cc, x) TG_(malloc)((_cc), x, __FUNCTION__)
+#define TG_FREE(p)        TG_(free)(p, __FUNCTION__)
 #else
-#define TG_MALLOC(_cc,x) VG_(malloc)((_cc),x)
-#define TG_FREE(p)       VG_(free)(p)
+#define TG_MALLOC(_cc, x) VG_(malloc)((_cc), x)
+#define TG_FREE(p)        VG_(free)(p)
 #endif
 
 #endif /* TG_GLOBAL */

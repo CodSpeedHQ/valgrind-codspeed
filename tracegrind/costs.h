@@ -25,13 +25,12 @@
    The GNU General Public License is contained in the file COPYING.
 */
 
-
 #ifndef TG_COSTS
 #define TG_COSTS
 
 #include "pub_tool_basics.h"
 
-#define TG_(str) VGAPPEND(vgTracegrind_,str)
+#define TG_(str) VGAPPEND(vgTracegrind_, str)
 
 extern UInt TG_(costarray_entries);
 extern UInt TG_(costarray_chunks);
@@ -42,10 +41,10 @@ extern UInt TG_(costarray_chunks);
  */
 typedef struct _CostChunk CostChunk;
 struct _CostChunk {
-  Int size;
-  Int used;
-  CostChunk *next, *prev;
-  ULong data[0];
+   Int        size;
+   Int        used;
+   CostChunk *next, *prev;
+   ULong      data[0];
 };
 
 /* Allocate a number of 64bit cost values.

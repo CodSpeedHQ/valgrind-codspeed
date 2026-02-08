@@ -15,7 +15,9 @@ SizeT tg_lz4_compress_bound(SizeT src_size);
  * dst_capacity must be >= tg_lz4_compress_bound(src_size).
  * Returns the compressed size on success, 0 on error.
  */
-SizeT tg_lz4_compress(void* dst, SizeT dst_capacity,
-                      const void* src, SizeT src_size);
+SizeT tg_lz4_compress(void*       dst,
+                      SizeT       dst_capacity,
+                      const void* src,
+                      SizeT       src_size);
 
 #endif /* TG_LZ4_H */

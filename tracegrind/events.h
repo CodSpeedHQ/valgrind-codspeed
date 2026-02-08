@@ -31,7 +31,7 @@
 
 #include "pub_tool_basics.h"
 
-#define TG_(str) VGAPPEND(vgTracegrind_,str)
+#define TG_(str) VGAPPEND(vgTracegrind_, str)
 
 /* Event groups consist of one or more named event types.
  * Event sets are constructed from such event groups.
@@ -45,29 +45,29 @@
 
 typedef struct _EventGroup EventGroup;
 struct _EventGroup {
-    Int size;
-    const HChar* name[0];
+   Int          size;
+   const HChar* name[0];
 };
 
 /* return 0 if event group can not be registered */
-EventGroup* TG_(register_event_group) (int id, const HChar*);
+EventGroup* TG_(register_event_group)(int id, const HChar*);
 EventGroup* TG_(register_event_group2)(int id, const HChar*, const HChar*);
-EventGroup* TG_(register_event_group3)(int id, const HChar*, const HChar*,
-                                        const HChar*);
-EventGroup* TG_(register_event_group4)(int id, const HChar*, const HChar*,
-                                        const HChar*, const HChar*);
+EventGroup*
+   TG_(register_event_group3)(int id, const HChar*, const HChar*, const HChar*);
+EventGroup* TG_(register_event_group4)(
+   int id, const HChar*, const HChar*, const HChar*, const HChar*);
 EventGroup* TG_(get_event_group)(int id);
 
 /* Event sets are defined by event groups they consist of. */
 
 typedef struct _EventSet EventSet;
 struct _EventSet {
-    /* if subset with ID x is in the set, then bit x is set */
-    UInt mask;
-    Int count;
-    Int size;
-    Int offset[MAX_EVENTGROUP_COUNT];
- };
+   /* if subset with ID x is in the set, then bit x is set */
+   UInt mask;
+   Int  count;
+   Int  size;
+   Int  offset[MAX_EVENTGROUP_COUNT];
+};
 
 /* Same event set is returned when requesting same event groups */
 EventSet* TG_(get_event_set)(Int id);
@@ -76,56 +76,56 @@ EventSet* TG_(add_event_group)(EventSet*, Int id);
 EventSet* TG_(add_event_group2)(EventSet*, Int id1, Int id2);
 EventSet* TG_(add_event_set)(EventSet*, EventSet*);
 
-
 /* Operations on costs. A cost pointer of 0 means zero cost.
  * Functions ending in _lz allocate cost arrays only when needed
  */
 ULong* TG_(get_eventset_cost)(EventSet*);
 /* Set costs of event set to 0 */
-void TG_(init_cost)(EventSet*,ULong*);
+void TG_(init_cost)(EventSet*, ULong*);
 /* This always allocates counter and sets them to 0 */
-void TG_(init_cost_lz)(EventSet*,ULong**);
+void TG_(init_cost_lz)(EventSet*, ULong**);
 /* Set costs of an event set to zero */
-void TG_(zero_cost)(EventSet*,ULong*);
-Bool TG_(is_zero_cost)(EventSet*,ULong*);
-void TG_(copy_cost)(EventSet*,ULong* dst, ULong* src);
-void TG_(copy_cost_lz)(EventSet*,ULong** pdst, ULong* src);
-void TG_(add_cost)(EventSet*,ULong* dst, ULong* src);
-void TG_(add_cost_lz)(EventSet*,ULong** pdst, ULong* src);
+void TG_(zero_cost)(EventSet*, ULong*);
+Bool TG_(is_zero_cost)(EventSet*, ULong*);
+void TG_(copy_cost)(EventSet*, ULong* dst, ULong* src);
+void TG_(copy_cost_lz)(EventSet*, ULong** pdst, ULong* src);
+void TG_(add_cost)(EventSet*, ULong* dst, ULong* src);
+void TG_(add_cost_lz)(EventSet*, ULong** pdst, ULong* src);
 /* Adds src to dst and zeros src. Returns false if nothing changed */
-Bool TG_(add_and_zero_cost)(EventSet*,ULong* dst, ULong* src);
-Bool TG_(add_and_zero_cost2)(EventSet*,ULong* dst,EventSet*,ULong* src);
+Bool TG_(add_and_zero_cost)(EventSet*, ULong* dst, ULong* src);
+Bool TG_(add_and_zero_cost2)(EventSet*, ULong* dst, EventSet*, ULong* src);
 /* Adds difference of new and old to to dst, and set old to new.
  * Returns false if nothing changed */
-Bool TG_(add_diff_cost)(EventSet*,ULong* dst, ULong* old, ULong* new_cost);
-Bool TG_(add_diff_cost_lz)(EventSet*,ULong** pdst, ULong* old, ULong* new_cost);
+Bool TG_(add_diff_cost)(EventSet*, ULong* dst, ULong* old, ULong* new_cost);
+Bool
+   TG_(add_diff_cost_lz)(EventSet*, ULong** pdst, ULong* old, ULong* new_cost);
 
 /* EventMapping: An ordered subset of events from an event set.
  * This is used to print out part of an EventSet, or in another order.
  */
 struct EventMappingEntry {
-    Int group;
-    Int index;
-    Int offset;
+   Int group;
+   Int index;
+   Int offset;
 };
 typedef struct _EventMapping EventMapping;
 struct _EventMapping {
-  EventSet* es;
-  Int size;
-  Int capacity;
-  struct EventMappingEntry entry[0];
+   EventSet*                es;
+   Int                      size;
+   Int                      capacity;
+   struct EventMappingEntry entry[0];
 };
 
 /* Allocate space for an event mapping */
 EventMapping* TG_(get_eventmapping)(EventSet*);
-void TG_(append_event)(EventMapping*, const HChar*);
+void          TG_(append_event)(EventMapping*, const HChar*);
 /* Returns event mapping as a character string. That string is dynamically
    allocated and it is the caller's responsibility to free it.
    The function never returns NULL. */
-HChar *TG_(eventmapping_as_string)(const EventMapping*);
+HChar* TG_(eventmapping_as_string)(const EventMapping*);
 /* Returns mapping cost as a character string. That string is dynamically
    allocated and it is the caller's responsibility to free it.
    The function never returns NULL. */
-HChar *TG_(mappingcost_as_string)(const EventMapping*, const ULong*);
+HChar* TG_(mappingcost_as_string)(const EventMapping*, const ULong*);
 
 #endif /* TG_EVENTS */
