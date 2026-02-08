@@ -1,0 +1,5 @@
+prereq: ../../tracegrind/scripts/tracegrind-analyzer --help 2>/dev/null
+prog: test_nested_inlined.bin
+vgopts: --tracegrind-out-file=tracegrind.out.test_nested_inlined.msgpack.lz4 --instr-atstart=no --read-inline-info=yes
+post: ../../tracegrind/scripts/tracegrind-analyzer tracegrind.out.test_nested_inlined.msgpack.lz4 | ./filter_trace
+cleanup: rm -f tracegrind.out.test_nested_inlined.msgpack.lz4

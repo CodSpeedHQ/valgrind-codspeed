@@ -1,0 +1,34 @@
+Format Version: N
+Format Name: tracegrind-msgpack
+Schema Version: N
+Event Schemas (discriminated union):
+  0 (MARKER): ['seq', 'tid', 'event', 'marker']
+  1 (ENTER_FN): ['seq', 'tid', 'event', 'fn', 'obj', 'file', 'line', 'counters']
+  2 (EXIT_FN): ['seq', 'tid', 'event', 'fn', 'obj', 'file', 'line', 'counters']
+  3 (ENTER_INLINED_FN): ['seq', 'tid', 'event', 'fn', 'obj', 'file', 'line', 'counters']
+  4 (EXIT_INLINED_FN): ['seq', 'tid', 'event', 'fn', 'obj', 'file', 'line', 'counters']
+  5 (FORK): ['seq', 'tid', 'event', 'child_pid']
+  6 (THREAD_CREATE): ['seq', 'tid', 'event', 'child_tid']
+Counters: ['Ir']
+Showing N of N rows
+seq=N | tid=1 | event=MARKER | marker=start
+seq=N | tid=1 | event=THREAD_CREATE | child_tid=2
+seq=N | tid=1 | event=THREAD_CREATE | child_tid=3
+seq=N | tid=1 | event=THREAD_CREATE | child_tid=4
+seq=N | tid=1 | event=MARKER | marker=end
+seq=N | tid=2 | event=ENTER_FN | fn=work_a | obj=test_thread_interleave.bin | file=test_thread_interleave.c | line=0 | Ir=N
+seq=N | tid=2 | event=ENTER_FN | fn=depth_a1 | obj=test_thread_interleave.bin | file=test_thread_interleave.c | line=0 | Ir=N
+seq=N | tid=2 | event=ENTER_FN | fn=depth_a2 | obj=test_thread_interleave.bin | file=test_thread_interleave.c | line=0 | Ir=N
+seq=N | tid=2 | event=EXIT_FN | fn=depth_a2 | obj=test_thread_interleave.bin | file=test_thread_interleave.c | line=0 | Ir=N
+seq=N | tid=2 | event=EXIT_FN | fn=depth_a1 | obj=test_thread_interleave.bin | file=test_thread_interleave.c | line=0 | Ir=N
+seq=N | tid=2 | event=EXIT_FN | fn=work_a | obj=test_thread_interleave.bin | file=test_thread_interleave.c | line=0 | Ir=N
+seq=N | tid=3 | event=ENTER_FN | fn=work_b | obj=test_thread_interleave.bin | file=test_thread_interleave.c | line=0 | Ir=N
+seq=N | tid=3 | event=ENTER_FN | fn=depth_b1 | obj=test_thread_interleave.bin | file=test_thread_interleave.c | line=0 | Ir=N
+seq=N | tid=3 | event=EXIT_FN | fn=depth_b1 | obj=test_thread_interleave.bin | file=test_thread_interleave.c | line=0 | Ir=N
+seq=N | tid=3 | event=EXIT_FN | fn=work_b | obj=test_thread_interleave.bin | file=test_thread_interleave.c | line=0 | Ir=N
+seq=N | tid=4 | event=ENTER_FN | fn=work_c | obj=test_thread_interleave.bin | file=test_thread_interleave.c | line=0 | Ir=N
+seq=N | tid=4 | event=ENTER_FN | fn=depth_c1 | obj=test_thread_interleave.bin | file=test_thread_interleave.c | line=0 | Ir=N
+seq=N | tid=4 | event=ENTER_FN | fn=depth_c2 | obj=test_thread_interleave.bin | file=test_thread_interleave.c | line=0 | Ir=N
+seq=N | tid=4 | event=EXIT_FN | fn=depth_c2 | obj=test_thread_interleave.bin | file=test_thread_interleave.c | line=0 | Ir=N
+seq=N | tid=4 | event=EXIT_FN | fn=depth_c1 | obj=test_thread_interleave.bin | file=test_thread_interleave.c | line=0 | Ir=N
+seq=N | tid=4 | event=EXIT_FN | fn=work_c | obj=test_thread_interleave.bin | file=test_thread_interleave.c | line=0 | Ir=N

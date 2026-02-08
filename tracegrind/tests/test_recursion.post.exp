@@ -1,0 +1,4 @@
+seq=N | tid=1 | event=MARKER | marker=start
+seq=N | tid=1 | event=MARKER | marker=end
+ENTER_FN count: 101
+EXIT_FN count: 101

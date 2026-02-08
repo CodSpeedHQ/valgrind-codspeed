@@ -1,0 +1,302 @@
+#!/usr/bin/env -S uvx --with lz4 --with msgpack python3
+# /// script
+# requires-python = ">=3.8"
+# dependencies = ["lz4", "msgpack"]
+# ///
+"""
+Decode and debug tracegrind MsgPack+LZ4 trace files.
+
+Usage:
+    ./decode-trace.py <trace.msgpack.lz4> [options]
+
+Examples:
+    ./decode-trace.py tracegrind.out.12345.msgpack.lz4
+    ./decode-trace.py trace.msgpack.lz4 --head 20
+    ./decode-trace.py trace.msgpack.lz4 --schema
+    ./decode-trace.py trace.msgpack.lz4 --stats
+    ./decode-trace.py trace.msgpack.lz4 --json
+"""
+
+import argparse
+import json
+import os
+import struct
+import sys
+from collections import Counter
+from typing import Any, BinaryIO, Dict, Iterator, List, Tuple
+
+import lz4.block
+import msgpack
+
+
+MAGIC = b'TGMP'
+
+
+def read_header(f: BinaryIO) -> int:
+    """Read and validate file header, return version."""
+    magic = f.read(4)
+    if magic != MAGIC:
+        raise ValueError(f"Invalid magic: {magic!r}, expected {MAGIC!r}")
+    version = struct.unpack('<I', f.read(4))[0]
+    return version
+
+
+def read_chunk(f: BinaryIO) -> bytes | None:
+    """Read a single chunk, return decompressed data or None for end marker."""
+    header = f.read(8)
+    if len(header) < 8:
+        return None
+    usize, csize = struct.unpack('<II', header)
+    if usize == 0 and csize == 0:
+        return None  # End marker
+    compressed = f.read(csize)
+    if len(compressed) < csize:
+        raise ValueError(f"Truncated chunk: expected {csize} bytes, got {len(compressed)}")
+    return lz4.block.decompress(compressed, uncompressed_size=usize)
+
+
+def decode_schema(data: bytes) -> Dict[str, Any]:
+    """Decode schema chunk into Python dict."""
+    schema = msgpack.unpackb(data, raw=False)
+    return schema
+
+
+def iter_rows(data: bytes) -> Iterator[List[Any]]:
+    """Iterate over rows in a data chunk."""
+    unpacker = msgpack.Unpacker(raw=False)
+    unpacker.feed(data)
+    yield from unpacker
+
+
+def decode_trace(filepath: str) -> Tuple[int, Dict[str, Any], List[List[Any]]]:
+    """Decode entire trace file, return (version, schema, rows)."""
+    with open(filepath, 'rb') as f:
+        version = read_header(f)
+
+        # Read schema chunk
+        schema_data = read_chunk(f)
+        if schema_data is None:
+            raise ValueError("Missing schema chunk")
+        schema = decode_schema(schema_data)
+
+        # Read all data chunks
+        rows = []
+        while True:
+            chunk_data = read_chunk(f)
+            if chunk_data is None:
+                break
+            rows.extend(iter_rows(chunk_data))
+
+        return version, schema, rows
+
+
+def get_event_name(event_type: int) -> str:
+    """Convert event type to name."""
+    return {0: 'MARKER', 1: 'ENTER_FN', 2: 'EXIT_FN', 3: 'ENTER_INLINED_FN', 4: 'EXIT_INLINED_FN', 5: 'FORK', 6: 'THREAD_CREATE'}.get(event_type, f'UNKNOWN({event_type})')
+
+
+def format_row(row: List[Any], schema: Dict[str, Any]) -> Dict[str, Any]:
+    """Format a row as a dict using the appropriate schema."""
+    if len(row) < 3:
+        return {'_raw': row}
+
+    event_type = row[2]
+    event_schemas = schema.get('event_schemas', {})
+    columns = event_schemas.get(str(event_type), [])
+
+    if not columns:
+        # Fallback for old format with 'columns' key
+        columns = schema.get('columns', [])
+
+    counter_names = schema.get('counters', [])
+
+    result = {}
+    for i, val in enumerate(row):
+        if i < len(columns):
+            key = columns[i]
+            if key == 'event':
+                result[key] = get_event_name(val)
+            elif key == 'counters' and isinstance(val, list):
+                # Expand counters sub-array using top-level counter names
+                for j, cval in enumerate(val):
+                    if j < len(counter_names):
+                        result[counter_names[j]] = cval
+                    else:
+                        result[f'_counter{j}'] = cval
+            else:
+                result[key] = val
+        else:
+            result[f'_col{i}'] = val
+
+    return result
+
+
+def print_schema(schema: Dict[str, Any], version: int) -> None:
+    """Print schema information."""
+    print(f"Format Version: {version}")
+    print(f"Format Name: {schema.get('format', 'unknown')}")
+    print(f"Schema Version: {schema.get('version', 'unknown')}")
+    print()
+
+    if 'event_schemas' in schema:
+        print("Event Schemas (discriminated union):")
+        for event_type, columns in sorted(schema['event_schemas'].items()):
+            event_name = get_event_name(int(event_type))
+            print(f"  {event_type} ({event_name}): {columns}")
+    elif 'columns' in schema:
+        print(f"Columns: {schema['columns']}")
+
+    if schema.get('counters'):
+        print(f"Counters: {schema['counters']}")
+
+    if schema.get('counter_units'):
+        print(f"Counter Units: {dict(sorted(schema['counter_units'].items()))}")
+    print()
+
+
+def print_stats(rows: List[List[Any]], schema: Dict[str, Any]) -> None:
+    """Print statistics about the trace."""
+    print(f"Total rows: {len(rows):,}")
+
+    if not rows:
+        return
+
+    # Count by event type
+    event_counts = Counter(row[2] for row in rows if len(row) > 2)
+    print("\nEvents by type:")
+    for event_type, count in sorted(event_counts.items()):
+        event_name = get_event_name(event_type)
+        pct = 100 * count / len(rows)
+        print(f"  {event_name}: {count:,} ({pct:.1f}%)")
+
+    # Thread stats
+    thread_ids = set(row[1] for row in rows if len(row) > 1)
+    print(f"\nThreads: {len(thread_ids)} ({sorted(thread_ids)})")
+
+    # Sequence range
+    seqs = [row[0] for row in rows if len(row) > 0]
+    if seqs:
+        print(f"Sequence range: {min(seqs):,} - {max(seqs):,}")
+
+    # Function stats (for ENTER/EXIT events)
+    fn_counts = Counter()
+    for row in rows:
+        if len(row) > 3 and row[2] in (1, 2, 3, 4):  # ENTER_FN, EXIT_FN, ENTER_INLINED_FN, or EXIT_INLINED_FN
+            fn_counts[row[3]] += 1
+
+    if fn_counts:
+        print(f"\nTop 10 functions by event count:")
+        for fn, count in fn_counts.most_common(10):
+            print(f"  {count:8,}  {fn}")
+
+    # FORK events
+    fork_rows = [row for row in rows if len(row) > 2 and row[2] == 5]
+    if fork_rows:
+        print(f"\nFork events: {len(fork_rows)}")
+        for row in fork_rows[:5]:
+            formatted = format_row(row, schema)
+            child_pid = formatted.get('child_pid', 'unknown')
+            print(f"  seq={formatted.get('seq')}, tid={formatted.get('tid')}, child_pid={child_pid}")
+
+    # THREAD_CREATE events
+    thread_create_rows = [row for row in rows if len(row) > 2 and row[2] == 6]
+    if thread_create_rows:
+        print(f"\nThread create events: {len(thread_create_rows)}")
+        for row in thread_create_rows[:5]:
+            formatted = format_row(row, schema)
+            child_tid = formatted.get('child_tid', 'unknown')
+            print(f"  seq={formatted.get('seq')}, tid={formatted.get('tid')}, child_tid={child_tid}")
+
+
+def print_rows(rows: List[List[Any]], schema: Dict[str, Any],
+               head: int | None = None, raw: bool = False, as_json: bool = False) -> None:
+    """Print rows in various formats."""
+    display_rows = rows[:head] if head else rows
+
+    if as_json:
+        output = [format_row(row, schema) for row in display_rows]
+        print(json.dumps(output, indent=2))
+        return
+
+    for row in display_rows:
+        if raw:
+            print(row)
+        else:
+            formatted = format_row(row, schema)
+            # Compact single-line format
+            parts = []
+            for k, v in formatted.items():
+                if isinstance(v, str) and k in ('obj', 'file'):
+                    v = os.path.basename(v)
+                parts.append(f"{k}={v}")
+            print(' | '.join(parts))
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description='Decode and debug tracegrind MsgPack+LZ4 trace files.',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=__doc__
+    )
+    parser.add_argument('file', help='Trace file to decode (.msgpack.lz4)')
+    parser.add_argument('--schema', action='store_true',
+                        help='Print schema information only')
+    parser.add_argument('--stats', action='store_true',
+                        help='Print statistics about the trace')
+    parser.add_argument('--head', type=int, metavar='N',
+                        help='Print only first N rows')
+    parser.add_argument('--tail', type=int, metavar='N',
+                        help='Print only last N rows')
+    parser.add_argument('--raw', action='store_true',
+                        help='Print raw row arrays')
+    parser.add_argument('--json', action='store_true',
+                        help='Output as JSON')
+    parser.add_argument('--event', type=str, choices=['MARKER', 'ENTER_FN', 'EXIT_FN', 'ENTER_INLINED_FN', 'EXIT_INLINED_FN', 'FORK', 'THREAD_CREATE'],
+                        help='Filter by event type')
+    parser.add_argument('--fn', type=str, metavar='PATTERN',
+                        help='Filter by function name (substring match)')
+
+    args = parser.parse_args()
+
+    try:
+        version, schema, rows = decode_trace(args.file)
+    except Exception as e:
+        print(f"Error reading trace file: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    # Schema only mode
+    if args.schema:
+        print_schema(schema, version)
+        sys.exit(0)
+
+    # Apply filters
+    filtered_rows = rows
+
+    if args.event:
+        event_map = {'MARKER': 0, 'ENTER_FN': 1, 'EXIT_FN': 2, 'ENTER_INLINED_FN': 3, 'EXIT_INLINED_FN': 4, 'FORK': 5, 'THREAD_CREATE': 6}
+        event_type = event_map[args.event]
+        filtered_rows = [r for r in filtered_rows if len(r) > 2 and r[2] == event_type]
+
+    if args.fn:
+        pattern = args.fn.lower()
+        filtered_rows = [r for r in filtered_rows
+                        if len(r) > 3 and isinstance(r[3], str) and pattern in r[3].lower()]
+
+    # Stats mode
+    if args.stats:
+        print_schema(schema, version)
+        print_stats(filtered_rows, schema)
+        sys.exit(0)
+
+    # Default: print rows
+    if args.tail:
+        filtered_rows = filtered_rows[-args.tail:]
+
+    print_schema(schema, version)
+    print(f"Showing {min(args.head or len(filtered_rows), len(filtered_rows)):,} of {len(filtered_rows):,} rows")
+    print("-" * 80)
+    print_rows(filtered_rows, schema, head=args.head, raw=args.raw, as_json=args.json)
+
+
+if __name__ == '__main__':
+    main()

@@ -5807,6 +5807,8 @@ AC_CONFIG_FILES([
    callgrind/callgrind_annotate
    callgrind/callgrind_control
    callgrind/tests/Makefile
+   tracegrind/Makefile
+   tracegrind/tests/Makefile
    helgrind/Makefile
    helgrind/tests/Makefile
    drd/Makefile
