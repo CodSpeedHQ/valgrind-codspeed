@@ -108,12 +108,21 @@ def format_row(row: List[Any], schema: Dict[str, Any]) -> Dict[str, Any]:
         # Fallback for old format with 'columns' key
         columns = schema.get('columns', [])
 
+    counter_names = schema.get('counters', [])
+
     result = {}
     for i, val in enumerate(row):
         if i < len(columns):
             key = columns[i]
             if key == 'event':
                 result[key] = get_event_name(val)
+            elif key == 'counters' and isinstance(val, list):
+                # Expand counters sub-array using top-level counter names
+                for j, cval in enumerate(val):
+                    if j < len(counter_names):
+                        result[counter_names[j]] = cval
+                    else:
+                        result[f'_counter{j}'] = cval
             else:
                 result[key] = val
         else:
@@ -136,6 +145,9 @@ def print_schema(schema: Dict[str, Any], version: int) -> None:
             print(f"  {event_type} ({event_name}): {columns}")
     elif 'columns' in schema:
         print(f"Columns: {schema['columns']}")
+
+    if schema.get('counters'):
+        print(f"Counters: {schema['counters']}")
 
     if schema.get('counter_units'):
         print(f"Counter Units: {dict(sorted(schema['counter_units'].items()))}")

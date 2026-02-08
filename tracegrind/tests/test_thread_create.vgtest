@@ -1,5 +1,5 @@
 prereq: ../../tracegrind/scripts/tracegrind-analyzer --help 2>/dev/null
 prog: test_thread_create.bin
 vgopts: --tracegrind-out-file=tracegrind.out.test_thread_create.msgpack.lz4 --instr-atstart=no
-post: ../../tracegrind/scripts/tracegrind-analyzer tracegrind.out.test_thread_create.msgpack.lz4 | ./filter_trace | grep -E '(Format |Schema |Event Schemas|MARKER|THREAD_CREATE|FORK|thread_fn|Showing |\()' | sed 's/child_pid=[0-9]*/child_pid=N/'
+post: ../../tracegrind/scripts/tracegrind-analyzer tracegrind.out.test_thread_create.msgpack.lz4 | ./filter_trace | grep -E '(Format |Schema |Event Schemas|Counters:|MARKER|THREAD_CREATE|FORK|thread_fn|Showing |\()' | sed 's/child_pid=[0-9]*/child_pid=N/'
 cleanup: rm -f tracegrind.out.test_thread_create.msgpack.lz4

@@ -112,11 +112,11 @@ static void msgpack_write_header(void)
     msgpack_init(&hdr, 2048);
 
     /* Header is a map with metadata */
-    msgpack_write_map_header(&hdr, 6);
+    msgpack_write_map_header(&hdr, 7);
 
     /* version */
     msgpack_write_key(&hdr, "version");
-    msgpack_write_uint(&hdr, 3);
+    msgpack_write_uint(&hdr, 4);
 
     /* format */
     msgpack_write_key(&hdr, "format");
@@ -142,32 +142,22 @@ static void msgpack_write_header(void)
     msgpack_write_str(&hdr, "event", -1);
     msgpack_write_str(&hdr, "marker", -1);
 
-    /* Event type 1 (ENTER_FN) schema */
-    msgpack_write_key(&hdr, "1");
-    msgpack_write_array_header(&hdr, mp_state.ncols);
-    for (Int i = 0; i < mp_state.ncols; i++) {
-        msgpack_write_str(&hdr, mp_state.col_names[i], -1);
-    }
-
-    /* Event type 2 (EXIT_FN) schema - same as ENTER_FN */
-    msgpack_write_key(&hdr, "2");
-    msgpack_write_array_header(&hdr, mp_state.ncols);
-    for (Int i = 0; i < mp_state.ncols; i++) {
-        msgpack_write_str(&hdr, mp_state.col_names[i], -1);
-    }
-
-    /* Event type 3 (ENTER_INLINED_FN) schema - same columns as ENTER_FN/EXIT_FN */
-    msgpack_write_key(&hdr, "3");
-    msgpack_write_array_header(&hdr, mp_state.ncols);
-    for (Int i = 0; i < mp_state.ncols; i++) {
-        msgpack_write_str(&hdr, mp_state.col_names[i], -1);
-    }
-
-    /* Event type 4 (EXIT_INLINED_FN) schema - same columns as ENTER_FN/EXIT_FN */
-    msgpack_write_key(&hdr, "4");
-    msgpack_write_array_header(&hdr, mp_state.ncols);
-    for (Int i = 0; i < mp_state.ncols; i++) {
-        msgpack_write_str(&hdr, mp_state.col_names[i], -1);
+    /* Event types 1-4: 7 fixed columns + "counters" sentinel */
+    {
+        const HChar* ev_keys[] = {"1", "2", "3", "4"};
+        Int k;
+        for (k = 0; k < 4; k++) {
+            msgpack_write_key(&hdr, ev_keys[k]);
+            msgpack_write_array_header(&hdr, 8);
+            msgpack_write_str(&hdr, "seq", -1);
+            msgpack_write_str(&hdr, "tid", -1);
+            msgpack_write_str(&hdr, "event", -1);
+            msgpack_write_str(&hdr, "fn", -1);
+            msgpack_write_str(&hdr, "obj", -1);
+            msgpack_write_str(&hdr, "file", -1);
+            msgpack_write_str(&hdr, "line", -1);
+            msgpack_write_str(&hdr, "counters", -1);
+        }
     }
 
     /* Event type 5 (FORK) schema */
@@ -185,6 +175,16 @@ static void msgpack_write_header(void)
     msgpack_write_str(&hdr, "tid", -1);
     msgpack_write_str(&hdr, "event", -1);
     msgpack_write_str(&hdr, "child_tid", -1);
+
+    /* counters - array of dynamic counter column names */
+    msgpack_write_key(&hdr, "counters");
+    msgpack_write_array_header(&hdr, mp_state.n_event_cols);
+    {
+        Int i;
+        for (i = 7; i < mp_state.ncols; i++) {
+            msgpack_write_str(&hdr, mp_state.col_names[i], -1);
+        }
+    }
 
     /* counter_units - map from counter name to unit string.
        Following callgrind's convention: only time counters get units. */
@@ -217,8 +217,8 @@ static void msgpack_write_header(void)
     SizeT compressed_size = tg_lz4_compress(
         compressed, dst_capacity, hdr.data, src_size);
 
-    /* Magic + version (8 bytes): "TGMP" + version(4) - version 3 */
-    UChar magic[8] = {'T', 'G', 'M', 'P', 0x03, 0x00, 0x00, 0x00};
+    /* Magic + version (8 bytes): "TGMP" + version(4) - version 4 */
+    UChar magic[8] = {'T', 'G', 'M', 'P', 0x04, 0x00, 0x00, 0x00};
     VG_(write)(TG_(trace_out).fd, magic, 8);
 
     /* Header chunk size (4 bytes uncompressed, 4 bytes compressed) */
@@ -296,8 +296,8 @@ static void msgpack_add_row(ULong seq, Int tid, Int event,
                             const HChar* file_name, Int line,
                             const ULong* deltas, Int n_deltas)
 {
-    /* Each row is a msgpack array */
-    msgpack_write_array_header(&mp_state.buf, mp_state.ncols);
+    /* Each row is a msgpack array: 7 fixed + 1 counters sub-array */
+    msgpack_write_array_header(&mp_state.buf, 8);
 
     /* Fixed columns */
     msgpack_write_uint(&mp_state.buf, seq);
@@ -308,7 +308,8 @@ static void msgpack_add_row(ULong seq, Int tid, Int event,
     msgpack_write_str(&mp_state.buf, file_name, -1);
     msgpack_write_int(&mp_state.buf, line);
 
-    /* Event delta columns */
+    /* Counters sub-array */
+    msgpack_write_array_header(&mp_state.buf, n_deltas);
     for (Int i = 0; i < n_deltas; i++) {
         msgpack_write_uint(&mp_state.buf, deltas[i]);
     }

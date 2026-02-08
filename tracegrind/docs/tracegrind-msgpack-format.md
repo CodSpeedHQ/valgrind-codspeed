@@ -23,7 +23,7 @@ Tracegrind produces a binary trace file combining MsgPack serialization with LZ4
 | Offset | Size | Field   | Description |
 |--------|------|---------|-------------|
 | 0      | 4    | magic   | ASCII `TGMP` (0x54 0x47 0x4D 0x50) |
-| 4      | 4    | version | Format version, uint32 LE (currently 3) |
+| 4      | 4    | version | Format version, uint32 LE (currently 4) |
 
 ## Chunk Format
 
@@ -41,25 +41,28 @@ The first chunk contains a MsgPack map describing the discriminated union schema
 
 ```json
 {
-    "version": 3,
+    "version": 4,
     "format": "tracegrind-msgpack",
     "creator": "valgrind-tracegrind",
     "creator_version": "3.26.0.codspeed",
     "event_schemas": {
         "0": ["seq", "tid", "event", "marker"],
-        "1": ["seq", "tid", "event", "fn", "obj", "file", "line", "Ir", ...],
-        "2": ["seq", "tid", "event", "fn", "obj", "file", "line", "Ir", ...],
-        "3": ["seq", "tid", "event", "fn", "obj", "file", "line", "Ir", ...],
-        "4": ["seq", "tid", "event", "fn", "obj", "file", "line", "Ir", ...],
+        "1": ["seq", "tid", "event", "fn", "obj", "file", "line", "counters"],
+        "2": ["seq", "tid", "event", "fn", "obj", "file", "line", "counters"],
+        "3": ["seq", "tid", "event", "fn", "obj", "file", "line", "counters"],
+        "4": ["seq", "tid", "event", "fn", "obj", "file", "line", "counters"],
         "5": ["seq", "tid", "event", "child_pid"],
         "6": ["seq", "tid", "event", "child_tid"]
     },
+    "counters": ["Ir"],
     "counter_units": {
         "sysTime": "ns",
         "sysCpuTime": "ns"
     }
 }
 ```
+
+The `counters` array lists the dynamic counter column names (e.g. `["Ir"]` or `["Ir", "sysCount", "sysTime", "sysCpuTime"]`). Event schemas for types 1-4 use `"counters"` as a sentinel at index 7 to indicate that a sub-array of counter deltas appears at that position in data rows.
 
 ### Event Types
 
@@ -86,31 +89,31 @@ The first chunk contains a MsgPack map describing the discriminated union schema
 
 **ENTER_FN/EXIT_FN rows (event 1, 2):**
 
-| Index | Name  | Type   | Description |
-|-------|-------|--------|-------------|
-| 0     | seq   | uint64 | Sequence number |
-| 1     | tid   | int32  | Thread ID |
-| 2     | event | int    | 1 = ENTER_FN, 2 = EXIT_FN |
-| 3     | fn    | string | Function name |
-| 4     | obj   | string | Shared object path |
-| 5     | file  | string | Source file path |
-| 6     | line  | int32  | Line number (0 if unknown) |
-| 7+    | ...   | int64  | Event counter deltas (Ir, Dr, Dw, etc.) |
+| Index | Name     | Type   | Description |
+|-------|----------|--------|-------------|
+| 0     | seq      | uint64 | Sequence number |
+| 1     | tid      | int32  | Thread ID |
+| 2     | event    | int    | 1 = ENTER_FN, 2 = EXIT_FN |
+| 3     | fn       | string | Function name |
+| 4     | obj      | string | Shared object path |
+| 5     | file     | string | Source file path |
+| 6     | line     | int32  | Line number (0 if unknown) |
+| 7     | counters | array  | Counter deltas sub-array (Ir, Dr, Dw, etc.) |
 
 **ENTER_INLINED_FN/EXIT_INLINED_FN rows (event 3, 4):**
 
 Same schema as ENTER_FN/EXIT_FN rows.
 
-| Index | Name  | Type   | Description |
-|-------|-------|--------|-------------|
-| 0     | seq   | uint64 | Sequence number |
-| 1     | tid   | int32  | Thread ID |
-| 2     | event | int    | 3 = ENTER_INLINED_FN, 4 = EXIT_INLINED_FN |
-| 3     | fn    | string | Function name |
-| 4     | obj   | string | Shared object path |
-| 5     | file  | string | Source file path |
-| 6     | line  | int32  | Line number (0 if unknown) |
-| 7+    | ...   | int64  | Event counter deltas (Ir, Dr, Dw, etc.) |
+| Index | Name     | Type   | Description |
+|-------|----------|--------|-------------|
+| 0     | seq      | uint64 | Sequence number |
+| 1     | tid      | int32  | Thread ID |
+| 2     | event    | int    | 3 = ENTER_INLINED_FN, 4 = EXIT_INLINED_FN |
+| 3     | fn       | string | Function name |
+| 4     | obj      | string | Shared object path |
+| 5     | file     | string | Source file path |
+| 6     | line     | int32  | Line number (0 if unknown) |
+| 7     | counters | array  | Counter deltas sub-array (Ir, Dr, Dw, etc.) |
 
 **FORK rows (event 5):**
 
@@ -132,7 +135,7 @@ Same schema as ENTER_FN/EXIT_FN rows.
 
 ### Event Counter Columns
 
-For ENTER_FN/EXIT_FN/ENTER_INLINED_FN/EXIT_INLINED_FN rows, event counters appear as delta values starting at index 7. Which counters are present depends on Tracegrind options:
+For ENTER_FN/EXIT_FN/ENTER_INLINED_FN/EXIT_INLINED_FN rows, event counters appear as a sub-array at index 7. The order of values in the sub-array corresponds to the top-level `counters` array in the schema. Which counters are present depends on Tracegrind options:
 
 `Ir`, `Dr`, `Dw`, `I1mr`, `D1mr`, `D1mw`, `ILmr`, `DLmr`, `DLmw`, `Bc`, `Bcm`, `Bi`, `Bim`
 
@@ -153,13 +156,13 @@ When `--collect-systime` is not set, the `counter_units` map is empty.
 Each data chunk contains concatenated MsgPack arrays. The row format depends on the event type (index 2):
 
 ```
-[seq, tid, 0, marker]                               # MARKER
-[seq, tid, 1, fn, obj, file, line, delta_Ir, ...]   # ENTER_FN
-[seq, tid, 2, fn, obj, file, line, delta_Ir, ...]   # EXIT_FN
-[seq, tid, 3, fn, obj, file, line, delta_Ir, ...]   # ENTER_INLINED_FN
-[seq, tid, 4, fn, obj, file, line, delta_Ir, ...]   # EXIT_INLINED_FN
-[seq, tid, 5, child_pid]                             # FORK
-[seq, tid, 6, child_tid]                             # THREAD_CREATE
+[seq, tid, 0, marker]                                    # MARKER
+[seq, tid, 1, fn, obj, file, line, [delta_Ir, ...]]      # ENTER_FN
+[seq, tid, 2, fn, obj, file, line, [delta_Ir, ...]]      # EXIT_FN
+[seq, tid, 3, fn, obj, file, line, [delta_Ir, ...]]      # ENTER_INLINED_FN
+[seq, tid, 4, fn, obj, file, line, [delta_Ir, ...]]      # EXIT_INLINED_FN
+[seq, tid, 5, child_pid]                                  # FORK
+[seq, tid, 6, child_tid]                                  # THREAD_CREATE
 ```
 
 The reference implementation writes 4096 rows per chunk.
@@ -177,16 +180,15 @@ def read_tracegrind(filepath):
     with open(filepath, 'rb') as f:
         assert f.read(4) == b'TGMP'
         version = struct.unpack('<I', f.read(4))[0]
-        assert version == 3
+        assert version == 4
 
         # Read schema chunk
         usize, csize = struct.unpack('<II', f.read(8))
         schema = msgpack.unpackb(
-            lz4.block.decompress(f.read(csize), uncompressed_size=usize))
-        event_schemas = {
-            int(k): [c.decode() if isinstance(c, bytes) else c for c in v]
-            for k, v in schema[b'event_schemas'].items()
-        }
+            lz4.block.decompress(f.read(csize), uncompressed_size=usize),
+            raw=False)
+        event_schemas = schema['event_schemas']
+        counter_names = schema['counters']
 
         # Read data chunks
         rows = []
@@ -199,10 +201,18 @@ def read_tracegrind(filepath):
             unpacker.feed(chunk)
             for row in unpacker:
                 event_type = row[2]
-                columns = event_schemas[event_type]
-                rows.append(dict(zip(columns, row)))
+                columns = event_schemas[str(event_type)]
+                record = {}
+                for i, col in enumerate(columns):
+                    if col == 'counters' and isinstance(row[i], list):
+                        # Expand counters sub-array
+                        for j, name in enumerate(counter_names):
+                            record[name] = row[i][j]
+                    else:
+                        record[col] = row[i]
+                rows.append(record)
 
-        return event_schemas, rows
+        return event_schemas, counter_names, rows
 ```
 
 ## References
