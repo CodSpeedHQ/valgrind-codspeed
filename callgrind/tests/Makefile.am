@@ -10,6 +10,8 @@ EXTRA_DIST = \
 	ann1.post.exp ann1.stderr.exp ann1.vgtest \
 	ann2.post.exp ann2.stderr.exp ann2.vgtest \
 	clreq.vgtest clreq.stderr.exp \
+	runtime_obj_skip_py.vgtest runtime_obj_skip_py.stderr.exp runtime_obj_skip_py.post.exp \
+	runtime_obj_skip_py.py runtime_obj_skip_py_shim.c \
 	bug497723.stderr.exp bug497723.post.exp bug497723.vgtest \
 	simwork1.vgtest simwork1.stdout.exp simwork1.stderr.exp \
 	simwork2.vgtest simwork2.stdout.exp simwork2.stderr.exp \
@@ -38,3 +40,13 @@ inline_samefile_CFLAGS = $(AM_CFLAGS) -O2 -g
 inline_crossfile_CFLAGS = $(AM_CFLAGS) -O2 -g
 
 threads_LDADD = -lpthread
+
+# Shim loaded by runtime_obj_skip_py.py via ctypes. Built unconditionally;
+# the test's prereq skips it if the .so is missing.
+check_DATA = runtime_obj_skip_py_shim.so
+
+runtime_obj_skip_py_shim.so: runtime_obj_skip_py_shim.c
+	$(CC) -shared -fPIC -O2 -I$(top_srcdir) -I$(top_srcdir)/include \
+	    $< -o $@
+
+CLEANFILES = runtime_obj_skip_py_shim.so
