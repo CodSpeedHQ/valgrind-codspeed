@@ -1,3 +1,10 @@
+valgrind (1:3.26.0-0codspeed1) UNRELEASED; urgency=medium
+
+  * feat: allow skipping objects at runtime
+  * fix(debuginfo): resolve addresses in additional R-E LOAD segments
+
+ -- Adrien Cacciaguerra <adrien@codspeed.io>  Thu, 14 May 2026 19:38:36 +0000
+
 valgrind (1:3.26.0-0codspeed0) UNRELEASED; urgency=medium
 
   * feat: implement merge sort for jCC lists to ensure chronological dump order
