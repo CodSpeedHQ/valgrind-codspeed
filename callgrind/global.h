@@ -685,6 +685,7 @@ struct event_sets {
 void CLG_(set_clo_defaults)(void);
 void CLG_(update_fn_config)(fn_node*);
 Bool CLG_(process_cmd_line_option)(const HChar*);
+void CLG_(add_obj_to_skip)(const HChar* obj_name);
 void CLG_(print_usage)(void);
 void CLG_(print_debug_usage)(void);
 

@@ -400,6 +400,17 @@ void CLG_(update_fn_config)(fn_node* fn)
 }
 
 
+void CLG_(add_obj_to_skip)(const HChar* obj_name)
+{
+   HChar* dup = VG_(strdup)("cl.clo.aots.1", obj_name);
+   CLG_(clo).objs_to_skip_count++;
+   CLG_(clo).objs_to_skip = VG_(realloc)("cl.clo.aots.2",
+                                         CLG_(clo).objs_to_skip,
+                                         CLG_(clo).objs_to_skip_count * sizeof(HChar*));
+   CLG_(clo).objs_to_skip[CLG_(clo).objs_to_skip_count - 1] = dup;
+}
+
+
 /*--------------------------------------------------------------------*/
 /*--- Command line processing                                      ---*/
 /*--------------------------------------------------------------------*/
@@ -431,12 +442,7 @@ Bool CLG_(process_cmd_line_option)(const HChar* arg)
        fnc->skip = CONFIG_TRUE;
    }
    else if VG_STR_CLO(arg, "--obj-skip", tmp_str) {
-       HChar *obj_name = VG_(strdup)("cl.clo.pclo.1", tmp_str);
-       CLG_(clo).objs_to_skip_count++;
-       CLG_(clo).objs_to_skip = VG_(realloc)("cl.clo.pclo.2",
-                                             CLG_(clo).objs_to_skip,
-                                             CLG_(clo).objs_to_skip_count*sizeof(HChar*));
-       CLG_(clo).objs_to_skip[CLG_(clo).objs_to_skip_count-1] = obj_name;
+       CLG_(add_obj_to_skip)(tmp_str);
    }
 
    else if VG_STR_CLO(arg, "--dump-before", tmp_str) {

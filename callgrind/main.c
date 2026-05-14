@@ -1680,6 +1680,13 @@ Bool CLG_(handle_client_request)(ThreadId tid, UWord *args, UWord *ret)
      *ret = 0;                 /* meaningless */
      break;
 
+   case VG_USERREQ__ADD_OBJ_SKIP: {
+     const HChar* path = (const HChar*)args[1];
+     CLG_(add_obj_to_skip)(path);
+     *ret = 0;
+     break;
+   }
+
    case VG_USERREQ__GDB_MONITOR_COMMAND: {
       Bool handled = handle_gdb_monitor_command (tid, (HChar*)args[1]);
       if (handled)

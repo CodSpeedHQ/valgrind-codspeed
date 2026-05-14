@@ -78,7 +78,8 @@ typedef
       VG_USERREQ__TOGGLE_COLLECT,
       VG_USERREQ__DUMP_STATS_AT,
       VG_USERREQ__START_INSTRUMENTATION,
-      VG_USERREQ__STOP_INSTRUMENTATION
+      VG_USERREQ__STOP_INSTRUMENTATION,
+      VG_USERREQ__ADD_OBJ_SKIP
    } Vg_CallgrindClientRequest;
 
 /* Dump current state of cost centers, and zero them afterwards */
@@ -125,5 +126,11 @@ typedef
 #define CALLGRIND_STOP_INSTRUMENTATION                               \
   VALGRIND_DO_CLIENT_REQUEST_STMT(VG_USERREQ__STOP_INSTRUMENTATION,  \
                                   0, 0, 0, 0, 0)
+
+/* Add an object file path to the obj-skip list at runtime. Path matching
+   is exact (same as --obj-skip=<path> on the command line). */
+#define CALLGRIND_ADD_OBJ_SKIP(path)                                 \
+  VALGRIND_DO_CLIENT_REQUEST_STMT(VG_USERREQ__ADD_OBJ_SKIP,          \
+                                  path, 0, 0, 0, 0)
 
 #endif /* __CALLGRIND_H */
