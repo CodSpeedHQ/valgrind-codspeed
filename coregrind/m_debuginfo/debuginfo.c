@@ -2617,6 +2617,27 @@ DebugInfo* VG_(find_DebugInfo) ( DiEpoch ep, Addr a )
          return di;
       }
    }
+   /* Fallback for ELFs with multiple executable LOAD segments (e.g. BOLT-
+      optimized binaries: .bolt.org.text + .text + .text.warm + .text.cold
+      live in two separate R-E PT_LOAD segments). The text-range check above
+      only covers the section named ".text", so addresses in the other
+      executable region are missed and end up attributed to "???". Ask the
+      address-space manager which file backs this address, and match it to
+      a DebugInfo by filename. */
+   if (eq_DiEpoch(ep, VG_(current_DiEpoch)())) {
+      const NSegment* seg = VG_(am_find_nsegment)(a);
+      const HChar* filename;
+      if (seg != NULL && (filename = VG_(am_get_filename)(seg)) != NULL) {
+         for (di = debugInfo_list; di != NULL; di = di->next) {
+            if (!is_DI_valid_for_epoch(di, ep))
+               continue;
+            if (di->fsm.filename != NULL
+                && 0 == VG_(strcmp)(di->fsm.filename, filename)) {
+               return di;
+            }
+         }
+      }
+   }
    return NULL;
 }
 
