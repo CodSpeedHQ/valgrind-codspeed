@@ -10,6 +10,7 @@ EXTRA_DIST = \
 	ann1.post.exp ann1.stderr.exp ann1.vgtest \
 	ann2.post.exp ann2.stderr.exp ann2.vgtest \
 	clreq.vgtest clreq.stderr.exp \
+	find_debuginfo.vgtest find_debuginfo.stderr.exp find_debuginfo.post.exp \
 	runtime_obj_skip_py.vgtest runtime_obj_skip_py.stderr.exp runtime_obj_skip_py.post.exp \
 	runtime_obj_skip_py.py runtime_obj_skip_py_shim.c \
 	bug497723.stderr.exp bug497723.post.exp bug497723.vgtest \
@@ -30,7 +31,7 @@ EXTRA_DIST = \
 	inline-crossfile.vgtest inline-crossfile.stderr.exp inline-crossfile.stdout.exp inline-crossfile.post.exp \
 	inline-crossfile-helper1.h inline-crossfile-helper2.h filter_inline
 
-check_PROGRAMS = clreq simwork threads inline-samefile inline-crossfile
+check_PROGRAMS = clreq find_debuginfo simwork threads inline-samefile inline-crossfile
 
 AM_CFLAGS   += $(AM_FLAG_M3264_PRI)
 AM_CXXFLAGS += $(AM_FLAG_M3264_PRI)

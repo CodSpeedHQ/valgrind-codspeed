@@ -1,0 +1,4 @@
+prog: find_debuginfo
+vgopts: --compress-strings=no --callgrind-out-file=callgrind.out.find_debuginfo
+post: sh -c 'sed -n "s|^ob=.*/||p" callgrind.out.find_debuginfo | grep -v "^vgpreload" | sort -u'
+cleanup: rm -f callgrind.out.find_debuginfo
