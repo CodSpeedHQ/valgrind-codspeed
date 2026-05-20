@@ -2621,21 +2621,28 @@ DebugInfo* VG_(find_DebugInfo) ( DiEpoch ep, Addr a )
       optimized binaries: .bolt.org.text + .text + .text.warm + .text.cold
       live in two separate R-E PT_LOAD segments). The text-range check above
       only covers the section named ".text", so addresses in the other
-      executable region are missed and end up attributed to "???". Ask the
-      address-space manager which file backs this address, and match it to
-      a DebugInfo by filename. */
+      executable region are missed and end up attributed to "???". Match
+      against the rx mappings recorded for each DebugInfo. find_rx_mapping
+      keeps a per-DI single-entry cache (last_rx_map) so the hot case is
+      O(1) after the first hit. */
    if (eq_DiEpoch(ep, VG_(current_DiEpoch)())) {
-      const NSegment* seg = VG_(am_find_nsegment)(a);
-      const HChar* filename;
-      if (seg != NULL && (filename = VG_(am_get_filename)(seg)) != NULL) {
-         for (di = debugInfo_list; di != NULL; di = di->next) {
-            if (!is_DI_valid_for_epoch(di, ep))
-               continue;
-            if (di->fsm.filename != NULL
-                && 0 == VG_(strcmp)(di->fsm.filename, filename)) {
-               return di;
-            }
-         }
+      for (di = debugInfo_list; di != NULL; di = di->next) {
+         if (!is_DI_valid_for_epoch(di, ep))
+            continue;
+
+         const DebugInfoMapping* map = ML_(find_rx_mapping)(di, a, a);
+         if (map == NULL)
+             continue;
+
+        if (VG_(clo_verbosity) >= 2) {
+            VG_(message)(Vg_DebugMsg,
+                "find_DebugInfo: rx-mapping fallback matched 0x%lx -> "
+                "DI %p (%s) [avma=0x%lx size=%lu]\n",
+                a, di,
+                di->fsm.filename ? di->fsm.filename : "(no filename)",
+                map->avma, map->size);
+        }
+        return di;
       }
    }
    return NULL;
