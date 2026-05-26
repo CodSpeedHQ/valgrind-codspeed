@@ -119,7 +119,7 @@ def pytest_generate_tests(metafunc):
 
         # If the valgrind version is from CodSpeed, we don't want to display the exact version
         # to allow comparison against older versions. 
-        if ".codspeed" in runner.valgrind_version:
+        if "codspeed" in runner.valgrind_version:
             runner.valgrind_version = "valgrind.codspeed"
 
         # Create test IDs with format: valgrind-version, command, config-name
