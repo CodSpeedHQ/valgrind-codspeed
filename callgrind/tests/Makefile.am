@@ -61,9 +61,8 @@ runtime_obj_skip_c_lib.so: runtime_obj_skip_c_lib.c
 	$(CC) -shared -fPIC -O2 -I$(top_srcdir) -I$(top_srcdir)/include \
 	    $< -o $@
 
-runtime_obj_skip_c_LDADD = -ldl
-runtime_obj_skip_c_LDFLAGS = $(AM_LDFLAGS) -L. -l:runtime_obj_skip_c_lib.so \
-                             -Wl,-rpath,'$$ORIGIN'
+runtime_obj_skip_c_LDADD = -l:runtime_obj_skip_c_lib.so -ldl
+runtime_obj_skip_c_LDFLAGS = $(AM_LDFLAGS) -L. -Wl,-rpath,'$$ORIGIN'
 runtime_obj_skip_c_DEPENDENCIES = runtime_obj_skip_c_lib.so
 
 # Shared lib for the runtime_obj_skip_underflow test.
@@ -71,9 +70,8 @@ runtime_obj_skip_underflow_lib.so: runtime_obj_skip_underflow_lib.c
 	$(CC) -shared -fPIC -O2 -I$(top_srcdir) -I$(top_srcdir)/include \
 	    $< -o $@
 
-runtime_obj_skip_underflow_LDADD = -ldl
-runtime_obj_skip_underflow_LDFLAGS = $(AM_LDFLAGS) -L. -l:runtime_obj_skip_underflow_lib.so \
-                                     -Wl,-rpath,'$$ORIGIN'
+runtime_obj_skip_underflow_LDADD = -l:runtime_obj_skip_underflow_lib.so -ldl
+runtime_obj_skip_underflow_LDFLAGS = $(AM_LDFLAGS) -L. -Wl,-rpath,'$$ORIGIN'
 runtime_obj_skip_underflow_DEPENDENCIES = runtime_obj_skip_underflow_lib.so
 
 CLEANFILES = runtime_obj_skip_py_shim.so runtime_obj_skip_c_lib.so runtime_obj_skip_underflow_lib.so
