@@ -1,0 +1,6 @@
+prereq: command -v python3.14 >/dev/null && test -f runtime_obj_skip_py_shim.so
+prog-asis: python3.14
+args: runtime_obj_skip_py.py
+vgopts: --instr-atstart=no --compress-strings=no --callgrind-out-file=callgrind.out.runtime_obj_skip_py314
+post: sh -c 'c=$(awk "/^ob=/{p=(\$0~/libpython/)} /^fn=/&&p{c++} END{print c+0}" callgrind.out.runtime_obj_skip_py314); if [ "$c" -lt 100 ]; then echo OK; else echo "FAIL libpython fns=$c"; fi'
+cleanup: rm -f callgrind.out.runtime_obj_skip_py314

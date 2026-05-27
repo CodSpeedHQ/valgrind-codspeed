@@ -1,0 +1,5 @@
+prereq: test -f runtime_obj_skip_underflow && test -f runtime_obj_skip_underflow_lib.so
+prog-asis: ./runtime_obj_skip_underflow
+vgopts: --instr-atstart=no --compress-strings=no --callgrind-out-file=callgrind.out.runtime_obj_skip_underflow
+post: sh -c 'leaked=$(grep "^fn=skipme_" callgrind.out.runtime_obj_skip_underflow); if [ -n "$leaked" ]; then echo "FAIL: skipped fn leaked into top-level fn= block:"; echo "$leaked"; exit 1; else echo OK; fi'
+cleanup: rm -f callgrind.out.runtime_obj_skip_underflow
