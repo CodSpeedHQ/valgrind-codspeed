@@ -732,7 +732,11 @@ void CLG_(setup_bbcc)(BB* bb)
     }
   }
 
-  if (jmpkind == jk_Call) {
+  /* Check obj-skip on every BB entry, not only jk_Call.
+   * The interpreter / perf trampoline can enter functions via jk_Jump
+   * or fall-through; if we only checked on jk_Call, skip would never
+   * latch for those fns and they'd leak into the dump. */
+  {
     fn_node* node = CLG_(get_fn_node)(bb);
     skip = node->skip;
     if (!skip && !node->obj_skip_checked){
@@ -801,7 +805,15 @@ void CLG_(setup_bbcc)(BB* bb)
     }
   }
   
-  /* Change new context if needed, taking delayed_push into account */
+  /* Change new context if needed, taking delayed_push into account.
+   *
+   * The `cxt == 0` clause used to fire regardless of skip, which meant
+   * that on the first BB after instrumentation start / call-stack
+   * underflow, a skipped libpython fn would still be pushed as the new
+   * top context and appear as its own fn= block in the dump.
+   *
+   * Now: if the fn is skip, we substitute the skipped sentinel so the
+   * skipped fn doesn't appear as its own fn= block in the dump. */
   if ((delayed_push && !skip) || (CLG_(current_state).cxt == 0)) {
     fn_node* push_fn = CLG_(get_fn_node)(bb);
     /* A (sentinel): substitute the (skipped) sentinel so the
