@@ -1453,6 +1453,13 @@ void CLG_(set_instrument_state)(const HChar* reason, Bool state)
 	     reason, state ? "ON" : "OFF");
     return;
   }
+  VG_(message)(Vg_UserMsg,
+               "instrument_state -> %s (reason='%s', cxt=%p, "
+               "fn_stack_depth=%ld)\n",
+               state ? "ON" : "OFF", reason,
+               (void*)CLG_(current_state).cxt,
+               (long)(CLG_(current_fn_stack).top -
+                      CLG_(current_fn_stack).bottom));
   CLG_(instrument_state) = state;
   CLG_DEBUG(2, "%s: Switching instrumentation %s ...\n",
 	   reason, state ? "ON" : "OFF");
