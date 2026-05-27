@@ -513,6 +513,13 @@ static void handleUnderflow(BB* bb)
   CLG_(current_fn_stack).top--;
   CLG_(current_state).cxt = 0;
   caller = CLG_(get_fn_node)(bb);
+
+  /* A (sentinel): if the fn we'd return into is itself skipped, push
+   * the (skipped) sentinel instead so the skipped fn doesn't surface
+   * as its own fn= block in the dump. */
+  if (caller->skip)
+    caller = CLG_(get_skipped_sentinel)();
+
   CLG_(push_cxt)( caller );
 
   if (!seen_before) {
@@ -796,7 +803,12 @@ void CLG_(setup_bbcc)(BB* bb)
   
   /* Change new context if needed, taking delayed_push into account */
   if ((delayed_push && !skip) || (CLG_(current_state).cxt == 0)) {
-    CLG_(push_cxt)(CLG_(get_fn_node)(bb));
+    fn_node* push_fn = CLG_(get_fn_node)(bb);
+    /* A (sentinel): substitute the (skipped) sentinel so the
+     * skipped fn doesn't appear as its own fn= block in the dump. */
+    if (skip && CLG_(current_state).cxt == 0)
+      push_fn = CLG_(get_skipped_sentinel)();
+    CLG_(push_cxt)(push_fn);
   }
   CLG_ASSERT(CLG_(current_fn_stack).top > CLG_(current_fn_stack).bottom);
   

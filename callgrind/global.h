@@ -723,6 +723,7 @@ void CLG_(set_current_fn_array)(fn_array*);
 UInt* CLG_(get_fn_entry)(Int n);
 
 void      CLG_(init_obj_table)(void);
+fn_node*  CLG_(get_skipped_sentinel)(void);
 obj_node* CLG_(get_obj_node)(DebugInfo* si);
 file_node* CLG_(get_file_node)(obj_node*, const HChar *dirname,
                                const HChar* filename);
