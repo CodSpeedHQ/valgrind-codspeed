@@ -1,5 +1,5 @@
 prereq: test -f runtime_obj_skip_c && test -f runtime_obj_skip_c_lib.so
 prog-asis: ./runtime_obj_skip_c
 vgopts: --instr-atstart=no --compress-strings=no --callgrind-out-file=callgrind.out.runtime_obj_skip_c
-post: sh -c 'if grep -q "^fn=skipme_func" callgrind.out.runtime_obj_skip_c; then echo "FAIL: skipme_func leaked into top-level fn= block"; else echo OK; fi'
+post: sh -c 'if grep -q "^fn=skipme" callgrind.out.runtime_obj_skip_c; then echo "FAIL: skipme_* leaked into top-level fn= block"; else echo OK; fi'
 cleanup: rm -f callgrind.out.runtime_obj_skip_c

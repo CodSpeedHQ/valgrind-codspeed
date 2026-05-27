@@ -1553,7 +1553,17 @@ static void print_bbccs_of_thread(thread_info* ti)
     }
     
     if (*p == 0) break;
-    
+
+    /* Don't emit BBCCs whose top context fn is flagged for obj-skip.
+     * This happens when the (cxt == 0) clause in setup_bbcc force-
+     * pushes a skipped fn (first BB after instrumentation start that
+     * landed in a skipped object). Without this filter the skipped fn
+     * leaks into the dump as a top-level fn= block. */
+    if ((*p)->cxt->fn[0]->skip) {
+      p++;
+      continue;
+    }
+
     if (print_fn_pos(print_fp, &lastFnPos, *p)) {
       
       /* new function */
