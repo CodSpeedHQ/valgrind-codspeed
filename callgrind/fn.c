@@ -511,6 +511,10 @@ fn_node* new_fn_node(const HChar *fnname,
     fn->toggle_collect = False;
     fn->skip         = False;
     fn->obj_skip_checked = False;
+
+    VG_(message)(Vg_UserMsg, "new_fn_node: fn='%s' obj='%s'\n",
+                 fn->name,
+                 (file && file->obj && file->obj->name) ? file->obj->name : "(null)");
     fn->pop_on_jump  = CLG_(clo).pop_on_jump;
     fn->is_malloc    = False;
     fn->is_realloc   = False;
