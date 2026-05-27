@@ -1,4 +1,4 @@
-prereq: command -v python3.14 >/dev/null && test -f runtime_obj_skip_py_shim.so
+prereq: command -v python3.14 >/dev/null 2>&1 && test -f runtime_obj_skip_py_shim.so || exit 1
 prog-asis: python3.14
 args: runtime_obj_skip_py.py
 vgopts: --instr-atstart=no --compress-strings=no --callgrind-out-file=callgrind.out.runtime_obj_skip_py314
