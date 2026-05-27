@@ -738,6 +738,11 @@ void CLG_(setup_bbcc)(BB* bb)
           skip = True;
         }
       }
+      if (skip) {
+        VG_(message)(Vg_UserMsg,
+                     "obj_skip HIT: fn='%s' obj='%s'\n",
+                     node->name, obj_name);
+      }
       if (!skip && CLG_(clo).objs_to_skip_count > 0) {
         VG_(message)(Vg_UserMsg,
                      "obj_skip miss: fn='%s' obj='%s' (len=%lu, %d entries)\n",
