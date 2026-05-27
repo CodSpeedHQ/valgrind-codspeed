@@ -513,6 +513,11 @@ static void handleUnderflow(BB* bb)
   CLG_(current_fn_stack).top--;
   CLG_(current_state).cxt = 0;
   caller = CLG_(get_fn_node)(bb);
+  VG_(message)(Vg_UserMsg,
+               "underflow reset: cxt=0, BB=%#lx, fn-about-to-push='%s' "
+               "obj='%s' skip=%d\n",
+               bb_addr(bb), caller->name,
+               caller->file->obj->name, caller->skip);
   CLG_(push_cxt)( caller );
 
   if (!seen_before) {
