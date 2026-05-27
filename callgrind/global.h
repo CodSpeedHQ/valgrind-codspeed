@@ -724,6 +724,7 @@ UInt* CLG_(get_fn_entry)(Int n);
 
 void      CLG_(init_obj_table)(void);
 void      CLG_(count_obj_skip_checked_fns)(Int* checked, Int* skipped);
+void      CLG_(dump_python_fn_summary)(void);
 obj_node* CLG_(get_obj_node)(DebugInfo* si);
 file_node* CLG_(get_file_node)(obj_node*, const HChar *dirname,
                                const HChar* filename);

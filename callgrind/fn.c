@@ -327,6 +327,44 @@ void CLG_(count_obj_skip_checked_fns)(Int* checked, Int* skipped)
     }
 }
 
+static Bool name_contains(const HChar* hay, const HChar* needle)
+{
+    if (!hay || !needle) return False;
+    Int hlen = VG_(strlen)(hay), nlen = VG_(strlen)(needle);
+    for (Int i = 0; i + nlen <= hlen; i++)
+        if (VG_(strncmp)(hay + i, needle, nlen) == 0) return True;
+    return False;
+}
+
+void CLG_(dump_python_fn_summary)(void)
+{
+    Int total = 0, checked = 0, skipped = 0;
+    VG_(message)(Vg_UserMsg, "=== python fn summary (dump) ===\n");
+    for (Int i = 0; i < N_OBJ_ENTRIES; i++) {
+        for (obj_node* obj = obj_table[i]; obj != NULL; obj = obj->next) {
+            if (!name_contains(obj->name, "python")) continue;
+            for (Int f = 0; f < N_FILE_ENTRIES; f++) {
+                for (file_node* file = obj->files[f]; file != NULL; file = file->next) {
+                    for (Int n = 0; n < N_FN_ENTRIES; n++) {
+                        for (fn_node* fn = file->fns[n]; fn != NULL; fn = fn->next) {
+                            total++;
+                            if (fn->obj_skip_checked) checked++;
+                            if (fn->skip) skipped++;
+                            VG_(message)(Vg_UserMsg,
+                                "  fn='%s' obj='%s' skip=%d checked=%d\n",
+                                fn->name, obj->name,
+                                fn->skip, fn->obj_skip_checked);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    VG_(message)(Vg_UserMsg,
+        "=== python fn summary: total=%d checked=%d skipped=%d ===\n",
+        total, checked, skipped);
+}
+
 #define HASH_CONSTANT   256
 
 static UInt str_hash(const HChar *s, UInt table_size)

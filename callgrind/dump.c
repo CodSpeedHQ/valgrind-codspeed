@@ -1636,6 +1636,8 @@ void CLG_(dump_profile)(const HChar* trigger, Bool only_current_thread)
 
    print_bbccs(trigger, only_current_thread);
 
+   CLG_(dump_python_fn_summary)();
+
    bbs_done = CLG_(stat).bb_executions++;
 
    if (VG_(clo_verbosity) > 1)
