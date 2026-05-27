@@ -13,6 +13,8 @@ EXTRA_DIST = \
 	find_debuginfo.vgtest find_debuginfo.stderr.exp find_debuginfo.post.exp \
 	runtime_obj_skip_py.vgtest runtime_obj_skip_py.stderr.exp runtime_obj_skip_py.post.exp \
 	runtime_obj_skip_py.py runtime_obj_skip_py_shim.c \
+	runtime_obj_skip_c.vgtest runtime_obj_skip_c.stderr.exp runtime_obj_skip_c.post.exp \
+	runtime_obj_skip_c.c runtime_obj_skip_c_lib.c \
 	bug497723.stderr.exp bug497723.post.exp bug497723.vgtest \
 	simwork1.vgtest simwork1.stdout.exp simwork1.stderr.exp \
 	simwork2.vgtest simwork2.stdout.exp simwork2.stderr.exp \
@@ -31,7 +33,7 @@ EXTRA_DIST = \
 	inline-crossfile.vgtest inline-crossfile.stderr.exp inline-crossfile.stdout.exp inline-crossfile.post.exp \
 	inline-crossfile-helper1.h inline-crossfile-helper2.h filter_inline
 
-check_PROGRAMS = clreq find_debuginfo simwork threads inline-samefile inline-crossfile
+check_PROGRAMS = clreq find_debuginfo simwork threads inline-samefile inline-crossfile runtime_obj_skip_c
 
 AM_CFLAGS   += $(AM_FLAG_M3264_PRI)
 AM_CXXFLAGS += $(AM_FLAG_M3264_PRI)
@@ -44,10 +46,21 @@ threads_LDADD = -lpthread
 
 # Shim loaded by runtime_obj_skip_py.py via ctypes. Built unconditionally;
 # the test's prereq skips it if the .so is missing.
-check_DATA = runtime_obj_skip_py_shim.so
+check_DATA = runtime_obj_skip_py_shim.so runtime_obj_skip_c_lib.so
 
 runtime_obj_skip_py_shim.so: runtime_obj_skip_py_shim.c
 	$(CC) -shared -fPIC -O2 -I$(top_srcdir) -I$(top_srcdir)/include \
 	    $< -o $@
 
-CLEANFILES = runtime_obj_skip_py_shim.so
+# Shared lib for the runtime_obj_skip_c test. Lives in a separate ELF
+# so the main binary can register its path for runtime obj-skip.
+runtime_obj_skip_c_lib.so: runtime_obj_skip_c_lib.c
+	$(CC) -shared -fPIC -O2 -I$(top_srcdir) -I$(top_srcdir)/include \
+	    $< -o $@
+
+runtime_obj_skip_c_LDADD = -ldl
+runtime_obj_skip_c_LDFLAGS = $(AM_LDFLAGS) -L. -l:runtime_obj_skip_c_lib.so \
+                             -Wl,-rpath,'$$ORIGIN'
+runtime_obj_skip_c_DEPENDENCIES = runtime_obj_skip_c_lib.so
+
+CLEANFILES = runtime_obj_skip_py_shim.so runtime_obj_skip_c_lib.so
