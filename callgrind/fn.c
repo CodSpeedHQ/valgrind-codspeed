@@ -581,6 +581,21 @@ fn_node* get_fn_node_inseg(DebugInfo* di,
 }
 
 
+/* Resolve a raw code address to a fn_node, creating obj/file/fn entries if
+ * needed. Addresses without DebugInfo (anonymous JIT mappings, ld glue)
+ * resolve to the shared `???`/anonymous obj. Used by the START-instrumentation
+ * stack reconstruction path, which has IPs but no BBs. */
+fn_node* CLG_(get_fn_node_for_addr)(Addr ip)
+{
+    const HChar *dirname, *filename, *fnname;
+    UInt line_num;
+    DebugInfo* di;
+
+    CLG_(get_debug_info)(ip, &dirname, &filename, &fnname, &line_num, &di);
+    return get_fn_node_inseg(di, dirname, filename, fnname);
+}
+
+
 Bool CLG_(get_debug_info)(Addr instr_addr,
                           const HChar **dir,
                           const HChar **file,

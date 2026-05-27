@@ -25,6 +25,7 @@
 */
 
 #include "global.h"
+#include "pub_tool_stacktrace.h"
 
 /*------------------------------------------------------------*/
 /*--- Call stack, operations                               ---*/
@@ -432,4 +433,98 @@ Int CLG_(unwind_call_stack)(Addr sp, Int minpops)
 
     CLG_DEBUG(4,"- unwind_call_stack\n");
     return unwind_count;
+}
+
+
+/* Seed callgrind's shadow call stack from the client's native stack so a
+ * later `ret` past unseen frames pops cleanly instead of underflowing.
+ *
+ * Called on the OFF->ON instrumentation transition: the client (e.g.
+ * pytest_codspeed) typically reaches CALLGRIND_START_INSTRUMENTATION several
+ * libpython frames deep. Without seeding, csp stays at 0 while the real
+ * stack is non-empty, and every subsequent ret trips handleUnderflow and
+ * leaks the returned-into fn as a top-level fn= block.
+ *
+ * For each native frame we push a (jcc=0, skip-style) call_entry with the
+ * captured SP and a ret_addr computed from the caller's IP. To make obj-skip
+ * cost-folding work across the seeded chain, we also synthesize a BBCC for
+ * each non-skipped caller frame so push_call_stack-style `nonskipped`
+ * attribution has a target on the first non-skip -> skip transition.
+ */
+#define CLG_RECON_MAX_FRAMES 256
+
+void CLG_(reconstruct_call_stack_from_native)(ThreadId tid)
+{
+    Addr ips[CLG_RECON_MAX_FRAMES];
+    Addr sps[CLG_RECON_MAX_FRAMES];
+    call_stack* cs = &CLG_(current_call_stack);
+
+    if (cs->sp != 0) return;
+
+    UInt n = VG_(get_StackTrace)(tid, ips, CLG_RECON_MAX_FRAMES, sps, NULL, 0);
+    if (n == 0) return;
+
+    /* Caller's synthesized BBCC, latched for use as nonskipped target on
+     * the first non-skipped -> skipped transition. */
+    BBCC* caller_bbcc = 0;
+
+    /* Push bottom-up: oldest caller first, current frame last. */
+    for (Int frame = n - 1; frame >= 0; frame--) {
+        fn_node* fn = CLG_(get_fn_node_for_addr)(ips[frame]);
+
+        /* Latch obj-skip on first encounter, matching bbcc.c's check. */
+        if (!fn->obj_skip_checked) {
+            const HChar* obj = fn->file->obj->name;
+            for (Int j = 0; j < CLG_(clo).objs_to_skip_count; j++) {
+                if (VG_(strcmp)(obj, CLG_(clo).objs_to_skip[j]) == 0) {
+                    fn->skip = True;
+                    break;
+                }
+            }
+            fn->obj_skip_checked = True;
+        }
+
+        ensure_stack_size(cs->sp + 1);
+        BBCC* prev_nonskipped = CLG_(current_state).nonskipped;
+        CLG_(push_cxt)(fn);
+
+        /* Create a BBCC for non-skipped caller frames. ips[frame] for
+         * frame>=1 is "last byte of the call instruction" per VG_(get_StackTrace),
+         * so it's never a real BB start and the 0-insn synthetic BB cannot
+         * collide with later real instrumentation. The top frame's IP can
+         * land on a real BB, so we don't synthesize there — real BBCC will
+         * be created naturally on the first instrumented BB. */
+        if (frame > 0 && !fn->skip) {
+            Bool seen;
+            BBCC* b = CLG_(get_bbcc)(CLG_(get_bb)(ips[frame], NULL, &seen));
+            if (!seen) {
+                b->rec_array = CLG_(new_recursion)(fn->separate_recursions);
+                b->rec_array[0] = b;
+                b->cxt = CLG_(current_state).cxt;
+                CLG_(insert_bbcc_into_hash)(b);
+            }
+            caller_bbcc = b;
+        }
+
+        /* Mirror push_call_stack's nonskipped transition. */
+        if (!fn->skip) {
+            CLG_(current_state).nonskipped = 0;
+        } else if (prev_nonskipped == 0 && caller_bbcc) {
+            CLG_(current_state).nonskipped = caller_bbcc;
+            if (!caller_bbcc->skipped)
+                CLG_(init_cost_lz)(CLG_(sets).full, &caller_bbcc->skipped);
+        }
+
+        call_entry* ce = &cs->entry[cs->sp];
+        ce->jcc        = 0;
+        ce->sp         = sps[frame];
+        ce->ret_addr   = (frame + 1 < (Int)n) ? ips[frame + 1] + 1 : 0;
+        ce->nonskipped = prev_nonskipped;
+
+        cs->sp++;
+        ensure_stack_size(cs->sp + 1);
+        cs->entry[cs->sp].cxt = 0;
+    }
+
+    if (caller_bbcc) CLG_(current_state).bbcc = caller_bbcc;
 }
