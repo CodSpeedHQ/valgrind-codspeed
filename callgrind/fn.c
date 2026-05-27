@@ -336,27 +336,6 @@ static Bool name_contains(const HChar* hay, const HChar* needle)
     return False;
 }
 
-static fn_node* new_fn_node(const HChar *fnname,
-                            file_node* file, fn_node* next);
-
-/* Singleton sentinel fn_node used as a placeholder cxt when we'd
- * otherwise be forced to push a skipped fn into an empty (cxt == 0)
- * context. Keeping skip == False on the sentinel itself is crucial:
- * the (cxt == 0 && skip) check that would push it must NOT recurse
- * on the sentinel. */
-static fn_node* skipped_sentinel = NULL;
-
-fn_node* CLG_(get_skipped_sentinel)(void)
-{
-    if (skipped_sentinel) return skipped_sentinel;
-
-    obj_node* obj = CLG_(get_obj_node)(NULL);   /* anonymous "???" obj */
-    file_node* file = CLG_(get_file_node)(obj, "", "(callgrind-internal)");
-    skipped_sentinel = new_fn_node("(skipped)", file, NULL);
-    skipped_sentinel->skip = False;
-    return skipped_sentinel;
-}
-
 void CLG_(dump_python_fn_summary)(void)
 {
     Int total = 0, checked = 0, skipped = 0;

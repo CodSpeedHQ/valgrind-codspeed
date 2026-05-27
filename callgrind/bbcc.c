@@ -518,13 +518,6 @@ static void handleUnderflow(BB* bb)
                "obj='%s' skip=%d\n",
                bb_addr(bb), caller->name,
                caller->file->obj->name, caller->skip);
-
-  /* A (sentinel): if the fn we'd return into is itself skipped, push
-   * the (skipped) sentinel instead so the skipped fn doesn't surface
-   * as its own fn= block in the dump. */
-  if (caller->skip)
-    caller = CLG_(get_skipped_sentinel)();
-
   CLG_(push_cxt)( caller );
 
   if (!seen_before) {
@@ -844,9 +837,6 @@ void CLG_(setup_bbcc)(BB* bb)
                    push_fn->name,
                    push_fn->file->obj->name,
                    (int)jmpkind, (int)delayed_push);
-      /* A (sentinel): substitute the (skipped) sentinel so the
-       * skipped fn doesn't appear as its own fn= block in the dump. */
-      push_fn = CLG_(get_skipped_sentinel)();
     }
     CLG_(push_cxt)(push_fn);
   }
