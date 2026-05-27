@@ -730,14 +730,24 @@ void CLG_(setup_bbcc)(BB* bb)
     skip = node->skip;
     if (!skip && !node->obj_skip_checked){
       HChar* obj_name = node->file->obj->name;
-      // VG_(printf)("  %s\n", obj_name);
+      Int cmp_results[CLG_(clo).objs_to_skip_count];
       for (int i=0; i<CLG_(clo).objs_to_skip_count; i++) {
-        // VG_(printf)("     %s\n", CLG_(clo).objs_to_skip[i]);
-        if (VG_(strcmp)(obj_name, CLG_(clo).objs_to_skip[i]) == 0) {
+        cmp_results[i] = VG_(strcmp)(obj_name, CLG_(clo).objs_to_skip[i]);
+        if (cmp_results[i] == 0) {
           node->skip = True;
           skip = True;
-          break;
         }
+      }
+      if (!skip && CLG_(clo).objs_to_skip_count > 0) {
+        VG_(message)(Vg_UserMsg,
+                     "obj_skip miss: fn='%s' obj='%s' (len=%lu, %d entries)\n",
+                     node->name, obj_name,
+                     VG_(strlen)(obj_name), CLG_(clo).objs_to_skip_count);
+        for (int i=0; i<CLG_(clo).objs_to_skip_count; i++)
+          VG_(message)(Vg_UserMsg, "  vs [%d] strcmp=%d (len=%lu) '%s'\n",
+                       i, cmp_results[i],
+                       VG_(strlen)(CLG_(clo).objs_to_skip[i]),
+                       CLG_(clo).objs_to_skip[i]);
       }
       node->obj_skip_checked = True;
     }
