@@ -725,7 +725,11 @@ void CLG_(setup_bbcc)(BB* bb)
     }
   }
 
-  if (jmpkind == jk_Call) {
+  /* Check obj-skip on every BB entry, not only jk_Call.
+   * The interpreter / perf trampoline can enter functions via jk_Jump
+   * or fall-through; if we only checked on jk_Call, skip would never
+   * latch for those fns and they'd leak into the dump. */
+  {
     fn_node* node = CLG_(get_fn_node)(bb);
     skip = node->skip;
     if (!skip && !node->obj_skip_checked){
@@ -740,14 +744,15 @@ void CLG_(setup_bbcc)(BB* bb)
       }
       if (skip) {
         VG_(message)(Vg_UserMsg,
-                     "obj_skip HIT: fn='%s' obj='%s'\n",
-                     node->name, obj_name);
+                     "obj_skip HIT: fn='%s' obj='%s' jmpkind=%d\n",
+                     node->name, obj_name, (int)jmpkind);
       }
       if (!skip && CLG_(clo).objs_to_skip_count > 0) {
         VG_(message)(Vg_UserMsg,
-                     "obj_skip miss: fn='%s' obj='%s' (len=%lu, %d entries)\n",
+                     "obj_skip miss: fn='%s' obj='%s' (len=%lu, %d entries) jmpkind=%d\n",
                      node->name, obj_name,
-                     VG_(strlen)(obj_name), CLG_(clo).objs_to_skip_count);
+                     VG_(strlen)(obj_name), CLG_(clo).objs_to_skip_count,
+                     (int)jmpkind);
         for (int i=0; i<CLG_(clo).objs_to_skip_count; i++)
           VG_(message)(Vg_UserMsg, "  vs [%d] strcmp=%d (len=%lu) '%s'\n",
                        i, cmp_results[i],
@@ -809,9 +814,26 @@ void CLG_(setup_bbcc)(BB* bb)
     }
   }
   
-  /* Change new context if needed, taking delayed_push into account */
+  /* Change new context if needed, taking delayed_push into account.
+   *
+   * The `cxt == 0` clause used to fire regardless of skip, which meant
+   * that on the first BB after instrumentation start / call-stack
+   * underflow, a skipped libpython fn would still be pushed as the new
+   * top context and appear as its own fn= block in the dump.
+   *
+   * Now: if the fn is skip, we still push it (otherwise the assert at
+   * the end of this block fires when fn_stack is empty), but emit a
+   * diagnostic so we can measure how often the leak happens. */
   if ((delayed_push && !skip) || (CLG_(current_state).cxt == 0)) {
-    CLG_(push_cxt)(CLG_(get_fn_node)(bb));
+    fn_node* push_fn = CLG_(get_fn_node)(bb);
+    if (skip && CLG_(current_state).cxt == 0) {
+      VG_(message)(Vg_UserMsg,
+                   "push_cxt FORCED for skipped fn (cxt==0): fn='%s' obj='%s' jmpkind=%d delayed_push=%d\n",
+                   push_fn->name,
+                   push_fn->file->obj->name,
+                   (int)jmpkind, (int)delayed_push);
+    }
+    CLG_(push_cxt)(push_fn);
   }
   CLG_ASSERT(CLG_(current_fn_stack).top > CLG_(current_fn_stack).bottom);
   
