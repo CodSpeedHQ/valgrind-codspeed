@@ -402,12 +402,25 @@ void CLG_(update_fn_config)(fn_node* fn)
 
 void CLG_(add_obj_to_skip)(const HChar* obj_name)
 {
+   VG_(message)(Vg_UserMsg, "add_obj_to_skip: '%s'\n", obj_name);
    HChar* dup = VG_(strdup)("cl.clo.aots.1", obj_name);
    CLG_(clo).objs_to_skip_count++;
    CLG_(clo).objs_to_skip = VG_(realloc)("cl.clo.aots.2",
                                          CLG_(clo).objs_to_skip,
                                          CLG_(clo).objs_to_skip_count * sizeof(HChar*));
    CLG_(clo).objs_to_skip[CLG_(clo).objs_to_skip_count - 1] = dup;
+
+   VG_(message)(Vg_UserMsg, "obj-skip list now has %d entries:\n",
+                CLG_(clo).objs_to_skip_count);
+   for (Int i = 0; i < CLG_(clo).objs_to_skip_count; i++) {
+      VG_(message)(Vg_UserMsg, "  [%d] '%s'\n", i, CLG_(clo).objs_to_skip[i]);
+   }
+
+   Int checked = 0, skipped = 0;
+   CLG_(count_obj_skip_checked_fns)(&checked, &skipped);
+   VG_(message)(Vg_UserMsg,
+                "fn_nodes already obj_skip_checked: %d (of which marked skip: %d)\n",
+                checked, skipped);
 }
 
 

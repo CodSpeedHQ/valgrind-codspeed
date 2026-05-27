@@ -307,6 +307,26 @@ void CLG_(init_obj_table)(void)
 	obj_table[i] = 0;
 }
 
+void CLG_(count_obj_skip_checked_fns)(Int* checked, Int* skipped)
+{
+    *checked = 0;
+    *skipped = 0;
+    for (Int i = 0; i < N_OBJ_ENTRIES; i++) {
+        for (obj_node* obj = obj_table[i]; obj != NULL; obj = obj->next) {
+            for (Int f = 0; f < N_FILE_ENTRIES; f++) {
+                for (file_node* file = obj->files[f]; file != NULL; file = file->next) {
+                    for (Int n = 0; n < N_FN_ENTRIES; n++) {
+                        for (fn_node* fn = file->fns[n]; fn != NULL; fn = fn->next) {
+                            if (fn->obj_skip_checked) (*checked)++;
+                            if (fn->skip) (*skipped)++;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 #define HASH_CONSTANT   256
 
 static UInt str_hash(const HChar *s, UInt table_size)
