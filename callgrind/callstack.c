@@ -499,33 +499,47 @@ void CLG_(reconstruct_call_stack_from_native)(ThreadId tid)
 
         ensure_stack_size(cs->sp + 1);
         BBCC* prev_nonskipped = CLG_(current_state).nonskipped;
-        CLG_(push_cxt)(fn);
 
-        /* Create a BBCC for non-skipped caller frames. ips[frame] for
-         * frame>=1 is "last byte of the call instruction" per VG_(get_StackTrace),
-         * so it's never a real BB start and the 0-insn synthetic BB cannot
-         * collide with later real instrumentation. The top frame's IP can
-         * land on a real BB, so we don't synthesize there — real BBCC will
-         * be created naturally on the first instrumented BB. */
-        if (frame > 0 && !fn->skip) {
-            Bool seen;
-            BBCC* b = CLG_(get_bbcc)(CLG_(get_bb)(ips[frame], NULL, &seen));
-            if (!seen) {
-                b->rec_array = CLG_(new_recursion)(fn->separate_recursions);
-                b->rec_array[0] = b;
-                b->cxt = CLG_(current_state).cxt;
-                CLG_(insert_bbcc_into_hash)(b);
+        /* Anonymous JIT frames (V8 trampolines, generated code with no
+         * DebugInfo) resolve to fn->name == "???". Don't push_cxt them:
+         * they have no useful identity, and because no later RET ever
+         * pops them (JS resumes via dispatch, not C-ABI ret), they would
+         * stay stuck on top of the cxt chain forever and become a phantom
+         * "???" root of every user fn. Push only a bare call_entry so SP
+         * unwind still works; ce->cxt stays 0, signaling pop_call_stack
+         * to leave cxt alone. */
+        Bool anonymous = (VG_(strcmp)(fn->name, "???") == 0);
+
+        if (!anonymous) {
+            CLG_(push_cxt)(fn);
+
+            /* Create a BBCC for non-skipped caller frames. ips[frame] for
+             * frame>=1 is "last byte of the call instruction" per
+             * VG_(get_StackTrace), so it's never a real BB start and the
+             * 0-insn synthetic BB cannot collide with later real
+             * instrumentation. The top frame's IP can land on a real BB,
+             * so we don't synthesize there — real BBCC will be created
+             * naturally on the first instrumented BB. */
+            if (frame > 0 && !fn->skip) {
+                Bool seen;
+                BBCC* b = CLG_(get_bbcc)(CLG_(get_bb)(ips[frame], NULL, &seen));
+                if (!seen) {
+                    b->rec_array = CLG_(new_recursion)(fn->separate_recursions);
+                    b->rec_array[0] = b;
+                    b->cxt = CLG_(current_state).cxt;
+                    CLG_(insert_bbcc_into_hash)(b);
+                }
+                caller_bbcc = b;
             }
-            caller_bbcc = b;
-        }
 
-        /* Mirror push_call_stack's nonskipped transition. */
-        if (!fn->skip) {
-            CLG_(current_state).nonskipped = 0;
-        } else if (prev_nonskipped == 0 && caller_bbcc) {
-            CLG_(current_state).nonskipped = caller_bbcc;
-            if (!caller_bbcc->skipped)
-                CLG_(init_cost_lz)(CLG_(sets).full, &caller_bbcc->skipped);
+            /* Mirror push_call_stack's nonskipped transition. */
+            if (!fn->skip) {
+                CLG_(current_state).nonskipped = 0;
+            } else if (prev_nonskipped == 0 && caller_bbcc) {
+                CLG_(current_state).nonskipped = caller_bbcc;
+                if (!caller_bbcc->skipped)
+                    CLG_(init_cost_lz)(CLG_(sets).full, &caller_bbcc->skipped);
+            }
         }
 
         call_entry* ce = &cs->entry[cs->sp];
