@@ -560,6 +560,28 @@ static void handleUnderflow(BB* bb)
 }
 
 
+/* Resolve --obj-skip for a fn lazily: if the fn's containing object
+ * was registered for skipping (via CLO or CALLGRIND_ADD_OBJ_SKIP) and
+ * we haven't yet propagated that to fn->skip, do so now. Returns the
+ * final skip state. Cheap on the hot path due to obj_skip_checked. */
+static Bool resolve_obj_skip(fn_node* node)
+{
+  if (node->skip) return True;
+  if (node->obj_skip_checked) return False;
+
+  HChar* obj_name = node->file->obj->name;
+  for (int i = 0; i < CLG_(clo).objs_to_skip_count; i++) {
+    if (VG_(strcmp)(obj_name, CLG_(clo).objs_to_skip[i]) == 0) {
+      node->skip = True;
+      node->obj_skip_checked = True;
+      return True;
+    }
+  }
+  node->obj_skip_checked = True;
+  return False;
+}
+
+
 /*
  * Helper function called at start of each instrumented BB to setup
  * pointer to costs for current thread/context/recursion level
@@ -734,21 +756,7 @@ void CLG_(setup_bbcc)(BB* bb)
   }
 
   if (jmpkind == jk_Call) {
-    fn_node* node = CLG_(get_fn_node)(bb);
-    skip = node->skip;
-    if (!skip && !node->obj_skip_checked){
-      HChar* obj_name = node->file->obj->name;
-      // VG_(printf)("  %s\n", obj_name);
-      for (int i=0; i<CLG_(clo).objs_to_skip_count; i++) {
-        // VG_(printf)("     %s\n", CLG_(clo).objs_to_skip[i]);
-        if (VG_(strcmp)(obj_name, CLG_(clo).objs_to_skip[i]) == 0) {
-          node->skip = True;
-          skip = True;
-          break;
-        }
-      }
-      node->obj_skip_checked = True;
-    }
+    skip = resolve_obj_skip(CLG_(get_fn_node)(bb));
   }
 
   CLG_DEBUGIF(1) {
@@ -802,9 +810,17 @@ void CLG_(setup_bbcc)(BB* bb)
     }
   }
   
-  /* Change new context if needed, taking delayed_push into account */
+  /* Change new context if needed, taking delayed_push into account.
+   * Also resolve --obj-skip on the force-push (cxt==0) path so that
+   * the BBCC ends up with fn->skip set and gets dropped at dump time.
+   * Without this the fn->skip propagation only runs from the jk_Call
+   * branch above, and any first BB after START_INSTRUMENTATION that
+   * lives in a skipped object leaks into the .out file. */
   if ((delayed_push && !skip) || (CLG_(current_state).cxt == 0)) {
-    CLG_(push_cxt)(CLG_(get_fn_node)(bb));
+    fn_node* node = CLG_(get_fn_node)(bb);
+    if (CLG_(current_state).cxt == 0)
+      resolve_obj_skip(node);
+    CLG_(push_cxt)(node);
   }
   CLG_ASSERT(CLG_(current_fn_stack).top > CLG_(current_fn_stack).bottom);
   
