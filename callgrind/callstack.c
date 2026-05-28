@@ -362,6 +362,19 @@ void CLG_(pop_call_stack)(void)
 
 	if (depth == 0) function_left(to_fn);
     }
+    else if (lower_entry->cxt != 0) {
+	/* Seeded entry from reconstruct_call_stack_from_native: jcc=0
+	 * (skip-style) but push_cxt did run, so cxt was changed. Restore
+	 * it here so the seeded wrapper doesn't stay stuck on top of the
+	 * cxt chain and phantom-parent every subsequent call from the
+	 * real caller. Real skip-entries (push_call_stack(skip=True)
+	 * without a prior push_cxt) have lower_entry->cxt==0 and skip
+	 * this branch — their cxt was never changed, so nothing to
+	 * restore. */
+	CLG_(current_state).cxt  = lower_entry->cxt;
+	CLG_(current_fn_stack).top =
+	  CLG_(current_fn_stack).bottom + lower_entry->fn_sp;
+    }
 
     /* To allow for an assertion in push_call_stack() */
     lower_entry->cxt = 0;
@@ -468,18 +481,8 @@ void CLG_(reconstruct_call_stack_from_native)(ThreadId tid)
      * the first non-skipped -> skipped transition. */
     BBCC* caller_bbcc = 0;
 
-    /* Push bottom-up: oldest caller first, stopping before frame 0 (the
-     * function that fired CALLGRIND_START_INSTRUMENTATION).
-     *
-     * Why skip frame 0:
-     *   - Seeded call_entries have jcc=0.
-     *   - pop_call_stack only restores cxt when jcc!=0.
-     *   - So frame 0's `ret` would leave it stuck on top of the cxt chain,
-     *     phantom-parenting every later call from the real caller.
-     *
-     * Skipping it leaves cxt ending at the genuine caller; frame 0's
-     * trailing epilogue is harmlessly attributed there. */
-    for (Int frame = n - 1; frame >= 1; frame--) {
+    /* Push bottom-up: oldest caller first, current frame last. */
+    for (Int frame = n - 1; frame >= 0; frame--) {
         fn_node* fn = CLG_(get_fn_node_for_addr)(ips[frame]);
 
         /* Latch obj-skip on first encounter, matching bbcc.c's check. */
