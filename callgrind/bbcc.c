@@ -287,6 +287,7 @@ BBCC* new_bbcc(BB* bb)
        bbcc->jmp[i].jcc_list = 0;
    }
    bbcc->ecounter_sum = 0;
+   bbcc->from_underflow = False;
 
    /* Init pointer caches (LRU) */
    bbcc->lru_next_bbcc = 0;
@@ -502,12 +503,17 @@ static void handleUnderflow(BB* bb)
   source_bb = CLG_(get_bb)(bb_addr(bb)-1, 0, &seen_before);
   source_bbcc = CLG_(get_bbcc)(source_bb);
 
+  /* Mark this synthesized BBCC so dump.c discards it: an underflow
+   * means we never saw the real caller, so any phantom frame and its
+   * accumulated cost should not leak into the .out file. This also
+   * covers the case where the synthesized caller resolves to an
+   * --obj-skip fn (e.g. CPython's eval frame). */
+  source_bbcc->from_underflow = True;
+
   /* seen_before can be true if RET from a signal handler */
   if (!seen_before) {
-    source_bbcc->ecounter_sum = CLG_(current_state).collect ? 1 : 0;
+    source_bbcc->ecounter_sum = 0;
   }
-  else if (CLG_(current_state).collect)
-    source_bbcc->ecounter_sum++;
   
   /* Force a new top context, will be set active by push_cxt() */
   CLG_(current_fn_stack).top--;
@@ -547,13 +553,10 @@ static void handleUnderflow(BB* bb)
 		       (Addr)-1, False);
   call_entry_up = 
     &(CLG_(current_call_stack).entry[CLG_(current_call_stack).sp -1]);
-  /* assume this call is lasting since last dump or
-   * for a signal handler since it's call */
-  if (CLG_(current_state).sig == 0)
-    CLG_(copy_cost)( CLG_(sets).full, call_entry_up->enter_cost,
-		    CLG_(get_current_thread)()->lastdump_cost );
-  else
-    CLG_(zero_cost)( CLG_(sets).full, call_entry_up->enter_cost );
+  /* Discard cost accumulated since last dump: attributing it to a
+   * phantom underflow caller produces bogus inclusive cost on a frame
+   * that won't be emitted anyway. */
+  CLG_(zero_cost)( CLG_(sets).full, call_entry_up->enter_cost );
 }
 
 

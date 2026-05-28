@@ -1564,6 +1564,17 @@ static void print_bbccs_of_thread(thread_info* ti)
       continue;
     }
 
+    /* Drop BBCCs synthesized by handleUnderflow. These are phantom
+     * callers fabricated when a RET happens with no matching CALL on
+     * the shadow stack; the caller fn is a guess (return addr - 1),
+     * the cost is whatever accumulated since the last dump, and the
+     * fn may even resolve to an --obj-skip target. None of that
+     * belongs in the output. */
+    if ((*p)->from_underflow) {
+      p++;
+      continue;
+    }
+
     if (print_fn_pos(print_fp, &lastFnPos, *p)) {
       
       /* new function */

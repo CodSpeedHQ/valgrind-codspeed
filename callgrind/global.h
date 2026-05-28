@@ -389,6 +389,7 @@ struct _BBCC {
     BBCC*    next;         /* entry chain in hash */
     ULong*   cost;         /* start of 64bit costs for this BBCC */
     ULong    ecounter_sum; /* execution counter for first instruction of BB */
+    Bool     from_underflow; /* synthesized by handleUnderflow: drop at dump */
     JmpData  jmp[0];
 };
 
