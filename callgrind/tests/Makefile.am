@@ -18,6 +18,7 @@ EXTRA_DIST = \
 	runtime_obj_skip_c.c runtime_obj_skip_c_lib.c \
 	runtime_obj_skip_underflow.vgtest runtime_obj_skip_underflow.stderr.exp runtime_obj_skip_underflow.post.exp \
 	runtime_obj_skip_underflow.c runtime_obj_skip_underflow_lib.c \
+	phantom_root.vgtest phantom_root.stderr.exp phantom_root.post.exp \
 	bug497723.stderr.exp bug497723.post.exp bug497723.vgtest \
 	simwork1.vgtest simwork1.stdout.exp simwork1.stderr.exp \
 	simwork2.vgtest simwork2.stdout.exp simwork2.stderr.exp \
@@ -36,7 +37,7 @@ EXTRA_DIST = \
 	inline-crossfile.vgtest inline-crossfile.stderr.exp inline-crossfile.stdout.exp inline-crossfile.post.exp \
 	inline-crossfile-helper1.h inline-crossfile-helper2.h filter_inline
 
-check_PROGRAMS = clreq find_debuginfo simwork threads inline-samefile inline-crossfile runtime_obj_skip_c runtime_obj_skip_underflow
+check_PROGRAMS = clreq find_debuginfo simwork threads inline-samefile inline-crossfile runtime_obj_skip_c runtime_obj_skip_underflow phantom_root
 
 AM_CFLAGS   += $(AM_FLAG_M3264_PRI)
 AM_CXXFLAGS += $(AM_FLAG_M3264_PRI)

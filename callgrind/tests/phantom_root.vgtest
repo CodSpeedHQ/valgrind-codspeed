@@ -1,0 +1,4 @@
+prog: phantom_root
+vgopts: --instr-atstart=no --compress-strings=no --callgrind-out-file=callgrind.out.phantom_root
+post: sh -c 'callers=$(awk -v q="'\''" "/^fn=/{fn=\$0; sub(q\"[0-9]+\$\",\"\",fn)} /^cfn=leaf\$/{print fn}" callgrind.out.phantom_root | sort -u); if [ "$callers" != "fn=main" ]; then echo "FAIL: leaf called by unexpected caller(s):"; echo "$callers"; exit 1; else echo OK; fi'
+cleanup: rm -f callgrind.out.phantom_root

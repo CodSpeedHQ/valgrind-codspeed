@@ -468,8 +468,18 @@ void CLG_(reconstruct_call_stack_from_native)(ThreadId tid)
      * the first non-skipped -> skipped transition. */
     BBCC* caller_bbcc = 0;
 
-    /* Push bottom-up: oldest caller first, current frame last. */
-    for (Int frame = n - 1; frame >= 0; frame--) {
+    /* Push bottom-up: oldest caller first, stopping before frame 0 (the
+     * function that fired CALLGRIND_START_INSTRUMENTATION).
+     *
+     * Why skip frame 0:
+     *   - Seeded call_entries have jcc=0.
+     *   - pop_call_stack only restores cxt when jcc!=0.
+     *   - So frame 0's `ret` would leave it stuck on top of the cxt chain,
+     *     phantom-parenting every later call from the real caller.
+     *
+     * Skipping it leaves cxt ending at the genuine caller; frame 0's
+     * trailing epilogue is harmlessly attributed there. */
+    for (Int frame = n - 1; frame >= 1; frame--) {
         fn_node* fn = CLG_(get_fn_node_for_addr)(ips[frame]);
 
         /* Latch obj-skip on first encounter, matching bbcc.c's check. */
