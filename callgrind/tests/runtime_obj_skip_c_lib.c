@@ -8,9 +8,22 @@
  * (cxt==0) clause force-pushes a skipped fn as the new top context
  * and it leaks into the dump as a top-level fn= block. */
 
+#define _GNU_SOURCE
+#include <dlfcn.h>
 #include "../callgrind.h"
 
 volatile long sink;
+
+/* Returns the path of the .so this code is compiled into. Done inside
+ * the lib because taking &skipme_run from the main binary yields a
+ * PLT stub address whose dladdr resolves to the main binary, not the
+ * lib — which would register the wrong object for skip. */
+const char* skipme_self_path(void)
+{
+    Dl_info info;
+    if (dladdr((void*)&skipme_self_path, &info) == 0) return 0;
+    return info.dli_fname;
+}
 
 __attribute__((noinline))
 void skipme_func(int n)

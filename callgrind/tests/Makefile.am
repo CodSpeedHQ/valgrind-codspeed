@@ -56,7 +56,7 @@ runtime_obj_skip_py_shim.so: runtime_obj_skip_py_shim.c
 # so the main binary can register its path for runtime obj-skip.
 runtime_obj_skip_c_lib.so: runtime_obj_skip_c_lib.c
 	$(CC) -shared -fPIC -O2 -I$(top_srcdir) -I$(top_srcdir)/include \
-	    $< -o $@
+	    $< -o $@ -ldl
 
 runtime_obj_skip_c_LDADD = -ldl
 runtime_obj_skip_c_LDFLAGS = $(AM_LDFLAGS) -L. -l:runtime_obj_skip_c_lib.so \

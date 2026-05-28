@@ -8,21 +8,23 @@
  * processed by callgrind lives in the skipped object — which trips
  * the (cxt == 0) push_cxt path that ignores the skip flag. */
 
-#define _GNU_SOURCE
-#include <dlfcn.h>
 #include <stdio.h>
 #include "../callgrind.h"
 
 extern void skipme_run(int n);
+extern const char* skipme_self_path(void);
 
 int main(void)
 {
-    Dl_info info;
-    if (dladdr((void*)skipme_run, &info) == 0 || !info.dli_fname) {
-        fprintf(stderr, "dladdr failed\n");
+    /* Resolve the lib's path from *inside* the lib: taking &skipme_run
+     * here gives a PLT stub in the main binary, whose dladdr returns
+     * the main binary path — registering the wrong object for skip. */
+    const char* path = skipme_self_path();
+    if (!path) {
+        fprintf(stderr, "skipme_self_path failed\n");
         return 1;
     }
-    CALLGRIND_ADD_OBJ_SKIP(info.dli_fname);
+    CALLGRIND_ADD_OBJ_SKIP(path);
 
     skipme_run(1000);
 
