@@ -10,6 +10,7 @@
 /autom4te.cache
 /bin
 /cachegrind.out.*
+/callgrind.out.*
 /compile
 /config.guess
 /config.h*
@@ -155,11 +156,18 @@
 /callgrind/tests/Makefile
 /callgrind/tests/Makefile.in
 /callgrind/tests/callgrind.out.*
+/callgrind/tests/vgcore.*
 /callgrind/tests/clreq
 /callgrind/tests/simwork
 /callgrind/tests/threads
 /callgrind/tests/inline-samefile
 /callgrind/tests/inline-crossfile
+/callgrind/tests/find_debuginfo
+/callgrind/tests/runtime_obj_skip_c
+/callgrind/tests/runtime_obj_skip_underflow
+/callgrind/tests/*.so
+/callgrind/tests/out_dbg
+/callgrind/tests/test-suite-overall.log
 
 # /coregrind/
 /coregrind/*.a
@@ -2554,3 +2562,6 @@ test-suite.log
 # /bench (generated benchmark config)
 /bench/codspeed.yml
 /bench/codspeed.yaml
+
+# autoconf backup
+/configure~

@@ -30,4 +30,8 @@ sed "/warning: L4 cache found, using its data for the LL simulation./d" |
 sed "/Warning: Cannot auto-detect cache config, using defaults./d" |
 sed "/Run with -v to see./d" |
 sed "/warning: specified LL cache: line_size .*$/d" |
-sed "/warning: simulated LL cache: line_size .*$/d"
+sed "/warning: simulated LL cache: line_size .*$/d" |
+
+# Drop callgrind diagnostic logs (verbose obj-skip / cxt / underflow tracing).
+# These are chore-level diagnostics that vary by run/host and aren't assertions.
+sed -E "/^(add_obj_to_skip|obj-skip list now has|  \[[0-9]+\] '|fn_nodes already obj_skip_checked|instrument_state ->|new_fn_node:|obj_skip (HIT|miss):|  vs \[[0-9]+\] strcmp=|push_cxt FORCED|reconstruct_call_stack:|=== python fn summary|  fn='[^']*' obj=)/d"
