@@ -727,6 +727,7 @@ obj_node* CLG_(get_obj_node)(DebugInfo* si);
 file_node* CLG_(get_file_node)(obj_node*, const HChar *dirname,
                                const HChar* filename);
 fn_node*  CLG_(get_fn_node)(BB* bb);
+fn_node*  CLG_(get_fn_node_for_addr)(Addr ip);
 
 /* from bbcc.c */
 void CLG_(init_bbcc_hash)(bbcc_hash* bbccs);
@@ -736,6 +737,8 @@ void CLG_(set_current_bbcc_hash)(bbcc_hash*);
 void CLG_(forall_bbccs)(void (*func)(BBCC*));
 void CLG_(zero_bbcc)(BBCC* bbcc);
 BBCC* CLG_(get_bbcc)(BB* bb);
+BBCC** CLG_(new_recursion)(int size);
+void CLG_(insert_bbcc_into_hash)(BBCC* bbcc);
 BBCC* CLG_(clone_bbcc)(BBCC* orig, Context* cxt, Int rec_index);
 void CLG_(setup_bbcc)(BB* bb) VG_REGPARM(1);
 
@@ -755,6 +758,7 @@ call_entry* CLG_(get_call_entry)(Int n);
 void CLG_(push_call_stack)(BBCC* from, UInt jmp, BBCC* to, Addr sp, Bool skip);
 void CLG_(pop_call_stack)(void);
 Int CLG_(unwind_call_stack)(Addr sp, Int);
+void CLG_(reconstruct_call_stack_from_native)(ThreadId tid);
 
 /* from context.c */
 void CLG_(init_fn_stack)(fn_stack*);

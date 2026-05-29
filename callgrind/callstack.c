@@ -25,6 +25,7 @@
 */
 
 #include "global.h"
+#include "pub_tool_stacktrace.h"
 
 /*------------------------------------------------------------*/
 /*--- Call stack, operations                               ---*/
@@ -361,6 +362,18 @@ void CLG_(pop_call_stack)(void)
 
 	if (depth == 0) function_left(to_fn);
     }
+    else if (lower_entry->cxt != 0) {
+	/* Seeded entry from reconstruct_call_stack_from_native: jcc=0
+	 * (skip-style) but push_cxt was called, so cxt was changed.
+	 * Restore it here so the seeded frame doesn't stay stuck on
+	 * top of the cxt chain and phantom-parent every subsequent
+	 * call from the real caller. Real skip-entries
+	 * (push_call_stack(skip=True) without a prior push_cxt) have
+	 * lower_entry->cxt==0 and skip this branch. */
+	CLG_(current_state).cxt  = lower_entry->cxt;
+	CLG_(current_fn_stack).top =
+	  CLG_(current_fn_stack).bottom + lower_entry->fn_sp;
+    }
 
     /* To allow for an assertion in push_call_stack() */
     lower_entry->cxt = 0;
@@ -432,4 +445,85 @@ Int CLG_(unwind_call_stack)(Addr sp, Int minpops)
 
     CLG_DEBUG(4,"- unwind_call_stack\n");
     return unwind_count;
+}
+
+
+/* Seed callgrind's shadow call stack from the client's native stack so a
+ * later `ret` past unseen frames pops cleanly instead of underflowing.
+ *
+ * Called on the OFF->ON instrumentation transition: the client (e.g.
+ * pytest_codspeed) typically reaches CALLGRIND_START_INSTRUMENTATION several
+ * libpython frames deep. Without seeding, csp stays at 0 while the real
+ * stack is non-empty, and every subsequent ret trips handleUnderflow and
+ * leaks the returned-into fn as a top-level fn= block.
+ *
+ * We push a (jcc=0, skip-style) call_entry for every native frame so
+ * SP-based unwind works. For frames that should appear in the output
+ * (non-skipped, non-anonymous) we also call push_cxt to seed the context
+ * chain; pop_call_stack has an else-if branch to restore cxt from these
+ * entries when they are unwound. Skipped and anonymous (JIT) frames are
+ * deliberately excluded from the cxt chain — they get SP-only entries. */
+#define CLG_RECON_MAX_FRAMES 256
+
+void CLG_(reconstruct_call_stack_from_native)(ThreadId tid)
+{
+    Addr ips[CLG_RECON_MAX_FRAMES];
+    Addr sps[CLG_RECON_MAX_FRAMES];
+    call_stack* cs = &CLG_(current_call_stack);
+
+    if (cs->sp != 0) return;
+
+    UInt n = VG_(get_StackTrace)(tid, ips, CLG_RECON_MAX_FRAMES, sps, NULL, 0);
+    if (n == 0) return;
+
+    /* Push bottom-up: oldest caller first, current frame last. */
+    for (Int frame = n - 1; frame >= 0; frame--) {
+        fn_node* fn = CLG_(get_fn_node_for_addr)(ips[frame]);
+
+        /* Latch obj-skip on first encounter, matching bbcc.c's check. */
+        if (!fn->obj_skip_checked) {
+            const HChar* obj = fn->file->obj->name;
+            for (Int j = 0; j < CLG_(clo).objs_to_skip_count; j++) {
+                if (VG_(strcmp)(obj, CLG_(clo).objs_to_skip[j]) == 0) {
+                    fn->skip = True;
+                    break;
+                }
+            }
+            fn->obj_skip_checked = True;
+        }
+
+        /* Grow the stack before push_cxt, which asserts cs->sp < cs->size
+         * and writes to entry[cs->sp] — matching push_call_stack's order so
+         * the invariant holds regardless of CLG_RECON_MAX_FRAMES. */
+        ensure_stack_size(cs->sp + 1);
+
+        /* Seed a cxt for every non-skipped frame. JIT frames are named via
+         * the perf-map resolver in fn.c (get_debug_info), so the root frame
+         * (__codspeed_root_frame__) gets a real name here instead of "???".
+         * Seeding a cxt also leaves current_state.cxt non-empty at START so
+         * the `cxt == 0` clause in setup_bbcc does not force-push the first
+         * (skipped) libpython/interpreter frame as a top-level node.
+         * Skipped (obj-skip) frames get SP-only entries — invisible in cxt. */
+        if (!fn->skip)
+            CLG_(push_cxt)(fn);
+
+        call_entry* ce = &cs->entry[cs->sp];
+        ce->jcc      = 0;
+        ce->nonskipped = 0;
+
+        /* callgrind pops a frame when SP >= ce->sp, where ce->sp must be the
+         * frame's *entry* SP (the SP at which its caller made the call). The
+         * unwinder reports each frame's *own* SP (its call site into the next
+         * inner frame), which is lower; using sps[frame] would pop this frame
+         * the moment one of its own sub-calls returns (e.g. the START client
+         * request returning into __codspeed_root_frame__), re-parenting the
+         * workload onto the frame above. The entry SP is the caller's reported
+         * SP, sps[frame+1]; the outermost frame keeps its own SP as nothing
+         * returns past it during measurement. */
+        ce->sp       = (frame + 1 < (Int)n) ? sps[frame + 1] : sps[frame];
+        ce->ret_addr = (frame + 1 < (Int)n) ? ips[frame + 1] : 0;
+        cs->sp++;
+        ensure_stack_size(cs->sp + 1);
+        cs->entry[cs->sp].cxt = 0;
+    }
 }

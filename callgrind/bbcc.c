@@ -240,8 +240,7 @@ static void resize_bbcc_hash(void)
 }
 
 
-static __inline
-BBCC** new_recursion(int size)
+BBCC** CLG_(new_recursion)(int size)
 {
     BBCC** bbccs;
     int i;
@@ -313,8 +312,7 @@ BBCC* new_bbcc(BB* bb)
  * Recursion level doesn't need to be set as this is not included
  * in the hash key: Only BBCCs with rec level 0 are in hashes.
  */
-static
-void insert_bbcc_into_hash(BBCC* bbcc)
+void CLG_(insert_bbcc_into_hash)(BBCC* bbcc)
 {
     UInt idx;
     
@@ -389,10 +387,10 @@ static BBCC* clone_bbcc(BBCC* orig, Context* cxt, Int rec_index)
 
       bbcc->rec_index = 0;
       bbcc->cxt = cxt;
-      bbcc->rec_array = new_recursion(cxt->fn[0]->separate_recursions);
+      bbcc->rec_array = CLG_(new_recursion)(cxt->fn[0]->separate_recursions);
       bbcc->rec_array[0] = bbcc;
 
-      insert_bbcc_into_hash(bbcc);
+      CLG_(insert_bbcc_into_hash)(bbcc);
     }
     else {
       if (CLG_(clo).separate_threads)
@@ -513,16 +511,21 @@ static void handleUnderflow(BB* bb)
   CLG_(current_fn_stack).top--;
   CLG_(current_state).cxt = 0;
   caller = CLG_(get_fn_node)(bb);
+  VG_(message)(Vg_UserMsg,
+               "underflow reset: cxt=0, BB=%#lx, fn-about-to-push='%s' "
+               "obj='%s' skip=%d\n",
+               bb_addr(bb), caller->name,
+               caller->file->obj->name, caller->skip);
   CLG_(push_cxt)( caller );
 
   if (!seen_before) {
     /* set rec array for source BBCC: this is at rec level 1 */
-    source_bbcc->rec_array = new_recursion(caller->separate_recursions);
+    source_bbcc->rec_array = CLG_(new_recursion)(caller->separate_recursions);
     source_bbcc->rec_array[0] = source_bbcc;
 
     CLG_ASSERT(source_bbcc->cxt == 0);
     source_bbcc->cxt = CLG_(current_state).cxt;
-    insert_bbcc_into_hash(source_bbcc);
+    CLG_(insert_bbcc_into_hash)(source_bbcc);
   }
   CLG_ASSERT(CLG_(current_state).bbcc);
 
@@ -807,10 +810,10 @@ void CLG_(setup_bbcc)(BB* bb)
       
     bbcc->cxt = CLG_(current_state).cxt;
     bbcc->rec_array = 
-      new_recursion((*CLG_(current_fn_stack).top)->separate_recursions);
+      CLG_(new_recursion)((*CLG_(current_fn_stack).top)->separate_recursions);
     bbcc->rec_array[0] = bbcc;
       
-    insert_bbcc_into_hash(bbcc);
+    CLG_(insert_bbcc_into_hash)(bbcc);
   }
   else {
     /* get BBCC with current context */

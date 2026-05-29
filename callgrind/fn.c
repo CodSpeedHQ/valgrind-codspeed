@@ -519,6 +519,41 @@ fn_node* get_fn_node_inseg(DebugInfo* di,
 }
 
 
+/* Resolve a raw code address to a fn_node, creating obj/file/fn entries if
+ * needed. Addresses without DebugInfo (anonymous JIT mappings, ld glue)
+ * resolve to the shared `???`/anonymous obj. Used by the START-instrumentation
+ * stack reconstruction path, which has IPs but no BBs. */
+fn_node* CLG_(get_fn_node_for_addr)(Addr ip)
+{
+    const HChar *dirname, *filename, *fnname;
+    UInt line_num;
+    DebugInfo* di;
+
+    CLG_(get_debug_info)(ip, &dirname, &filename, &fnname, &line_num, &di);
+
+    /* Mirror CLG_(get_fn_node)()'s BB-path fallback: when there is no symbol
+     * (anonymous JIT / stripped code) get_debug_info yields the literal "???".
+     * Emit the object-relative address instead — identical to the bb->offset
+     * string the execution path produces — so the frame is a distinct,
+     * backend-symbolicatable "0x..." node rather than collapsing into the one
+     * shared "???" node (which loses the address). For anonymous JIT code the
+     * text bias is 0, so this is the absolute address that perf-<pid>.map keys
+     * on; the backend resolves it from the perf map. Used by the START stack
+     * reconstruction, which has the raw IP but no BB. */
+    if (0 == VG_(strcmp)(fnname, "???")) {
+        HChar buf[32]; /* copied by get_fn_node_infile via strdup */
+        Addr off = ip - (di ? VG_(DebugInfo_get_text_bias)(di) : 0);
+        if (sizeof(Addr) == 4)
+            VG_(sprintf)(buf, "%#08lx", (UWord)off);
+        else
+            VG_(sprintf)(buf, "%#016lx", (UWord)off);
+        fnname = buf;
+    }
+
+    return get_fn_node_inseg(di, dirname, filename, fnname);
+}
+
+
 Bool CLG_(get_debug_info)(Addr instr_addr,
                           const HChar **dir,
                           const HChar **file,

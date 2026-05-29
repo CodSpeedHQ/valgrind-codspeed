@@ -1672,6 +1672,7 @@ Bool CLG_(handle_client_request)(ThreadId tid, UWord *args, UWord *ret)
 
    case VG_USERREQ__START_INSTRUMENTATION:
      CLG_(set_instrument_state)("Client Request", True);
+     CLG_(reconstruct_call_stack_from_native)(tid);
      *ret = 0;                 /* meaningless */
      break;
 
