@@ -10,16 +10,10 @@ on:
 jobs:
   benchmarks:
     runs-on: codspeed-macro
-    timeout-minutes: 20
+    timeout-minutes: 30
     strategy:
+      fail-fast: false
       matrix:
-        # IMPORTANT: The binary has to match the architecture of the runner!
-        cmd:
-          - testdata/take_strings-aarch64 varbinview_non_null
-          - echo Hello, World!
-          - python3 testdata/test.py
-          - stress-ng --cpu 1 --cpu-ops 10
-          - stress-ng --cpu 4 --cpu-ops 10
         valgrind:
           - "3.26.0"
           - "3.25.1"
@@ -89,10 +83,17 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v5
 
+      # Generate the codspeed.yml for this Valgrind version. The script derives
+      # the version label from `valgrind --version`, so each matrix job emits its
+      # own config (e.g. valgrind.codspeed / valgrind-3.26.0 / valgrind-3.25.1).
+      - name: Generate CodSpeed config
+        working-directory: bench
+        run: ./generate_config.py --valgrind /usr/local/bin/valgrind --output codspeed.yml
+
       - name: Run the benchmarks
         uses: CodSpeedHQ/action@main
-        continue-on-error: ${{ matrix.valgrind != 'local' }}
+        env:
+          CODSPEED_WALLTIME_PROFILER: samply
         with:
-          working-directory: bench
           mode: walltime
-          run: ./bench.py --cmd "${{ matrix.cmd }}" --valgrind-path /usr/local/bin/valgrind
+          config: bench/codspeed.yml
