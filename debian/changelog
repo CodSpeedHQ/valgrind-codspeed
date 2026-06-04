@@ -1,3 +1,11 @@
+valgrind (1:3.26.0-0codspeed3) UNRELEASED; urgency=medium
+
+  * fix(callgrind): initialize stack on instrumentation start
+  * fix: include codspeed iteration in --version output
+  * refactor(bench): migrate benchmarks to codspeed exec CLI
+
+ -- Adrien Cacciaguerra <adrien@codspeed.io>  Thu, 04 Jun 2026 10:07:23 +0000
+
 valgrind (1:3.26.0-0codspeed2) UNRELEASED; urgency=medium
 
   * perf(debuginfo): use find_rx_mapping for fallback DI lookup
