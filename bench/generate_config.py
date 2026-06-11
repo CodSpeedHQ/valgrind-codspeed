@@ -26,11 +26,14 @@ COMMANDS = [
     "stress-ng --cpu 4 --cpu-ops 10",
 ]
 
-# Callgrind configurations: (extra args, config name). The config name is the
-# last segment of the benchmark id, e.g. `test_valgrind[<version>, <cmd>, no-inline]`.
+# Callgrind configurations: (extra args, config name, requires_codspeed). The
+# config name is the last segment of the benchmark id, e.g.
+# `test_valgrind[<version>, <cmd>, no-inline]`. `requires_codspeed` marks configs
+# that rely on CodSpeed-only options (e.g. `--cycle-estimation`); they are skipped
+# for upstream Valgrind builds, which would otherwise abort with "Unknown option".
 CONFIGS = [
-    (["--read-inline-info=no"], "no-inline"),
-    (["--read-inline-info=yes"], "inline"),
+    (["--read-inline-info=no"], "no-inline", False),
+    (["--read-inline-info=yes"], "inline", False),
     (
         [
             "--trace-children=yes",
@@ -45,6 +48,7 @@ CONFIGS = [
             "--read-inline-info=yes",
         ],
         "full-with-inline",
+        False,
     ),
     (
         [
@@ -59,8 +63,30 @@ CONFIGS = [
             "--dump-line=no",
         ],
         "full-no-inline",
+        False,
     ),
+    (
+        [
+            "--trace-children=yes",
+            "--cache-sim=yes",
+            "--I1=32768,8,64",
+            "--D1=32768,8,64",
+            "--LL=8388608,16,64",
+            "--collect-systime=nsec",
+            "--compress-strings=no",
+            "--combine-dumps=yes",
+            "--dump-line=no",
+            "--read-inline-info=yes",
+            "--cycle-estimation=yes"
+        ],
+        "full-with-inline-with-cycle-estimation",
+        True,
+    ),
+    (["--cycle-estimation=yes"], "cycle-estimation", True),
 ]
+
+# Label produced by `valgrind_version` for CodSpeed's custom build.
+CODSPEED_VERSION = "valgrind.codspeed"
 
 
 def valgrind_version(valgrind_path: str) -> str:
@@ -80,7 +106,7 @@ def valgrind_version(valgrind_path: str) -> str:
 
     version = result.stdout.strip()
     if "codspeed" in version:
-        return "valgrind.codspeed"
+        return CODSPEED_VERSION
     return version
 
 
@@ -89,8 +115,12 @@ def build_config(valgrind_paths: list) -> dict:
     benchmarks = []
     for valgrind_path in valgrind_paths:
         version = valgrind_version(valgrind_path)
+        is_codspeed = version == CODSPEED_VERSION
         for cmd in COMMANDS:
-            for args, config_name in CONFIGS:
+            for args, config_name, requires_codspeed in CONFIGS:
+                should_skip = requires_codspeed and not is_codspeed
+                if should_skip:
+                    continue
                 name = f"test_valgrind[{version}, {cmd}, {config_name}]"
                 exec_cmd = " ".join(
                     [valgrind_path, "--tool=callgrind", "--log-file=/dev/null", *args, cmd]
