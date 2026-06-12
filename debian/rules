@@ -20,13 +20,13 @@ else
 	DH_STRIP_OPTS :=
 endif
 
+# CodSpeed only runs the 64-bit tool, and cycle estimation requires a 64-bit
+# Capstone, so build 64-bit only on every arch. This also avoids compiling the
+# 32-bit secondary's cycledecode.c, which has no Capstone.
 CONFARGS = \
 	--enable-tls \
+	--enable-only64bit \
 	--with-gdbscripts-dir=/usr/share/gdb/auto-load
-
-ifeq ($(DEB_HOST_ARCH_CPU),arm64)
-  CONFARGS += --enable-only64bit
-endif
 
 %:
 	dh $@

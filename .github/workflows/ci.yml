@@ -43,8 +43,6 @@ jobs:
             automake \
             autoconf \
             libc6-dev \
-            gcc-multilib \
-            libc6-dev-i386 \
             gdb \
             docbook \
             docbook-xsl \
@@ -54,8 +52,11 @@ jobs:
       - name: Run autogen
         run: ./autogen.sh
 
+      # CodSpeed only runs the 64-bit tool, and cycle estimation needs a
+      # 64-bit Capstone, so skip the 32-bit secondary build entirely. This
+      # halves build time and avoids compiling cycledecode.c without Capstone.
       - name: Configure
-        run: ./configure
+        run: ./configure --enable-only64bit
 
       - name: Build Valgrind
         run: make -j$(nproc)

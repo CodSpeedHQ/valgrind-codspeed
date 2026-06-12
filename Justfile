@@ -30,7 +30,10 @@ build-in dir:
         ./autogen.sh
     fi
 
-    ./configure
+    # 64-bit only: CodSpeed runs the 64-bit tool, and cycle estimation needs a
+    # 64-bit Capstone, so the 32-bit secondary build (which has no Capstone) is
+    # skipped.
+    ./configure --enable-only64bit
     make include/vgversion.h
     make -j$(nproc) -C VEX
     make -j$(nproc) -C coregrind

@@ -16,11 +16,9 @@ jobs:
           - architecture: amd64
             platform: ubuntu-22.04
             ubuntu-version: 22.04
-            additional-deps: gcc-multilib libc6-dev-i386
           - architecture: amd64
             platform: ubuntu-24.04
             ubuntu-version: 24.04
-            additional-deps: gcc-multilib libc6-dev-i386
           - architecture: arm64
             platform: codspeedhq-arm64-ubuntu-22.04
             ubuntu-version: 22.04
@@ -36,7 +34,7 @@ jobs:
       - name: Install packaging deps
         run: sudo apt-get install -y build-essential devscripts debhelper dh-make
       - name: Install build deps
-        run: sudo apt-get install -y debhelper-compat gdb mpi-default-dev pkgconf docbook docbook-xsl docbook-xml xsltproc ${{ matrix.runner.additional-deps }}
+        run: sudo apt-get install -y debhelper-compat gdb mpi-default-dev pkgconf docbook docbook-xsl docbook-xml xsltproc
       - name: Configure GPG Key
         run: echo -n "$GPG_SIGNING_KEY" | base64 --decode | gpg --import
         env:
