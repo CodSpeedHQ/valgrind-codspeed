@@ -18,8 +18,15 @@ bin_SCRIPTS = \
 
 noinst_HEADERS = \
 	costs.h \
+	cycledecode.h \
+	cycledecode_capstone.h \
+	sigkey.h \
 	events.h \
 	global.h
+
+# Generated cost tables (#included by cycledecode.c under CLG_WITH_CAPSTONE;
+# the arch is selected at compile time).
+EXTRA_DIST += x86_caps_lut.inc arm64_caps_lut.inc
 
 #----------------------------------------------------------------------------
 # callgrind-<platform>
@@ -37,6 +44,8 @@ CALLGRIND_SOURCES_COMMON = \
 	clo.c \
 	context.c \
 	costs.c \
+	cycledecode.c \
+	cycledecode_capstone.c \
 	debug.c \
 	dump.c \
 	events.c \
@@ -54,11 +63,12 @@ callgrind_@VGCONF_ARCH_PRI@_@VGCONF_OS@_SOURCES      = \
 callgrind_@VGCONF_ARCH_PRI@_@VGCONF_OS@_CPPFLAGS     = \
 	$(AM_CPPFLAGS_@VGCONF_PLATFORM_PRI_CAPS@)
 callgrind_@VGCONF_ARCH_PRI@_@VGCONF_OS@_CFLAGS       = $(LTO_CFLAGS) \
-	$(AM_CFLAGS_@VGCONF_PLATFORM_PRI_CAPS@) $(CALLGRIND_CFLAGS_COMMON)
+	$(AM_CFLAGS_@VGCONF_PLATFORM_PRI_CAPS@) $(CALLGRIND_CFLAGS_COMMON) \
+	@CAPSTONE_CFLAGS@
 callgrind_@VGCONF_ARCH_PRI@_@VGCONF_OS@_DEPENDENCIES = \
 	$(TOOL_DEPENDENCIES_@VGCONF_PLATFORM_PRI_CAPS@)
 callgrind_@VGCONF_ARCH_PRI@_@VGCONF_OS@_LDADD        = \
-	$(TOOL_LDADD_@VGCONF_PLATFORM_PRI_CAPS@)
+	$(TOOL_LDADD_@VGCONF_PLATFORM_PRI_CAPS@) @CAPSTONE_LIBS@
 callgrind_@VGCONF_ARCH_PRI@_@VGCONF_OS@_LDFLAGS      = \
 	$(TOOL_LDFLAGS_@VGCONF_PLATFORM_PRI_CAPS@)
 callgrind_@VGCONF_ARCH_PRI@_@VGCONF_OS@_LINK = \

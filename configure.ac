@@ -1123,6 +1123,37 @@ AC_DEFINE_UNQUOTED(VG_TMPDIR, "$tmpdir", [Temporary files directory])
 AC_SUBST(VG_TMPDIR, [$tmpdir])
 
 #----------------------------------------------------------------------------
+# CodSpeed: mandatory Capstone for Callgrind per-instruction cycle estimation
+#----------------------------------------------------------------------------
+# Callgrind's primary (native) tool is always built with the Capstone decoder
+# and a generated cost table (x86 or arm64, selected at compile time), enabling
+# --cycle-estimation=yes. The decoder location comes from --with-capstone=PATH
+# or, when omitted, the CAPSTONE_DIR environment variable (`nix develop` sets
+# it). A build without Capstone is not supported and fails here.
+AC_ARG_WITH(capstone,
+   [  --with-capstone=PATH    Path to the Capstone decoder install used for
+                          Callgrind cycle estimation (Cy/Cl). Defaults to the
+                          CAPSTONE_DIR environment variable (amd64/arm64)],
+   [capstone_dir="$withval"],
+   [capstone_dir="$CAPSTONE_DIR"])
+
+if test -z "$capstone_dir"; then
+   AC_MSG_ERROR([Capstone is required for Callgrind cycle estimation. Pass --with-capstone=PATH or set CAPSTONE_DIR (`nix develop` provides it).])
+fi
+if test ! -f "$capstone_dir/lib/libcapstone.a" \
+     -o ! -f "$capstone_dir/include/capstone/capstone.h"; then
+   AC_MSG_ERROR([--with-capstone=$capstone_dir: libcapstone.a or capstone.h not found])
+fi
+# Fortify off: the tool links -nodefaultlibs, so glibc's __*_chk fortify
+# wrappers are unavailable, and our libc shims (sprintf/snprintf/...) must
+# be real definitions, not fortify macro-expansions.
+CAPSTONE_CFLAGS="-DCLG_WITH_CAPSTONE -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -I$capstone_dir/include"
+CAPSTONE_LIBS="$capstone_dir/lib/libcapstone.a"
+AC_MSG_NOTICE([Callgrind cycle estimation enabled with Capstone at $capstone_dir])
+AC_SUBST(CAPSTONE_CFLAGS)
+AC_SUBST(CAPSTONE_LIBS)
+
+#----------------------------------------------------------------------------
 # Detect xcode path
 #----------------------------------------------------------------------------
 AM_COND_IF([VGCONF_OS_IS_DARWIN],
