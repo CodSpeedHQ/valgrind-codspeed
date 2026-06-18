@@ -2565,3 +2565,6 @@ test-suite.log
 
 # autoconf backup
 /configure~
+
+# Capstone build install prefix (built from the third_party/capstone submodule)
+/.capstone

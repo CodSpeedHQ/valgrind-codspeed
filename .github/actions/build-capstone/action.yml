@@ -1,0 +1,25 @@
+name: Build Capstone (cycle-estimation decoder)
+description: >-
+  Build the static Capstone that Callgrind cycle estimation links against, and
+  export its install prefix as CAPSTONE_DIR for later steps.
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        CS_SRC="$GITHUB_WORKSPACE/third_party/capstone"
+        CS_PREFIX="$GITHUB_WORKSPACE/.capstone"
+        cmake -S "$CS_SRC" -B "$CS_SRC/build" \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCAPSTONE_ARCHITECTURE_DEFAULT=OFF \
+          -DCAPSTONE_X86_SUPPORT=ON \
+          -DCAPSTONE_ARM64_SUPPORT=ON \
+          -DCAPSTONE_BUILD_SHARED_LIBS=OFF \
+          -DCAPSTONE_BUILD_CSTOOL=OFF \
+          -DCMAKE_INSTALL_LIBDIR=lib \
+          -DCMAKE_INSTALL_PREFIX="$CS_PREFIX" \
+          -DCMAKE_C_FLAGS="-fno-stack-protector -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -fPIC"
+        cmake --build "$CS_SRC/build" -j"$(nproc)"
+        cmake --install "$CS_SRC/build"
+        echo "CAPSTONE_DIR=$CS_PREFIX" >> "$GITHUB_ENV"

@@ -21,6 +21,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       # Skip installing package docs to avoid wasting time when installing valgrind
       # See: https://github.com/actions/runner-images/issues/10977#issuecomment-2810713336
@@ -42,12 +44,16 @@ jobs:
             build-essential \
             automake \
             autoconf \
+            cmake \
             libc6-dev \
             gdb \
             docbook \
             docbook-xsl \
             docbook-xml \
             xsltproc
+
+      - name: Build Capstone (cycle-estimation decoder)
+        uses: ./.github/actions/build-capstone
 
       - name: Run autogen
         run: ./autogen.sh
