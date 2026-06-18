@@ -116,6 +116,7 @@ struct _CommandLineOptions {
   Bool instrument_atstart;  /* Instrument at start? */
   Bool simulate_cache;      /* Call into cache simulator ? */
   Bool simulate_branch;     /* Call into branch prediction simulator ? */
+  Bool cycle_estimation;    /* Estimate per-instruction cycles (Ct/Cl) ? */
 
   /* Call graph generation */
   Bool pop_on_jump;       /* Handle a jump between functions as ret+call */
@@ -259,6 +260,14 @@ struct _InstrInfo {
   UInt instr_size;
   UInt cost_offset;
   EventSet* eventset;
+  /* Cycle estimation (only filled when --cycle-estimation=yes), centi-cycles.
+   * ct_cost/cl_cost = this instruction's own throughput-bound / latency-bound cost;
+   * ct_incl/cl_incl are the running sums over instr[0..this] in the BB, used for the
+   * inclusive (call-graph) cost update at each side exit. */
+  UInt ct_cost;
+  UInt ct_incl;
+  UInt cl_cost;
+  UInt cl_incl;
 };
 
 
@@ -668,6 +677,7 @@ struct cachesim_if
 #define EG_BUS   6
 #define EG_ALLOC 7
 #define EG_SYS   8
+#define EG_CYCLES 9   /* estimated cycles: Ct (reciprocal throughput) + Cl (latency) */
 
 struct event_sets {
     EventSet *base, *full;

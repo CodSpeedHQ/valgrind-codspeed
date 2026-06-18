@@ -612,6 +612,13 @@ void CLG_(setup_bbcc)(BB* bb)
               UInt instr_count = last_bb->jmp[passed].instr+1;
               CLG_(current_state).cost[ fullOffset(EG_IR) ] += instr_count;
 	  }
+      /* inclusive cycle cost: cache-independent, so updated in both modes.
+      * ct_incl/cl_incl are the running sums up to the side exit taken. */
+      if (CLG_(clo).cycle_estimation) {
+          InstrInfo* ii = &last_bb->instr[last_bb->jmp[passed].instr];
+          CLG_(current_state).cost[fullOffset(EG_CYCLES)] += ii->ct_incl;
+          CLG_(current_state).cost[fullOffset(EG_CYCLES) + 1] += ii->cl_incl;
+      }
 	}
 	else {
 	  /* do not increment exe counter of BBs in skipped functions, as it
@@ -622,6 +629,13 @@ void CLG_(setup_bbcc)(BB* bb)
               CLG_(current_state).cost[ fullOffset(EG_IR) ] += instr_count;
               CLG_(current_state).nonskipped->skipped[ fullOffset(EG_IR) ]
 		+= instr_count;
+      }
+      if (CLG_(clo).cycle_estimation) {
+         InstrInfo* ii = &last_bb->instr[last_bb->jmp[passed].instr];
+         CLG_(current_state).cost[fullOffset(EG_CYCLES)] += ii->ct_incl;
+         CLG_(current_state).cost[fullOffset(EG_CYCLES) + 1] += ii->cl_incl;
+         CLG_(current_state).nonskipped->skipped[fullOffset(EG_CYCLES)] += ii->ct_incl;
+         CLG_(current_state).nonskipped->skipped[fullOffset(EG_CYCLES) + 1] += ii->cl_incl;
 	  }
 	}
       }

@@ -39,6 +39,8 @@
 
 #include "cg_branchpred.c"
 
+#include "cycledecode.h"
+
 /*------------------------------------------------------------*/
 /*--- Global variables                                     ---*/
 /*------------------------------------------------------------*/
@@ -789,6 +791,10 @@ InstrInfo* next_InstrInfo ( ClgState* clgs, UInt instr_size )
        ii->instr_size = instr_size;
        ii->cost_offset = 0;
        ii->eventset = 0;
+       ii->ct_cost = 0;
+       ii->ct_incl = 0;
+       ii->cl_cost = 0;
+       ii->cl_incl = 0;
    }
 
    clgs->ii_index++;
@@ -1040,7 +1046,16 @@ IRSB* CLG_(instrument)( VgCallbackClosure* closure,
 	    // also use it.
 	    curr_inode = next_InstrInfo (&clgs, isize);
 
-	    addEvent_Ir( &clgs, curr_inode );
+        // Estimate this instruction's cycle cost by decoding the real
+        // guest bytes. Only on first translation; values persist in the BB.
+        if (CLG_(clo).cycle_estimation && !clgs.seen_before) {
+            unsigned ct, cl;
+            unsigned len = st->Ist.IMark.len ? st->Ist.IMark.len : isize;
+            clg_cycle_cost((const unsigned char*)cia, len, &ct, &cl);
+            curr_inode->ct_cost = ct;
+            curr_inode->cl_cost = cl;
+        }
+        addEvent_Ir( &clgs, curr_inode );
 	    break;
 	 }
 
@@ -1342,6 +1357,18 @@ IRSB* CLG_(instrument)( VgCallbackClosure* closure,
    else {
        clgs.bb->cost_count = update_cost_offsets(&clgs);
        clgs.bb->instr_len = clgs.instr_offset;
+
+       /* Running sums of per-instruction cycle cost, so the inclusive
+        * (call-graph) cost at each side exit is an O(1) lookup in setup_bbcc. */
+       if (CLG_(clo).cycle_estimation) {
+           UInt ct = 0, cl = 0;
+           for (i = 0; i < clgs.bb->instr_count; i++) {
+               ct += clgs.bb->instr[i].ct_cost;
+               clgs.bb->instr[i].ct_incl = ct;
+               cl += clgs.bb->instr[i].cl_cost;
+               clgs.bb->instr[i].cl_incl = cl;
+           }
+       }
    }
 
    CLG_DEBUG(3, "- instrument(BB %#lx): byteLen %u, CJumps %u, CostLen %u\n",
@@ -1916,6 +1943,16 @@ void clg_print_stats(void)
 		CLG_(stat).bb_retranslations);
    VG_(message)(Vg_DebugMsg, "Distinct instrs:   %d\n",
 		CLG_(stat).distinct_instrs);
+   if (CLG_(clo).cycle_estimation) {
+      ClgCdStats cd = {0};
+      clg_cycledecode_stats(&cd);
+      VG_(message)(Vg_DebugMsg, "Cycle decodes:       %lu\n", cd.decoded);
+      VG_(message)(Vg_DebugMsg, "Cycle exact hits:    %lu\n", cd.hit_exact);
+      VG_(message)(Vg_DebugMsg, "Cycle width hits:    %lu\n", cd.hit_width);
+      VG_(message)(Vg_DebugMsg, "Cycle default hits:  %lu\n", cd.hit_default);
+      VG_(message)(Vg_DebugMsg, "Cycle decode fails:  %lu\n", cd.decode_fail);
+      VG_(message)(Vg_DebugMsg, "Cycle LUT misses:    %lu\n", cd.miss);
+   }
 
    VG_(message)(Vg_DebugMsg, "LRU Contxt Misses: %d\n",
 		CLG_(stat).cxt_lru_misses);
@@ -1998,6 +2035,16 @@ void finish(void)
   if (CLG_(clo).simulate_branch)
       branchsim_printstat(l1, l2, l3);
 
+  if (CLG_(clo).cycle_estimation) {
+      ClgCdStats cd = {0};
+      clg_cycledecode_stats(&cd);
+      unsigned long flat = cd.decode_fail + cd.miss;
+      if (flat > 0)
+          VG_(umsg)("WARNING: cycle-estimation: %lu of %lu instructions had no "
+                    "cycle estimate (decode failure or no cost-table match) and "
+                    "were charged a flat 1.00 cycle, so Ct/Cl are approximate.\n",
+                    flat, cd.decoded);
+  }
 }
 
 
@@ -2089,6 +2136,17 @@ void CLG_(post_clo_init)(void)
    }
 
    CLG_(init_dumps)();
+
+   if (CLG_(clo).cycle_estimation) {
+      ClgCdInit st = clg_cycledecode_init();
+      if (st != CLG_CD_OK) {
+         VG_(message)(Vg_UserMsg,
+                      "--cycle-estimation=yes needs a Capstone build "
+                      "(amd64/arm64 guest); disabling it. [%s]\n",
+                      clg_cycledecode_init_str(st));
+         CLG_(clo).cycle_estimation = False;
+      }
+   }
 
    (*CLG_(cachesim).post_clo_init)();
 

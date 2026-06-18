@@ -1632,6 +1632,9 @@ void CLG_(init_eventsets)(void)
           CLG_(register_event_group2)(EG_SYS, "sysCount", "sysTime");
     }
 
+    if (CLG_(clo).cycle_estimation)
+        CLG_(register_event_group2)(EG_CYCLES, "Ct", "Cl");
+
     // event set used as base for instruction self cost
     CLG_(sets).base = CLG_(get_event_set2)(EG_USE, EG_IR);
 
@@ -1640,6 +1643,7 @@ void CLG_(init_eventsets)(void)
     CLG_(sets).full = CLG_(add_event_group2)(CLG_(sets).full, EG_BC, EG_BI);
     CLG_(sets).full = CLG_(add_event_group) (CLG_(sets).full, EG_BUS);
     CLG_(sets).full = CLG_(add_event_group2)(CLG_(sets).full, EG_ALLOC, EG_SYS);
+    CLG_(sets).full = CLG_(add_event_group) (CLG_(sets).full, EG_CYCLES);
 
     CLG_DEBUGIF(1) {
 	CLG_DEBUG(1, "EventSets:\n");
@@ -1675,6 +1679,8 @@ void CLG_(init_eventsets)(void)
     CLG_(append_event)(CLG_(dumpmap), "sysCount");
     CLG_(append_event)(CLG_(dumpmap), "sysTime");
     CLG_(append_event)(CLG_(dumpmap), "sysCpuTime");
+    CLG_(append_event)(CLG_(dumpmap), "Ct");
+    CLG_(append_event)(CLG_(dumpmap), "Cl");
 }
 
 
@@ -1684,6 +1690,11 @@ static void cachesim_add_icost(SimCost cost, BBCC* bbcc,
 {
     if (!CLG_(clo).simulate_cache)
 	cost[ fullOffset(EG_IR) ] += exe_count;
+
+    if (CLG_(clo).cycle_estimation) {
+	cost[ fullOffset(EG_CYCLES)   ] += exe_count * (ULong)ii->ct_cost;
+	cost[ fullOffset(EG_CYCLES)+1 ] += exe_count * (ULong)ii->cl_cost;
+    }
 
     if (ii->eventset)
 	CLG_(add_and_zero_cost2)( CLG_(sets).full, cost,
