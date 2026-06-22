@@ -98,8 +98,6 @@ jobs:
 
       - name: Run the benchmarks
         uses: CodSpeedHQ/action@main
-        env:
-          CODSPEED_WALLTIME_PROFILER: samply
         with:
           mode: walltime
           config: bench/codspeed.yml
