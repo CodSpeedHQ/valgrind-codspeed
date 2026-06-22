@@ -103,4 +103,3 @@ jobs:
         with:
           mode: walltime
           config: bench/codspeed.yml
-          runner-version: 4.17.7-alpha.1
