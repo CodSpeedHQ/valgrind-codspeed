@@ -10,7 +10,7 @@ on:
 jobs:
   benchmarks:
     runs-on: codspeed-macro
-    timeout-minutes: 30
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
