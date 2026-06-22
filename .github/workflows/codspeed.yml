@@ -40,8 +40,14 @@ jobs:
         uses: actions/cache@v4
         id: valgrind-cache
         with:
-          path: /tmp/valgrind-build
-          key: valgrind-${{ matrix.valgrind }}-${{ runner.os }}-${{ matrix.valgrind == 'local' && hashFiles('coregrind/**', 'include/**', 'VEX/**', 'cachegrind/**', 'callgrind/**', 'dhat/**', 'drd/**', 'helgrind/**', 'lackey/**', 'massif/**', 'memcheck/**', 'none/**', 'exp-bbv/**', 'auxprogs/**', '*.ac', '*.am', '*.in', 'autogen.sh', 'configure*') || 'build' }}
+          # `.capstone` is the cycle-estimation decoder prefix; its absolute path
+          # is baked into the Makefile's -I flags, so `make install` (which may
+          # recompile cycledecode.o) needs it present. It is built outside
+          # /tmp/valgrind-build, so cache it too or a cache hit breaks install.
+          path: |
+            /tmp/valgrind-build
+            .capstone
+          key: valgrind-${{ matrix.valgrind }}-${{ runner.os }}-v2-${{ matrix.valgrind == 'local' && hashFiles('coregrind/**', 'include/**', 'VEX/**', 'cachegrind/**', 'callgrind/**', 'dhat/**', 'drd/**', 'helgrind/**', 'lackey/**', 'massif/**', 'memcheck/**', 'none/**', 'exp-bbv/**', 'auxprogs/**', '*.ac', '*.am', '*.in', 'autogen.sh', 'configure*') || 'build' }}
 
       # Build and install Valgrind
       - name: Update apt-get cache
