@@ -489,6 +489,20 @@ void CLG_(reconstruct_call_stack_from_native)(ThreadId tid)
         return;
     }
 
+    /* Raw VG_(get_StackTrace) result, as returned by the unwinder (frame 0 =
+     * innermost/current, frame n-1 = oldest). This is the input the seeding
+     * loop below processes — dump it first so the raw unwind can be compared
+     * against the seeded shadow frames (obj-skip, entry_sp shifting, etc.). */
+    VG_(printf)("callgrind: [stack-seed] tid=%u raw unwind: %u frame(s) "
+                "(frame 0 = innermost):\n", tid, n);
+    for (Int frame = 0; frame < (Int)n; frame++) {
+        fn_node* fn = CLG_(get_fn_node_for_addr)(ips[frame]);
+        VG_(printf)("callgrind: [stack-seed]   raw[%-2d] ip=%#-12lx "
+                    "own_sp=%#-12lx fn=%s obj=%s\n",
+                    frame, ips[frame], sps[frame],
+                    fn->name, fn->file->obj->name);
+    }
+
     VG_(printf)("callgrind: [stack-seed] tid=%u reconstructing %u native "
                 "frame(s) (pushing oldest caller first):\n", tid, n);
 
