@@ -471,10 +471,26 @@ void CLG_(reconstruct_call_stack_from_native)(ThreadId tid)
     Addr sps[CLG_RECON_MAX_FRAMES];
     call_stack* cs = &CLG_(current_call_stack);
 
-    if (cs->sp != 0) return;
+    /* Stack-init log (COD-2985): emitted unconditionally via VG_(printf) so it
+     * reaches the active log sink (--log-file=...) even under the runner's -q.
+     * This dumps the native frames the seeder reconstructs at the OFF->ON
+     * instrumentation transition, which is where the arm64 _dl_tlsdesc_return
+     * phantom / inclusive-cost inflation originates. */
+    if (cs->sp != 0) {
+        VG_(printf)("callgrind: [stack-seed] tid=%u SKIPPED: shadow stack "
+                    "not empty (csp=%d)\n", tid, cs->sp);
+        return;
+    }
 
     UInt n = VG_(get_StackTrace)(tid, ips, CLG_RECON_MAX_FRAMES, sps, NULL, 0);
-    if (n == 0) return;
+    if (n == 0) {
+        VG_(printf)("callgrind: [stack-seed] tid=%u SKIPPED: empty native "
+                    "stack trace\n", tid);
+        return;
+    }
+
+    VG_(printf)("callgrind: [stack-seed] tid=%u reconstructing %u native "
+                "frame(s) (pushing oldest caller first):\n", tid, n);
 
     /* Push bottom-up: oldest caller first, current frame last. */
     for (Int frame = n - 1; frame >= 0; frame--) {
@@ -522,8 +538,20 @@ void CLG_(reconstruct_call_stack_from_native)(ThreadId tid)
          * returns past it during measurement. */
         ce->sp       = (frame + 1 < (Int)n) ? sps[frame + 1] : sps[frame];
         ce->ret_addr = (frame + 1 < (Int)n) ? ips[frame + 1] : 0;
+
+        VG_(printf)("callgrind: [stack-seed]   csp=%-3d depth=%-3d "
+                    "ip=%#-12lx entry_sp=%#-12lx ret=%#-12lx %s%s "
+                    "fn=%s obj=%s\n",
+                    cs->sp, frame, ips[frame], ce->sp, ce->ret_addr,
+                    fn->skip ? "[skip]" : "[cxt ]",
+                    (frame == 0) ? " <- current/innermost" : "",
+                    fn->name, fn->file->obj->name);
+
         cs->sp++;
         ensure_stack_size(cs->sp + 1);
         cs->entry[cs->sp].cxt = 0;
     }
+
+    VG_(printf)("callgrind: [stack-seed] tid=%u done: seeded %d shadow "
+                "frame(s)\n", tid, cs->sp);
 }
