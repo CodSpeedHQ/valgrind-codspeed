@@ -1,0 +1,657 @@
+--66045-- Entering rec: Verbosity set to 3
++ 14 0x4000908 => 0x40008b4 [calls 1/Ir 0, Dr 0, Dw 0], SP 0x1fff000060, RA 0x400090c
+     040008b4/T  452:rec reproC /tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c:6
+Call 040008c8 -> 04000858, SP 1fff000040
++ 15 0x40008c8 => 0x4000858 [calls 1/Ir 0, Dr 0, Dw 0], SP 0x1fff000040, RA 0x40008cc
+     04000858/T  454:leaf reproC /tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c:5
+Call 0400086c -> 04000680, SP 1fff000020
+BB# 24830
+  lookup_bbcc(BB 0x4000680, Cxt 454, fn 'leaf'): 0x0 (tid 0)
+- clone_BBCC(0x10022330C0, 0) for BB 0x4000680
+   orig free'2
+   new  leaf
++ 16 [Skipped JCC], SP 0x1fff000020, RA 0x4000870
+     04000680/P  454:leaf reproC /tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c
+BB# 24831
+     JMP: 0x0000000000000680 [PLT][/tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC] to malloc[/usr/lib/aarch64-linux-gnu/libc.so.6]!
+Call 0400068c -> 04900560, SP 1fff000020
++ 17 0x400086c => 0x4900560 [calls 1/Ir 0, Dr 0, Dw 0], SP 0x1fff000020, RA 0x4000870
+     04900560/T  418:malloc libc.so.6 ./malloc/./malloc/malloc.c:3287
+Fall-through 0490057c -> 04900580, SP 1ffeffffe0
+     04900580/T  418:malloc libc.so.6 ./malloc/./malloc/malloc.c:1343
+Fall-through 04900580 -> 04900584, SP 1ffeffffe0
+     04900584/T  418:malloc libc.so.6 ./malloc/./malloc/malloc.c:3306
+Fall-through 049005b4 -> 049005b8, SP 1ffeffffe0
+     049005b8/T  418:malloc libc.so.6 ./malloc/./malloc/malloc.c:3309
+Cond-Jump 049005c4 -> 049006c0, SP 1ffeffffe0
+     049006c0/T  418:malloc libc.so.6 ./malloc/./malloc/malloc.c:3310
+Cond-Jump 049006cc -> 049005c8, SP 1ffeffffe0
+BB# 24836
+  lookup_bbcc(BB 0x49005c8, Cxt 418, fn 'malloc'): 0x0 (tid 0)
+- clone_BBCC(0x100222C6C0, 0) for BB 0x49005c8
+   orig ptmalloc_init.part.0
+   new  malloc
+     049005c8/T  418:malloc libc.so.6 ./malloc/./malloc/malloc.c:3319
+Cond-Jump 049005d0 -> 04900710, SP 1ffeffffe0
+BB# 24837
+  lookup_bbcc(BB 0x4900710, Cxt 418, fn 'malloc'): 0x0 (tid 0)
+- clone_BBCC(0x100222C8F0, 0) for BB 0x4900710
+   orig ptmalloc_init.part.0
+   new  malloc
+     04900710/T  418:malloc libc.so.6 ./malloc/./malloc/malloc.c:3321
+Call 04900720 -> 048fef74, SP 1ffeffffe0
++ 18 0x4900720 => 0x48fef74 [calls 1/Ir 0, Dr 0, Dw 0], SP 0x1ffeffffe0, RA 0x4900724
+     048fef74/T  430:_int_malloc libc.so.6 ./malloc/./malloc/malloc.c:3771
+Fall-through 048fef80 -> 048fef84, SP 1ffeffff20
+     048fef84/T  430:_int_malloc libc.so.6 ./malloc/./malloc/malloc.c:1343
+Cond-Jump 048fefa0 -> 048ff0bc, SP 1ffeffff20
+     048ff0bc/T  430:_int_malloc libc.so.6 ./malloc/./malloc/malloc.c:1362
+Fall-through 048ff0c0 -> 048ff0c4, SP 1ffeffff20
+     048ff0c4/T  430:_int_malloc libc.so.6 ./malloc/./malloc/malloc.c:1810
+Cond-Jump 048ff0d4 -> 048ff360, SP 1ffeffff20
+     048ff360/T  430:_int_malloc libc.so.6 ./malloc/./malloc/malloc.c:3853
+Fall-through 048ff378 -> 048ff37c, SP 1ffeffff20
+     048ff37c/T  430:_int_malloc libc.so.6 ./malloc/./malloc/malloc.c:3904
+Call 048ff38c -> 048fefc4, SP 1ffeffff20
++ 19 0x48ff38c => 0x48fefc4 [calls 2/Ir 129, Dr 172, Dw 172], SP 0x1ffeffff20, RA 0x48ff390
+     048fefc4/T  431:_int_malloc'2 libc.so.6 ./malloc/./malloc/malloc.c:3904
+Cond-Jump 048fefd4 -> 048ff390, SP 1ffeffff20
+     048ff390/T  431:_int_malloc'2 libc.so.6 ./malloc/./malloc/malloc.c:4399
+Fall-through 048ff3f0 -> 048ff3f4, SP 1ffeffff20
+     048ff3f4/T  431:_int_malloc'2 libc.so.6 ./malloc/./malloc/malloc.c:3984
+Cond-Jump 048ff430 -> 048ff700, SP 1ffeffff20
+     048ff700/T  431:_int_malloc'2 libc.so.6 ./malloc/./malloc/malloc.c:4183
+Cond-Jump 048ff704 -> 048ff730, SP 1ffeffff20
+     048ff730/T  431:_int_malloc'2 libc.so.6 ./malloc/./malloc/malloc.c:4256
+Fall-through 048ff770 -> 048ff774, SP 1ffeffff20
+     048ff774/T  431:_int_malloc'2 libc.so.6 ./malloc/./malloc/malloc.c:4265
+Call 048ff774 -> 048ff800, SP 1ffeffff20
++ 20 0x48ff774 => 0x48ff800 [calls 3/Ir 368, Dr 367, Dw 367], SP 0x1ffeffff20, RA 0x48ff778
+     048ff800/T  431:_int_malloc'2 libc.so.6 ./malloc/./malloc/malloc.c:4269
+Cond-Jump 048ff808 -> 048ff7f0, SP 1ffeffff20
+     048ff7f0/T  431:_int_malloc'2 libc.so.6 ./malloc/./malloc/malloc.c:4272
+Fall-through 048ff7fc -> 048ff800, SP 1ffeffff20
+     048ff800/T  431:_int_malloc'2 libc.so.6 ./malloc/./malloc/malloc.c:4269
+Cond-Jump 048ff808 -> 048ff7f0, SP 1ffeffff20
+     048ff7f0/T  431:_int_malloc'2 libc.so.6 ./malloc/./malloc/malloc.c:4272
+Fall-through 048ff7fc -> 048ff800, SP 1ffeffff20
+     048ff800/T  431:_int_malloc'2 libc.so.6 ./malloc/./malloc/malloc.c:4269
+Cond-Jump 048ff808 -> 048ff7f0, SP 1ffeffff20
+     048ff7f0/T  431:_int_malloc'2 libc.so.6 ./malloc/./malloc/malloc.c:4272
+Fall-through 048ff7fc -> 048ff800, SP 1ffeffff20
+     048ff800/T  431:_int_malloc'2 libc.so.6 ./malloc/./malloc/malloc.c:4269
+Fall-through 048ff808 -> 048ff80c, SP 1ffeffff20
+     048ff80c/T  431:_int_malloc'2 libc.so.6 ./malloc/./malloc/malloc.c:4369
+Fall-through 048ff820 -> 048ff824, SP 1ffeffff20
+     048ff824/T  431:_int_malloc'2 libc.so.6 ./malloc/./malloc/malloc.c:4375
+Cond-Jump 048ff82c -> 048ffc6c, SP 1ffeffff20
+     048ffc6c/T  431:_int_malloc'2 libc.so.6 ./malloc/./malloc/malloc.c:4380
+Call 048ffca8 -> 048ff930, SP 1ffeffff20
++ 21 0x48ffca8 => 0x48ff930 [calls 2/Ir 14, Dr 129, Dw 129], SP 0x1ffeffff20, RA 0x48ffcac
+     048ff930/T  431:_int_malloc'2 libc.so.6 ./malloc/./malloc/malloc.c:4409
+Call 048ff930 -> 048fc710, SP 1ffeffff20
++ 22 0x48ff930 => 0x48fc710 [calls 3/Ir 8, Dr 8, Dw 8], SP 0x1ffeffff20, RA 0x48ff934
+     048fc710/T  440:alloc_perturb libc.so.6 ./malloc/./malloc/malloc.c:2005
+Fall-through 048fc718 -> 048fc71c, SP 1ffeffff20
+     048fc71c/T  440:alloc_perturb libc.so.6 ./malloc/./malloc/malloc.c:2007
+Return 048fc71c -> 048ff934, SP 1ffeffff20
+- 21 0x48fc710 => 0x48ff930 _int_malloc libc.so.6 (./malloc/./malloc/malloc.c:4409), SP 0x1ffeffff20
+Cost [0x10020033C0]: Ir 12
+     048ff934/T  431:_int_malloc'2 libc.so.6 ./malloc/./malloc/malloc.c:4409
+Call 048ff944 -> 048ff0ac, SP 1ffeffff20
++ 22 0x48ff944 => 0x48ff0ac [calls 3/Ir 8, Dr 14, Dw 14], SP 0x1ffeffff20, RA 0x48ff948
+     048ff0ac/T  431:_int_malloc'2 libc.so.6 ./malloc/./malloc/malloc.c:4413
+Return 048ff0b8 -> 04900724, SP 1ffeffffe0
+- 21 0x48ff0ac => 0x48ff944 _int_malloc libc.so.6 (./malloc/./malloc/malloc.c:4409), SP 0x1ffeffff20
+Cost [0x10020033C8]: Ir 12
+- 20 0x48ff930 => 0x48ffca8 _int_malloc libc.so.6 (./malloc/./malloc/malloc.c:4386), SP 0x1ffeffff20
+Cost [0x1002003408]: Ir 28
+- 19 0x48ff800 => 0x48ff774 _int_malloc libc.so.6 (./malloc/./malloc/malloc.c:4265), SP 0x1ffeffff20
+Cost [0x10020033E0]: Ir 431
+- 18 0x48fefc4 => 0x48ff38c _int_malloc libc.so.6 (./malloc/./malloc/malloc.c:3904), SP 0x1ffeffff20
+Cost [0x1002003410]: Ir 258
+     04900724/T  430:_int_malloc libc.so.6 ./malloc/./malloc/malloc.c
+Fall-through 04900728 -> 0490072c, SP 1ffeffffe0
+     0490072c/T  430:_int_malloc libc.so.6 ./malloc/./malloc/malloc.c
+Fall-through 04900734 -> 04900738, SP 1ffeffffe0
+     04900738/T  430:_int_malloc libc.so.6 ./malloc/./malloc/malloc.c
+Cond-Jump 04900738 -> 04900650, SP 1ffeffffe0
+     04900650/T  430:_int_malloc libc.so.6 ./malloc/./malloc/malloc.c
+Return 04900664 -> 04000870, SP 1fff000020
+- 17 0x48fef74 => 0x4900720 malloc libc.so.6 (./malloc/./malloc/malloc.c:3321), SP 0x1ffeffffe0
+Cost [0x1002003498]: Ir 172
+     04000870/T  418:malloc libc.so.6 ./malloc/./malloc/malloc.c
+Call 04000884 -> 04000690, SP 1fff000020
++ 18 [Skipped JCC], SP 0x1fff000020, RA 0x4000888
+     04000690/P  418:malloc libc.so.6 ./malloc/./malloc/malloc.c
+BB# 24871
+     JMP: 0x0000000000000690 [PLT][/tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC] to __GI_memset[/usr/lib/aarch64-linux-gnu/libc.so.6]!
+Call 0400069c -> 0490bf80, SP 1fff000020
+  lookup_bbcc(BB 0x490bf80, Cxt 442, fn '__GI_memset'): 0x0 (tid 0)
+- clone_BBCC(0x100222B100, 0) for BB 0x490bf80
+   orig tcache_init.part.0
+   new  __GI_memset
++ 19 0x4000884 => 0x490bf80 [calls 1/Ir 0, Dr 0, Dw 0], SP 0x1fff000020, RA 0x4000888
+     0490bf80/T  442:__GI_memset libc.so.6 ./string/../sysdeps/aarch64/memset.S:32
+Fall-through 0490bf90 -> 0490bf94, SP 1fff000020
+     0490bf94/T  442:__GI_memset libc.so.6 ./string/../sysdeps/aarch64/memset.S:42
+Cond-Jump 0490bf98 -> 0490bfd8, SP 1fff000020
+     0490bfd8/T  442:__GI_memset libc.so.6 ./string/../sysdeps/aarch64/memset.S:64
+Fall-through 0490bfdc -> 0490bfe0, SP 1fff000020
+     0490bfe0/T  442:__GI_memset libc.so.6 ./string/../sysdeps/aarch64/memset.S:66
+Fall-through 0490bfe4 -> 0490bfe8, SP 1fff000020
+     0490bfe8/T  442:__GI_memset libc.so.6 ./string/../sysdeps/aarch64/memset.S:68
+Return 0490bff0 -> 04000888, SP 1fff000020
+- 18 0x490bf80 => 0x4000884 leaf reproC (/usr/include/aarch64-linux-gnu/bits/string_fortified.h:59), SP 0x1fff000020
+Cost [0x10020034A8]: Ir 14
+     04000888/T  418:malloc libc.so.6 ./malloc/./malloc/malloc.c
+Call 040008a0 -> 040006c0, SP 1fff000020
+BB# 24877
+  lookup_bbcc(BB 0x40006c0, Cxt 418, fn 'malloc'): 0x100222E450 (tid 1)
+  reproC +0x6c0=0x40006c0, Cxt 418 [active=1]: malloc
++ 19 [Skipped JCC], SP 0x1fff000020, RA 0x40008a4
+     040006c0/P  418:malloc libc.so.6 ./malloc/./malloc/malloc.c
+BB# 24878
+     JMP: 0x00000000000006c0 [PLT][/tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC] to free[/usr/lib/aarch64-linux-gnu/libc.so.6]!
+Call 040006cc -> 04900af4, SP 1fff000020
++ 20 0x4000884 => 0x4900af4 [calls 1/Ir 0, Dr 0, Dw 0], SP 0x1fff000020, RA 0x4000888
+     04900af4/T  446:free libc.so.6 ./malloc/./malloc/malloc.c:3356
+Fall-through 04900af4 -> 04900af8, SP 1fff000020
+     04900af8/T  446:free libc.so.6 ./malloc/./malloc/malloc.c:3352
+Cond-Jump 04900b20 -> 04900b64, SP 1ffeffffe0
+     04900b64/T  446:free libc.so.6 ./malloc/./malloc/malloc.c:3385
+Fall-through 04900b74 -> 04900b78, SP 1ffeffffe0
+     04900b78/T  446:free libc.so.6 ./malloc/./malloc/malloc.c
+Cond-Jump 04900b78 -> 04900bb8, SP 1ffeffffe0
+     04900bb8/T  446:free libc.so.6 ./malloc/./malloc/malloc.c
+Call 04900bc0 -> 04900b9c, SP 1ffeffffe0
++ 21 0x4900bc0 => 0x4900b9c [calls 2/Ir 83, Dr 10, Dw 10], SP 0x1ffeffffe0, RA 0x4900bc4
+     04900b9c/T  447:free'2 libc.so.6 ./malloc/./malloc/malloc.c:3391
+Call 04900ba0 -> 048fde40, SP 1ffeffffe0
++ 22 0x4900ba0 => 0x48fde40 [calls 6/Ir 405, Dr 83, Dw 83], SP 0x1ffeffffe0, RA 0x4900ba4
+     048fde40/T  450:_int_free libc.so.6 ./malloc/./malloc/malloc.c:4421
+Fall-through 048fde88 -> 048fde8c, SP 1ffeffff50
+     048fde8c/T  450:_int_free libc.so.6 ./malloc/./malloc/malloc.c:4438
+Fall-through 048fde90 -> 048fde94, SP 1ffeffff50
+     048fde94/T  450:_int_free libc.so.6 ./malloc/./malloc/malloc.c:4442
+Fall-through 048fde98 -> 048fde9c, SP 1ffeffff50
+     048fde9c/T  450:_int_free libc.so.6 ./malloc/./malloc/malloc.c:4442
+Fall-through 048fdea0 -> 048fdea4, SP 1ffeffff50
+     048fdea4/T  450:_int_free libc.so.6 ./malloc/./malloc/malloc.c:4450
+Fall-through 048fdec0 -> 048fdec4, SP 1ffeffff50
+     048fdec4/T  450:_int_free libc.so.6 ./malloc/./malloc/malloc.c:4450
+Fall-through 048fdee0 -> 048fdee4, SP 1ffeffff50
+     048fdee4/T  450:_int_free libc.so.6 ./malloc/./malloc/malloc.c:4459
+Fall-through 048fdef8 -> 048fdefc, SP 1ffeffff50
+     048fdefc/T  450:_int_free libc.so.6 ./malloc/./malloc/malloc.c:4479
+Cond-Jump 048fdf0c -> 048fe1bc, SP 1ffeffff50
+     048fe1bc/T  450:_int_free libc.so.6 ./malloc/./malloc/malloc.c:3181
+Call 048fe1e0 -> 048fdfa4, SP 1ffeffff50
++ 23 0x48fe1e0 => 0x48fdfa4 [calls 6/Ir 70, Dr 405, Dw 405], SP 0x1ffeffff50, RA 0x48fe1e4
+     048fdfa4/T  451:_int_free'2 libc.so.6 ./malloc/./malloc/malloc.c:4702
+Fall-through 048fdfbc -> 048fdfc0, SP 1ffeffff50
+     048fdfc0/T  451:_int_free'2 libc.so.6 ./malloc/./malloc/malloc.c:4702
+Return 048fdfd8 -> 04900ba4, SP 1ffeffffe0
+- 22 0x48fdfa4 => 0x48fe1e0 _int_free libc.so.6 (./malloc/./malloc/malloc.c:4482), SP 0x1ffeffff50
+Cost [0x1002003430]: Ir 84
+     04900ba4/T  450:_int_free libc.so.6 ./malloc/./malloc/malloc.c
+Return 04900bb4 -> 040008a4, SP 1fff000020
+- 21 0x48fde40 => 0x4900ba0 free libc.so.6 (./malloc/./malloc/malloc.c:3391), SP 0x1ffeffffe0
+Cost [0x1002003438]: Ir 486
+- 20 0x4900b9c => 0x4900bc0 free libc.so.6 (./malloc/./malloc/arena.c:162), SP 0x1ffeffffe0
+Cost [0x1002003440]: Ir 166
+     040008a4/T  446:free libc.so.6 ./malloc/./malloc/malloc.c
+Return 040008b0 -> 040008cc, SP 1fff000040
+- 19 0x4900af4 => 0x4000884 leaf reproC (/usr/include/aarch64-linux-gnu/bits/string_fortified.h:59), SP 0x1fff000020
+Cost [0x10020034B0]: Ir 108
+- 18 [Skipped JCC], SP 0x1fff000020
+- 17 [Skipped JCC], SP 0x1fff000020
+- 16 0x4900560 => 0x400086c leaf reproC (/tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c:5), SP 0x1fff000020
+Cost [0x10020034B8]: Ir 353
+- 15 [Skipped JCC], SP 0x1fff000020
+     040008cc/T  454:leaf reproC /tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c
+Cond-Jump 040008d4 -> 040008e8, SP 1fff000040
+     040008e8/T  454:leaf reproC /tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c
+Call 040008ec -> 040008b4, SP 1fff000040
+BB# 24899
+- clone_BBCC(0x1002233A30, 1) for BB 0x40008b4
+   orig rec
+   new  rec'2
++ 16 0x40008ec => 0x40008b4 [calls 1/Ir 0, Dr 0, Dw 0], SP 0x1fff000040, RA 0x40008f0
+     040008b4/T  453:rec'2 reproC /tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c:6
+Call 040008c8 -> 04000858, SP 1fff000020
+BB# 24900
+- clone_BBCC(0x1002233DD0, 1) for BB 0x4000858
+   orig leaf
+   new  leaf'2
++ 17 0x40008c8 => 0x4000858 [calls 1/Ir 0, Dr 0, Dw 0], SP 0x1fff000020, RA 0x40008cc
+     04000858/T  455:leaf'2 reproC /tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c:5
+Call 0400086c -> 04000680, SP 1fff000000
+BB# 24901
+- clone_BBCC(0x1002233F10, 1) for BB 0x4000680
+   orig leaf
+   new  leaf'2
++ 18 [Skipped JCC], SP 0x1fff000000, RA 0x4000870
+     04000680/P  455:leaf'2 reproC /tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c
+BB# 24902
+     JMP: 0x0000000000000680 [PLT][/tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC] to malloc[/usr/lib/aarch64-linux-gnu/libc.so.6]!
+Call 0400068c -> 04900560, SP 1fff000000
++ 19 0x400086c => 0x4900560 [calls 1/Ir 0, Dr 0, Dw 0], SP 0x1fff000000, RA 0x4000870
+     04900560/T  418:malloc libc.so.6 ./malloc/./malloc/malloc.c:3287
+Fall-through 0490057c -> 04900580, SP 1ffeffffc0
+     04900580/T  418:malloc libc.so.6 ./malloc/./malloc/malloc.c:1343
+Fall-through 04900580 -> 04900584, SP 1ffeffffc0
+     04900584/T  418:malloc libc.so.6 ./malloc/./malloc/malloc.c:3306
+Fall-through 049005b4 -> 049005b8, SP 1ffeffffc0
+     049005b8/T  418:malloc libc.so.6 ./malloc/./malloc/malloc.c:3309
+Cond-Jump 049005c4 -> 049006c0, SP 1ffeffffc0
+     049006c0/T  418:malloc libc.so.6 ./malloc/./malloc/malloc.c:3310
+Fall-through 049006cc -> 049006d0, SP 1ffeffffc0
+     049006d0/T  418:malloc libc.so.6 ./malloc/./malloc/malloc.c:3193
+Fall-through 049006dc -> 049006e0, SP 1ffeffffc0
+     049006e0/T  418:malloc libc.so.6 ./malloc/./malloc/malloc.c:3196
+Return 0490070c -> 04000870, SP 1fff000000
+- 18 0x4900560 => 0x400086c leaf reproC (/tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c:5), SP 0x1fff000000
+Cost [0x10020034C8]: Ir 46
+BB# 24909
+  lookup_bbcc(BB 0x4000870, Cxt 454, fn 'leaf'): 0x0 (tid 0)
+- clone_BBCC(0x10022343F0, 0) for BB 0x4000870
+   orig malloc
+   new  leaf
+- clone_BBCC(0x1002235BC0, 1) for BB 0x4000870
+   orig leaf
+   new  leaf'2
+     04000870/T  455:leaf'2 reproC /tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c:5
+Call 04000884 -> 04000690, SP 1fff000000
+BB# 24910
+  lookup_bbcc(BB 0x4000690, Cxt 454, fn 'leaf'): 0x0 (tid 0)
+- clone_BBCC(0x10022346E0, 0) for BB 0x4000690
+   orig malloc
+   new  leaf
+- clone_BBCC(0x1002235D30, 1) for BB 0x4000690
+   orig leaf
+   new  leaf'2
++ 19 [Skipped JCC], SP 0x1fff000000, RA 0x4000888
+     04000690/P  455:leaf'2 reproC /tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c
+BB# 24911
+     JMP: 0x0000000000000690 [PLT][/tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC] to __GI_memset[/usr/lib/aarch64-linux-gnu/libc.so.6]!
+Call 0400069c -> 0490bf80, SP 1fff000000
++ 20 0x400086c => 0x490bf80 [calls 1/Ir 0, Dr 0, Dw 0], SP 0x1fff000000, RA 0x4000870
+     0490bf80/T  442:__GI_memset libc.so.6 ./string/../sysdeps/aarch64/memset.S:32
+Fall-through 0490bf90 -> 0490bf94, SP 1fff000000
+     0490bf94/T  442:__GI_memset libc.so.6 ./string/../sysdeps/aarch64/memset.S:42
+Cond-Jump 0490bf98 -> 0490bfd8, SP 1fff000000
+     0490bfd8/T  442:__GI_memset libc.so.6 ./string/../sysdeps/aarch64/memset.S:64
+Fall-through 0490bfdc -> 0490bfe0, SP 1fff000000
+     0490bfe0/T  442:__GI_memset libc.so.6 ./string/../sysdeps/aarch64/memset.S:66
+Fall-through 0490bfe4 -> 0490bfe8, SP 1fff000000
+     0490bfe8/T  442:__GI_memset libc.so.6 ./string/../sysdeps/aarch64/memset.S:68
+Return 0490bff0 -> 04000888, SP 1fff000000
+- 19 0x490bf80 => 0x400086c leaf reproC (/tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c:5), SP 0x1fff000000
+Cost [0x10020034D0]: Ir 14
+- 18 [Skipped JCC], SP 0x1fff000000
+BB# 24916
+  lookup_bbcc(BB 0x4000888, Cxt 454, fn 'leaf'): 0x0 (tid 0)
+- clone_BBCC(0x10022351B0, 0) for BB 0x4000888
+   orig malloc
+   new  leaf
+- clone_BBCC(0x1002235F10, 1) for BB 0x4000888
+   orig leaf
+   new  leaf'2
+     04000888/T  455:leaf'2 reproC /tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c:5
+Call 040008a0 -> 040006c0, SP 1fff000000
+BB# 24917
+  lookup_bbcc(BB 0x40006c0, Cxt 454, fn 'leaf'): 0x0 (tid 0)
+- clone_BBCC(0x1002233270, 0) for BB 0x40006c0
+   orig free'2
+   new  leaf
+- clone_BBCC(0x1002236080, 1) for BB 0x40006c0
+   orig leaf
+   new  leaf'2
++ 19 [Skipped JCC], SP 0x1fff000000, RA 0x40008a4
+     040006c0/P  455:leaf'2 reproC /tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c
+BB# 24918
+     JMP: 0x00000000000006c0 [PLT][/tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC] to free[/usr/lib/aarch64-linux-gnu/libc.so.6]!
+Call 040006cc -> 04900af4, SP 1fff000000
++ 20 0x400086c => 0x4900af4 [calls 1/Ir 0, Dr 0, Dw 0], SP 0x1fff000000, RA 0x4000870
+     04900af4/T  446:free libc.so.6 ./malloc/./malloc/malloc.c:3356
+Fall-through 04900af4 -> 04900af8, SP 1fff000000
+     04900af8/T  446:free libc.so.6 ./malloc/./malloc/malloc.c:3352
+Cond-Jump 04900b20 -> 04900b64, SP 1ffeffffc0
+     04900b64/T  446:free libc.so.6 ./malloc/./malloc/malloc.c:3385
+Fall-through 04900b74 -> 04900b78, SP 1ffeffffc0
+     04900b78/T  446:free libc.so.6 ./malloc/./malloc/malloc.c
+Cond-Jump 04900b78 -> 04900bb8, SP 1ffeffffc0
+     04900bb8/T  446:free libc.so.6 ./malloc/./malloc/malloc.c
+Call 04900bc0 -> 04900b9c, SP 1ffeffffc0
++ 21 0x4900bc0 => 0x4900b9c [calls 3/Ir 166, Dr 10, Dw 10], SP 0x1ffeffffc0, RA 0x4900bc4
+     04900b9c/T  447:free'2 libc.so.6 ./malloc/./malloc/malloc.c:3391
+Call 04900ba0 -> 048fde40, SP 1ffeffffc0
++ 22 0x4900ba0 => 0x48fde40 [calls 7/Ir 486, Dr 166, Dw 166], SP 0x1ffeffffc0, RA 0x4900ba4
+     048fde40/T  450:_int_free libc.so.6 ./malloc/./malloc/malloc.c:4421
+Fall-through 048fde88 -> 048fde8c, SP 1ffeffff30
+     048fde8c/T  450:_int_free libc.so.6 ./malloc/./malloc/malloc.c:4438
+Fall-through 048fde90 -> 048fde94, SP 1ffeffff30
+     048fde94/T  450:_int_free libc.so.6 ./malloc/./malloc/malloc.c:4442
+Fall-through 048fde98 -> 048fde9c, SP 1ffeffff30
+     048fde9c/T  450:_int_free libc.so.6 ./malloc/./malloc/malloc.c:4442
+Fall-through 048fdea0 -> 048fdea4, SP 1ffeffff30
+     048fdea4/T  450:_int_free libc.so.6 ./malloc/./malloc/malloc.c:4450
+Fall-through 048fdec0 -> 048fdec4, SP 1ffeffff30
+     048fdec4/T  450:_int_free libc.so.6 ./malloc/./malloc/malloc.c:4450
+Fall-through 048fdee0 -> 048fdee4, SP 1ffeffff30
+     048fdee4/T  450:_int_free libc.so.6 ./malloc/./malloc/malloc.c:4459
+Fall-through 048fdef8 -> 048fdefc, SP 1ffeffff30
+     048fdefc/T  450:_int_free libc.so.6 ./malloc/./malloc/malloc.c:4479
+Cond-Jump 048fdf0c -> 048fe1bc, SP 1ffeffff30
+     048fe1bc/T  450:_int_free libc.so.6 ./malloc/./malloc/malloc.c:3181
+Call 048fe1e0 -> 048fdfa4, SP 1ffeffff30
++ 23 0x48fe1e0 => 0x48fdfa4 [calls 7/Ir 84, Dr 486, Dw 486], SP 0x1ffeffff30, RA 0x48fe1e4
+     048fdfa4/T  451:_int_free'2 libc.so.6 ./malloc/./malloc/malloc.c:4702
+Fall-through 048fdfbc -> 048fdfc0, SP 1ffeffff30
+     048fdfc0/T  451:_int_free'2 libc.so.6 ./malloc/./malloc/malloc.c:4702
+Return 048fdfd8 -> 04900ba4, SP 1ffeffffc0
+- 22 0x48fdfa4 => 0x48fe1e0 _int_free libc.so.6 (./malloc/./malloc/malloc.c:4482), SP 0x1ffeffff30
+Cost [0x1002003430]: Ir 98
+     04900ba4/T  450:_int_free libc.so.6 ./malloc/./malloc/malloc.c
+Return 04900bb4 -> 040008a4, SP 1fff000000
+- 21 0x48fde40 => 0x4900ba0 free libc.so.6 (./malloc/./malloc/malloc.c:3391), SP 0x1ffeffffc0
+Cost [0x1002003438]: Ir 567
+- 20 0x4900b9c => 0x4900bc0 free libc.so.6 (./malloc/./malloc/arena.c:162), SP 0x1ffeffffc0
+Cost [0x1002003440]: Ir 249
+     040008a4/T  446:free libc.so.6 ./malloc/./malloc/malloc.c
+Return 040008b0 -> 040008cc, SP 1fff000020
+- 19 0x4900af4 => 0x400086c leaf reproC (/tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c:5), SP 0x1fff000000
+Cost [0x10020034D8]: Ir 108
+- 18 [Skipped JCC], SP 0x1fff000000
+- 17 [Skipped JCC], SP 0x1fff000000
+BB# 24937
+- clone_BBCC(0x1002235600, 1) for BB 0x40008cc
+   orig leaf
+   new  leaf'2
+     040008cc/T  455:leaf'2 reproC /tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c
+Cond-Jump 040008d4 -> 040008e8, SP 1fff000020
+BB# 24938
+- clone_BBCC(0x10022357C0, 1) for BB 0x40008e8
+   orig leaf
+   new  leaf'2
+     040008e8/T  455:leaf'2 reproC /tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c
+Call 040008ec -> 040008b4, SP 1fff000020
++ 18 0x40008ec => 0x40008b4 [calls 1/Ir 0, Dr 0, Dw 0], SP 0x1fff000020, RA 0x40008f0
+     040008b4/T  453:rec'2 reproC /tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c:6
+Call 040008c8 -> 04000858, SP 1fff000000
++ 19 0x40008c8 => 0x4000858 [calls 2/Ir 0, Dr 0, Dw 0], SP 0x1fff000000, RA 0x40008cc
+     04000858/T  455:leaf'2 reproC /tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c:5
+Call 0400086c -> 04000680, SP 1ffeffffe0
++ 20 [Skipped JCC], SP 0x1ffeffffe0, RA 0x4000870
+     04000680/P  455:leaf'2 reproC /tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c
+BB# 24942
+     JMP: 0x0000000000000680 [PLT][/tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC] to malloc[/usr/lib/aarch64-linux-gnu/libc.so.6]!
+Call 0400068c -> 04900560, SP 1ffeffffe0
++ 21 0x400086c => 0x4900560 [calls 2/Ir 46, Dr 14, Dw 14], SP 0x1ffeffffe0, RA 0x4000870
+     04900560/T  418:malloc libc.so.6 ./malloc/./malloc/malloc.c:3287
+Fall-through 0490057c -> 04900580, SP 1ffeffffa0
+     04900580/T  418:malloc libc.so.6 ./malloc/./malloc/malloc.c:1343
+Fall-through 04900580 -> 04900584, SP 1ffeffffa0
+     04900584/T  418:malloc libc.so.6 ./malloc/./malloc/malloc.c:3306
+Fall-through 049005b4 -> 049005b8, SP 1ffeffffa0
+     049005b8/T  418:malloc libc.so.6 ./malloc/./malloc/malloc.c:3309
+Cond-Jump 049005c4 -> 049006c0, SP 1ffeffffa0
+     049006c0/T  418:malloc libc.so.6 ./malloc/./malloc/malloc.c:3310
+Fall-through 049006cc -> 049006d0, SP 1ffeffffa0
+     049006d0/T  418:malloc libc.so.6 ./malloc/./malloc/malloc.c:3193
+Fall-through 049006dc -> 049006e0, SP 1ffeffffa0
+     049006e0/T  418:malloc libc.so.6 ./malloc/./malloc/malloc.c:3196
+Return 0490070c -> 04000870, SP 1ffeffffe0
+- 20 0x4900560 => 0x400086c leaf reproC (/tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c:5), SP 0x1ffeffffe0
+Cost [0x10020034C8]: Ir 92
+     04000870/T  455:leaf'2 reproC /tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c:5
+Call 04000884 -> 04000690, SP 1ffeffffe0
++ 21 [Skipped JCC], SP 0x1ffeffffe0, RA 0x4000888
+     04000690/P  455:leaf'2 reproC /tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c
+BB# 24951
+     JMP: 0x0000000000000690 [PLT][/tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC] to __GI_memset[/usr/lib/aarch64-linux-gnu/libc.so.6]!
+Call 0400069c -> 0490bf80, SP 1ffeffffe0
++ 22 0x400086c => 0x490bf80 [calls 2/Ir 14, Dr 108, Dw 108], SP 0x1ffeffffe0, RA 0x4000870
+     0490bf80/T  442:__GI_memset libc.so.6 ./string/../sysdeps/aarch64/memset.S:32
+Fall-through 0490bf90 -> 0490bf94, SP 1ffeffffe0
+     0490bf94/T  442:__GI_memset libc.so.6 ./string/../sysdeps/aarch64/memset.S:42
+Cond-Jump 0490bf98 -> 0490bfd8, SP 1ffeffffe0
+     0490bfd8/T  442:__GI_memset libc.so.6 ./string/../sysdeps/aarch64/memset.S:64
+Fall-through 0490bfdc -> 0490bfe0, SP 1ffeffffe0
+     0490bfe0/T  442:__GI_memset libc.so.6 ./string/../sysdeps/aarch64/memset.S:66
+Fall-through 0490bfe4 -> 0490bfe8, SP 1ffeffffe0
+     0490bfe8/T  442:__GI_memset libc.so.6 ./string/../sysdeps/aarch64/memset.S:68
+Return 0490bff0 -> 04000888, SP 1ffeffffe0
+- 21 0x490bf80 => 0x400086c leaf reproC (/tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c:5), SP 0x1ffeffffe0
+Cost [0x10020034D0]: Ir 28
+- 20 [Skipped JCC], SP 0x1ffeffffe0
+     04000888/T  455:leaf'2 reproC /tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c:5
+Call 040008a0 -> 040006c0, SP 1ffeffffe0
++ 21 [Skipped JCC], SP 0x1ffeffffe0, RA 0x40008a4
+     040006c0/P  455:leaf'2 reproC /tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c
+BB# 24958
+     JMP: 0x00000000000006c0 [PLT][/tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC] to free[/usr/lib/aarch64-linux-gnu/libc.so.6]!
+Call 040006cc -> 04900af4, SP 1ffeffffe0
++ 22 0x400086c => 0x4900af4 [calls 2/Ir 108, Dr 15987178197214944733, Dw 15987178197214944733], SP 0x1ffeffffe0, RA 0x4000870
+     04900af4/T  446:free libc.so.6 ./malloc/./malloc/malloc.c:3356
+Fall-through 04900af4 -> 04900af8, SP 1ffeffffe0
+     04900af8/T  446:free libc.so.6 ./malloc/./malloc/malloc.c:3352
+Cond-Jump 04900b20 -> 04900b64, SP 1ffeffffa0
+     04900b64/T  446:free libc.so.6 ./malloc/./malloc/malloc.c:3385
+Fall-through 04900b74 -> 04900b78, SP 1ffeffffa0
+     04900b78/T  446:free libc.so.6 ./malloc/./malloc/malloc.c
+Cond-Jump 04900b78 -> 04900bb8, SP 1ffeffffa0
+     04900bb8/T  446:free libc.so.6 ./malloc/./malloc/malloc.c
+Call 04900bc0 -> 04900b9c, SP 1ffeffffa0
++ 23 0x4900bc0 => 0x4900b9c [calls 4/Ir 249, Dr 10, Dw 10], SP 0x1ffeffffa0, RA 0x4900bc4
+     04900b9c/T  447:free'2 libc.so.6 ./malloc/./malloc/malloc.c:3391
+Call 04900ba0 -> 048fde40, SP 1ffeffffa0
++ 24 0x4900ba0 => 0x48fde40 [calls 8/Ir 567, Dr 249, Dw 249], SP 0x1ffeffffa0, RA 0x4900ba4
+     048fde40/T  450:_int_free libc.so.6 ./malloc/./malloc/malloc.c:4421
+Fall-through 048fde88 -> 048fde8c, SP 1ffeffff10
+     048fde8c/T  450:_int_free libc.so.6 ./malloc/./malloc/malloc.c:4438
+Fall-through 048fde90 -> 048fde94, SP 1ffeffff10
+     048fde94/T  450:_int_free libc.so.6 ./malloc/./malloc/malloc.c:4442
+Fall-through 048fde98 -> 048fde9c, SP 1ffeffff10
+     048fde9c/T  450:_int_free libc.so.6 ./malloc/./malloc/malloc.c:4442
+Fall-through 048fdea0 -> 048fdea4, SP 1ffeffff10
+     048fdea4/T  450:_int_free libc.so.6 ./malloc/./malloc/malloc.c:4450
+Fall-through 048fdec0 -> 048fdec4, SP 1ffeffff10
+     048fdec4/T  450:_int_free libc.so.6 ./malloc/./malloc/malloc.c:4450
+Fall-through 048fdee0 -> 048fdee4, SP 1ffeffff10
+     048fdee4/T  450:_int_free libc.so.6 ./malloc/./malloc/malloc.c:4459
+Fall-through 048fdef8 -> 048fdefc, SP 1ffeffff10
+     048fdefc/T  450:_int_free libc.so.6 ./malloc/./malloc/malloc.c:4479
+Cond-Jump 048fdf0c -> 048fe1bc, SP 1ffeffff10
+     048fe1bc/T  450:_int_free libc.so.6 ./malloc/./malloc/malloc.c:3181
+Call 048fe1e0 -> 048fdfa4, SP 1ffeffff10
++ 25 0x48fe1e0 => 0x48fdfa4 [calls 8/Ir 98, Dr 567, Dw 567], SP 0x1ffeffff10, RA 0x48fe1e4
+     048fdfa4/T  451:_int_free'2 libc.so.6 ./malloc/./malloc/malloc.c:4702
+Fall-through 048fdfbc -> 048fdfc0, SP 1ffeffff10
+     048fdfc0/T  451:_int_free'2 libc.so.6 ./malloc/./malloc/malloc.c:4702
+Return 048fdfd8 -> 04900ba4, SP 1ffeffffa0
+- 24 0x48fdfa4 => 0x48fe1e0 _int_free libc.so.6 (./malloc/./malloc/malloc.c:4482), SP 0x1ffeffff10
+Cost [0x1002003430]: Ir 112
+     04900ba4/T  450:_int_free libc.so.6 ./malloc/./malloc/malloc.c
+Return 04900bb4 -> 040008a4, SP 1ffeffffe0
+- 23 0x48fde40 => 0x4900ba0 free libc.so.6 (./malloc/./malloc/malloc.c:3391), SP 0x1ffeffffa0
+Cost [0x1002003438]: Ir 648
+- 22 0x4900b9c => 0x4900bc0 free libc.so.6 (./malloc/./malloc/arena.c:162), SP 0x1ffeffffa0
+Cost [0x1002003440]: Ir 332
+     040008a4/T  446:free libc.so.6 ./malloc/./malloc/malloc.c
+Return 040008b0 -> 040008cc, SP 1fff000000
+- 21 0x4900af4 => 0x400086c leaf reproC (/tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c:5), SP 0x1ffeffffe0
+Cost [0x10020034D8]: Ir 216
+- 20 [Skipped JCC], SP 0x1ffeffffe0
+- 19 [Skipped JCC], SP 0x1ffeffffe0
+     040008cc/T  455:leaf'2 reproC /tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c
+Cond-Jump 040008d4 -> 040008e8, SP 1fff000000
+     040008e8/T  455:leaf'2 reproC /tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c
+Call 040008ec -> 040008b4, SP 1fff000000
++ 20 0x40008ec => 0x40008b4 [calls 2/Ir 0, Dr 0, Dw 0], SP 0x1fff000000, RA 0x40008f0
+     040008b4/T  453:rec'2 reproC /tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c:6
+Call 040008c8 -> 04000858, SP 1ffeffffe0
++ 21 0x40008c8 => 0x4000858 [calls 3/Ir 0, Dr 0, Dw 0], SP 0x1ffeffffe0, RA 0x40008cc
+     04000858/T  455:leaf'2 reproC /tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c:5
+Call 0400086c -> 04000680, SP 1ffeffffc0
++ 22 [Skipped JCC], SP 0x1ffeffffc0, RA 0x4000870
+     04000680/P  455:leaf'2 reproC /tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c
+BB# 24982
+     JMP: 0x0000000000000680 [PLT][/tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC] to malloc[/usr/lib/aarch64-linux-gnu/libc.so.6]!
+Call 0400068c -> 04900560, SP 1ffeffffc0
++ 23 0x400086c => 0x4900560 [calls 3/Ir 92, Dr 28, Dw 28], SP 0x1ffeffffc0, RA 0x4000870
+     04900560/T  418:malloc libc.so.6 ./malloc/./malloc/malloc.c:3287
+Fall-through 0490057c -> 04900580, SP 1ffeffff80
+     04900580/T  418:malloc libc.so.6 ./malloc/./malloc/malloc.c:1343
+Fall-through 04900580 -> 04900584, SP 1ffeffff80
+     04900584/T  418:malloc libc.so.6 ./malloc/./malloc/malloc.c:3306
+Fall-through 049005b4 -> 049005b8, SP 1ffeffff80
+     049005b8/T  418:malloc libc.so.6 ./malloc/./malloc/malloc.c:3309
+Cond-Jump 049005c4 -> 049006c0, SP 1ffeffff80
+     049006c0/T  418:malloc libc.so.6 ./malloc/./malloc/malloc.c:3310
+Fall-through 049006cc -> 049006d0, SP 1ffeffff80
+     049006d0/T  418:malloc libc.so.6 ./malloc/./malloc/malloc.c:3193
+Fall-through 049006dc -> 049006e0, SP 1ffeffff80
+     049006e0/T  418:malloc libc.so.6 ./malloc/./malloc/malloc.c:3196
+Return 0490070c -> 04000870, SP 1ffeffffc0
+- 22 0x4900560 => 0x400086c leaf reproC (/tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c:5), SP 0x1ffeffffc0
+Cost [0x10020034C8]: Ir 138
+     04000870/T  455:leaf'2 reproC /tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c:5
+Call 04000884 -> 04000690, SP 1ffeffffc0
++ 23 [Skipped JCC], SP 0x1ffeffffc0, RA 0x4000888
+     04000690/P  455:leaf'2 reproC /tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c
+BB# 24991
+     JMP: 0x0000000000000690 [PLT][/tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC] to __GI_memset[/usr/lib/aarch64-linux-gnu/libc.so.6]!
+Call 0400069c -> 0490bf80, SP 1ffeffffc0
++ 24 0x400086c => 0x490bf80 [calls 3/Ir 28, Dr 216, Dw 216], SP 0x1ffeffffc0, RA 0x4000870
+     0490bf80/T  442:__GI_memset libc.so.6 ./string/../sysdeps/aarch64/memset.S:32
+Fall-through 0490bf90 -> 0490bf94, SP 1ffeffffc0
+     0490bf94/T  442:__GI_memset libc.so.6 ./string/../sysdeps/aarch64/memset.S:42
+Cond-Jump 0490bf98 -> 0490bfd8, SP 1ffeffffc0
+     0490bfd8/T  442:__GI_memset libc.so.6 ./string/../sysdeps/aarch64/memset.S:64
+Fall-through 0490bfdc -> 0490bfe0, SP 1ffeffffc0
+     0490bfe0/T  442:__GI_memset libc.so.6 ./string/../sysdeps/aarch64/memset.S:66
+Fall-through 0490bfe4 -> 0490bfe8, SP 1ffeffffc0
+     0490bfe8/T  442:__GI_memset libc.so.6 ./string/../sysdeps/aarch64/memset.S:68
+Return 0490bff0 -> 04000888, SP 1ffeffffc0
+- 23 0x490bf80 => 0x400086c leaf reproC (/tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c:5), SP 0x1ffeffffc0
+Cost [0x10020034D0]: Ir 42
+- 22 [Skipped JCC], SP 0x1ffeffffc0
+     04000888/T  455:leaf'2 reproC /tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c:5
+Call 040008a0 -> 040006c0, SP 1ffeffffc0
++ 23 [Skipped JCC], SP 0x1ffeffffc0, RA 0x40008a4
+     040006c0/P  455:leaf'2 reproC /tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c
+BB# 24998
+     JMP: 0x00000000000006c0 [PLT][/tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC] to free[/usr/lib/aarch64-linux-gnu/libc.so.6]!
+Call 040006cc -> 04900af4, SP 1ffeffffc0
++ 24 0x400086c => 0x4900af4 [calls 3/Ir 216, Dr 15987178197214944733, Dw 15987178197214944733], SP 0x1ffeffffc0, RA 0x4000870
+     04900af4/T  446:free libc.so.6 ./malloc/./malloc/malloc.c:3356
+Fall-through 04900af4 -> 04900af8, SP 1ffeffffc0
+     04900af8/T  446:free libc.so.6 ./malloc/./malloc/malloc.c:3352
+Cond-Jump 04900b20 -> 04900b64, SP 1ffeffff80
+     04900b64/T  446:free libc.so.6 ./malloc/./malloc/malloc.c:3385
+Fall-through 04900b74 -> 04900b78, SP 1ffeffff80
+     04900b78/T  446:free libc.so.6 ./malloc/./malloc/malloc.c
+Cond-Jump 04900b78 -> 04900bb8, SP 1ffeffff80
+     04900bb8/T  446:free libc.so.6 ./malloc/./malloc/malloc.c
+Call 04900bc0 -> 04900b9c, SP 1ffeffff80
++ 25 0x4900bc0 => 0x4900b9c [calls 5/Ir 332, Dr 10, Dw 10], SP 0x1ffeffff80, RA 0x4900bc4
+     04900b9c/T  447:free'2 libc.so.6 ./malloc/./malloc/malloc.c:3391
+Call 04900ba0 -> 048fde40, SP 1ffeffff80
++ 26 0x4900ba0 => 0x48fde40 [calls 9/Ir 648, Dr 332, Dw 332], SP 0x1ffeffff80, RA 0x4900ba4
+     048fde40/T  450:_int_free libc.so.6 ./malloc/./malloc/malloc.c:4421
+Fall-through 048fde88 -> 048fde8c, SP 1ffefffef0
+     048fde8c/T  450:_int_free libc.so.6 ./malloc/./malloc/malloc.c:4438
+Fall-through 048fde90 -> 048fde94, SP 1ffefffef0
+     048fde94/T  450:_int_free libc.so.6 ./malloc/./malloc/malloc.c:4442
+Fall-through 048fde98 -> 048fde9c, SP 1ffefffef0
+     048fde9c/T  450:_int_free libc.so.6 ./malloc/./malloc/malloc.c:4442
+Fall-through 048fdea0 -> 048fdea4, SP 1ffefffef0
+     048fdea4/T  450:_int_free libc.so.6 ./malloc/./malloc/malloc.c:4450
+Fall-through 048fdec0 -> 048fdec4, SP 1ffefffef0
+     048fdec4/T  450:_int_free libc.so.6 ./malloc/./malloc/malloc.c:4450
+Fall-through 048fdee0 -> 048fdee4, SP 1ffefffef0
+     048fdee4/T  450:_int_free libc.so.6 ./malloc/./malloc/malloc.c:4459
+Fall-through 048fdef8 -> 048fdefc, SP 1ffefffef0
+     048fdefc/T  450:_int_free libc.so.6 ./malloc/./malloc/malloc.c:4479
+Cond-Jump 048fdf0c -> 048fe1bc, SP 1ffefffef0
+     048fe1bc/T  450:_int_free libc.so.6 ./malloc/./malloc/malloc.c:3181
+Call 048fe1e0 -> 048fdfa4, SP 1ffefffef0
++ 27 0x48fe1e0 => 0x48fdfa4 [calls 9/Ir 112, Dr 648, Dw 648], SP 0x1ffefffef0, RA 0x48fe1e4
+     048fdfa4/T  451:_int_free'2 libc.so.6 ./malloc/./malloc/malloc.c:4702
+Fall-through 048fdfbc -> 048fdfc0, SP 1ffefffef0
+     048fdfc0/T  451:_int_free'2 libc.so.6 ./malloc/./malloc/malloc.c:4702
+Return 048fdfd8 -> 04900ba4, SP 1ffeffff80
+- 26 0x48fdfa4 => 0x48fe1e0 _int_free libc.so.6 (./malloc/./malloc/malloc.c:4482), SP 0x1ffefffef0
+Cost [0x1002003430]: Ir 126
+     04900ba4/T  450:_int_free libc.so.6 ./malloc/./malloc/malloc.c
+Return 04900bb4 -> 040008a4, SP 1ffeffffc0
+- 25 0x48fde40 => 0x4900ba0 free libc.so.6 (./malloc/./malloc/malloc.c:3391), SP 0x1ffeffff80
+Cost [0x1002003438]: Ir 729
+- 24 0x4900b9c => 0x4900bc0 free libc.so.6 (./malloc/./malloc/arena.c:162), SP 0x1ffeffff80
+Cost [0x1002003440]: Ir 415
+     040008a4/T  446:free libc.so.6 ./malloc/./malloc/malloc.c
+Return 040008b0 -> 040008cc, SP 1ffeffffe0
+- 23 0x4900af4 => 0x400086c leaf reproC (/tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c:5), SP 0x1ffeffffc0
+Cost [0x10020034D8]: Ir 324
+- 22 [Skipped JCC], SP 0x1ffeffffc0
+- 21 [Skipped JCC], SP 0x1ffeffffc0
+     040008cc/T  455:leaf'2 reproC /tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c
+Fall-through 040008d4 -> 040008d8, SP 1ffeffffe0
+BB# 25018
+- clone_BBCC(0x1002236550, 1) for BB 0x40008d8
+   orig leaf
+   new  leaf'2
+     040008d8/T  455:leaf'2 reproC /tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c
+Return 040008e4 -> 040008f0, SP 1fff000000
+- 20 0x4000858 => 0x40008c8 rec reproC (/tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c:6), SP 0x1ffeffffe0
+Cost [0x10020034E0]: Ir 206
+BB# 25019
+- clone_BBCC(0x10022367A0, 1) for BB 0x40008f0
+   orig rec
+   new  rec'2
+     040008f0/T  453:rec'2 reproC /tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c:6
+Call 040008f4 -> 040008d8, SP 1fff000000
+BB# 25020
+  lookup_bbcc(BB 0x40008d8, Cxt 452, fn 'rec'): 0x0 (tid 0)
+- clone_BBCC(0x1002236620, 0) for BB 0x40008d8
+   orig leaf'2
+   new  rec
+- clone_BBCC(0x1002236910, 1) for BB 0x40008d8
+   orig rec
+   new  rec'2
++ 21 0x40008f4 => 0x40008d8 [calls 1/Ir 0, Dr 0, Dw 0], SP 0x1fff000000, RA 0x40008f8
+     040008d8/T  453:rec'2 reproC /tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c:6
+Return 040008e4 -> 040008f0, SP 1fff000020
+- 20 0x40008d8 => 0x40008f4 rec reproC (/tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c:6), SP 0x1fff000000
+Cost [0x10020034E8]: Ir 4
+- 19 0x40008b4 => 0x40008ec rec reproC (/tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c:6), SP 0x1fff000000
+Cost [0x10020034F0]: Ir 218
+- 18 0x4000858 => 0x40008c8 rec reproC (/tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c:6), SP 0x1fff000000
+Cost [0x10020034E0]: Ir 628
+     040008f0/T  453:rec'2 reproC /tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c:6
+Call 040008f4 -> 040008d8, SP 1fff000020
++ 19 0x40008f4 => 0x40008d8 [calls 2/Ir 4, Dr 218, Dw 218], SP 0x1fff000020, RA 0x40008f8
+     040008d8/T  453:rec'2 reproC /tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c:6
+Return 040008e4 -> 040008f0, SP 1fff000040
+- 18 0x40008d8 => 0x40008f4 rec reproC (/tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c:6), SP 0x1fff000020
+Cost [0x10020034E8]: Ir 8
+- 17 0x40008b4 => 0x40008ec rec reproC (/tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c:6), SP 0x1fff000020
+Cost [0x10020034F0]: Ir 652
+- 16 0x4000858 => 0x40008c8 rec reproC (/tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c:6), SP 0x1fff000020
+Cost [0x10020034E0]: Ir 1266
+     040008f0/T  453:rec'2 reproC /tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c:6
+Call 040008f4 -> 040008d8, SP 1fff000040
++ 17 0x40008f4 => 0x40008d8 [calls 3/Ir 8, Dr 652, Dw 652], SP 0x1fff000040, RA 0x40008f8
+     040008d8/T  453:rec'2 reproC /tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c:6
+Return 040008e4 -> 0400090c, SP 1fff000060
+- 16 0x40008d8 => 0x40008f4 rec reproC (/tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c:6), SP 0x1fff000040
+Cost [0x10020034E8]: Ir 12
+- 15 0x40008b4 => 0x40008ec rec reproC (/tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c:6), SP 0x1fff000040
+Cost [0x10020034F8]: Ir 650
+- 14 0x4000858 => 0x40008c8 rec reproC (/tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c:6), SP 0x1fff000040
+Cost [0x1002003500]: Ir 1018
+     0400090c/T  452:rec reproC /tmp/claude-1001/-home-runner-valgrind-codspeed/f740991b-566d-49f4-ad1e-b75b81f5ddd2/scratchpad/reproC.c
+Return 04000910 -> 04897400, SP 1fff000070
+--66045-- Leaving rec: Verbosity set back to 0
