@@ -701,7 +701,14 @@ fn_node* CLG_(get_fn_node)(BB* bb)
       if (bb->sect_kind == Vg_SectPLT || bb->sect_kind == Vg_SectPLTSEC)	
 	fn->skip = CLG_(clo).skip_plt;
 
-      if (VG_(strncmp)(fn->name, "_dl_runtime_resolve", 19)==0) {
+      /* Linker resolvers transfer control to the resolved target via an
+       * indirect tail-jump rather than a matched return, so their shadow-stack
+       * frame must be popped on that jump (otherwise it stays as a sticky
+       * parent of everything the target does). This covers the x86/x86-64 PLT
+       * lazy-binding resolver (_dl_runtime_resolve*) and the AArch64 TLS
+       * descriptor resolvers (_dl_tlsdesc_return, _dl_tlsdesc_resolve_rela, ...). */
+      if (VG_(strncmp)(fn->name, "_dl_runtime_resolve", 19)==0 ||
+	  VG_(strncmp)(fn->name, "_dl_tlsdesc_", 12)==0) {
 	  fn->pop_on_jump = True;
 
 	  if (VG_(clo_verbosity) > 1)
