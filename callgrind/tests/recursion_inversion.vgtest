@@ -1,0 +1,5 @@
+prereq: test -f recursion_inversion
+prog: recursion_inversion
+vgopts: --instr-atstart=no --compress-strings=no --callgrind-out-file=callgrind.out.recursion_inversion
+post: sh -c 'o=callgrind.out.recursion_inversion; test -f "$o" || { echo "FAIL: no callgrind output"; exit 1; }; awk -F= "/^fn=/{cur=\$2} /^fn=leaf_alloc.[0-9]/{fab=fab cur\"\n\"} /^cfn=/{if((cur~/^leaf_alloc/||cur~/^malloc\$/||cur~/^free\$/||cur~/^realloc\$/||cur~/^_int_malloc/||cur~/^_int_free/||cur~/^__GI_/)&&\$2~/^rec_parent/)inv=inv cur\" -> \"\$2\"\n\"} END{if(fab\"\"inv!=\"\"){if(fab!=\"\")printf \"FAIL: fabricated recursion clone(s) of non-recursive leaf_alloc:\n%s\",fab; if(inv!=\"\")printf \"FAIL: inverted allocator->workload edge(s):\n%s\",inv; exit 1} print \"OK\"}" "$o"'
+cleanup: rm -f callgrind.out.recursion_inversion

@@ -431,13 +431,28 @@ Int CLG_(unwind_call_stack)(Addr sp, Int minpops)
     while( (csp=CLG_(current_call_stack).sp) >0) {
 	call_entry* top_ce = &(CLG_(current_call_stack).entry[csp-1]);
 
-	if ((top_ce->sp < sp) ||
-	    ((top_ce->sp == sp) && minpops>0)) {
-
+	/* A frame whose entry SP is strictly below the new SP has been left by
+	 * the return and is always unwound. On targets where the call
+	 * instruction does not move SP (AArch64 bl/blr, PPC b(c)l), a callee's
+	 * own *entry* frame records the caller's SP and therefore sits at SP
+	 * *equal* to the return target; such frames sit beneath the SP-lower
+	 * frames of any sub-calls the callee made. The minpops budget bounds
+	 * how many of these SP-equal frames a single return may pop (computed by
+	 * the ret_addr-matching logic in setup_bbcc). SP-lower pops must NOT
+	 * consume that budget — otherwise sub-call frames exhaust it and the
+	 * SP-equal entry frame is left stuck on the stack, keeping the callee's
+	 * context active so the caller's continuation is mis-attributed to the
+	 * callee (inverted edges) and the callee's never-decremented recursion
+	 * depth fabricates spurious recursion clones. */
+	if (top_ce->sp < sp) {
+	    unwind_count++;
+	    CLG_(pop_call_stack)();
+	    continue;
+	}
+	if ((top_ce->sp == sp) && minpops>0) {
 	    minpops--;
 	    unwind_count++;
 	    CLG_(pop_call_stack)();
-	    csp=CLG_(current_call_stack).sp;
 	    continue;
 	}
 	break;

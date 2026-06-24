@@ -17,6 +17,8 @@ EXTRA_DIST = \
 	runtime_obj_skip_c.c runtime_obj_skip_c_lib.c \
 	runtime_obj_skip_underflow.vgtest runtime_obj_skip_underflow.stderr.exp runtime_obj_skip_underflow.post.exp \
 	runtime_obj_skip_underflow.c runtime_obj_skip_underflow_lib.c \
+	recursion_inversion.vgtest recursion_inversion.stderr.exp recursion_inversion.post.exp \
+	recursion_inversion.c \
 	bug497723.stderr.exp bug497723.post.exp bug497723.vgtest \
 	simwork1.vgtest simwork1.stdout.exp simwork1.stderr.exp \
 	simwork2.vgtest simwork2.stdout.exp simwork2.stderr.exp \
@@ -35,7 +37,7 @@ EXTRA_DIST = \
 	inline-crossfile.vgtest inline-crossfile.stderr.exp inline-crossfile.stdout.exp inline-crossfile.post.exp \
 	inline-crossfile-helper1.h inline-crossfile-helper2.h filter_inline
 
-check_PROGRAMS = clreq find_debuginfo simwork threads inline-samefile inline-crossfile runtime_obj_skip_c runtime_obj_skip_underflow
+check_PROGRAMS = clreq find_debuginfo simwork threads inline-samefile inline-crossfile runtime_obj_skip_c runtime_obj_skip_underflow recursion_inversion
 
 AM_CFLAGS   += $(AM_FLAG_M3264_PRI)
 AM_CXXFLAGS += $(AM_FLAG_M3264_PRI)
@@ -43,6 +45,11 @@ AM_CXXFLAGS += $(AM_FLAG_M3264_PRI)
 # Inline tests need -O2 to enable inlining and -g for debug info
 inline_samefile_CFLAGS = $(AM_CFLAGS) -O2 -g
 inline_crossfile_CFLAGS = $(AM_CFLAGS) -O2 -g
+
+# Recursion-inversion test: -O1 keeps leaf_alloc/rec_parent as distinct,
+# non-inlined frames (the noinline attributes guard against further inlining)
+# and -g gives the source-level fn names the post-check greps for.
+recursion_inversion_CFLAGS = $(AM_CFLAGS) -O1 -g
 
 threads_LDADD = -lpthread
 
