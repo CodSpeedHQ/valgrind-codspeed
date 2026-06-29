@@ -104,3 +104,19 @@ automake callgrind/tests/Makefile && ./config.status callgrind/tests/Makefile
 make -C callgrind/tests check
 ```
 Makefile.in / Makefile are gitignored (generated); only Makefile.am is tracked.
+
+## Second bug — seeded-frame return off-by-one (found via user's KDE-252091 lead)
+
+DISTINCT from the minpops bug above. NOT the cause of malloc->driftsort (A/B proves that
+was minpops; seeding was untouched in both arms). Triggers when a return crosses a SEEDED
+frame (instrumentation started mid-run via CALLGRIND_START_INSTRUMENTATION).
+
+- `reconstruct_call_stack_from_native` seeds `ce->ret_addr = ips[frame+1]`.
+- `VG_(get_StackTrace)` returns caller IPs as `return_PC - 1` (m_stacktrace.c:1265 `ips[i]=pc-1`).
+- matcher wants `bb_addr(return-target) == return_PC`. Off by one → fail → RET demoted→call→inversion.
+- Fix: `ce->ret_addr = ips[frame+1] + 1`.
+
+Repro: deepstart.c (here) / callgrind/tests/seeded_return_inversion.c — START deep in inner(),
+return up through seeded mid/outer. Before: spurious `mid -> outer`. After +1: clean.
+Validated: seeded_return_inversion test fails on baseline, passes on fix; full callgrind
+regtest = 25 tests, only the 2 pre-existing arch/env failures.

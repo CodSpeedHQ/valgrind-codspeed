@@ -1,7 +1,10 @@
 # AArch64 Callgrind: inverted call edges & fabricated recursion
 
-**Status:** fixed — `callgrind/callstack.c::CLG_(unwind_call_stack)`
+**Status:** fixed — two distinct defects in `callgrind/callstack.c`:
+1. `CLG_(unwind_call_stack)` — minpops/SP-lower accounting (the `malloc -> driftsort_main` inversion).
+2. `CLG_(reconstruct_call_stack_from_native)` — seeded `ret_addr` off-by-one (inversion across seeded frames when instrumentation starts mid-run). See "Second defect" below.
 **Linear:** COD-2985
+**Related:** KDE bug 252091 (Callgrind on ARM mis-detects returns, converts a failed return into a fake call) — both defects are in that failure *class* but have different triggers.
 **Scope:** issue #2 (workload functions wrongly shown recursive / inverted). Issue #1
 (the `_dl_tlsdesc_return` resolver showing up at all) is a separate, out-of-scope
 cosmetic item handled elsewhere.
@@ -187,6 +190,37 @@ New regression test `callgrind/tests/recursion_inversion`:
 - **Passes** on the fix. Wired into `Makefile.am` (`make check` builds it; arch-independent
   — it only asserts that non-recursive `leaf_alloc` has no clone and that no allocator
   function appears as a parent of the workload).
+
+---
+
+## Second defect: seeded-frame return off-by-one
+
+A separate but related defect in the same class (independently spotted; KDE 252091 is the
+historical reference). It is **not** the cause of `malloc -> driftsort_main` — the A/B above
+isolates that to the minpops fix (the seeding code was untouched in both arms, yet the fixed
+arm had 0 inversions). This second defect bites a **different** trigger: returns that cross a
+**seeded** frame when instrumentation is started mid-run (`CALLGRIND_START_INSTRUMENTATION`,
+as CodSpeed does).
+
+`CLG_(reconstruct_call_stack_from_native)` seeds a shadow-stack frame per native caller using
+`VG_(get_StackTrace)`. That API reports caller frames at the **last byte of the call
+instruction** (`coregrind/m_stacktrace.c:1265` → `ips[i] = uregs.pc - 1`), i.e. `return_PC - 1`,
+**not** the return PC. But `setup_bbcc`'s return matcher compares `ret_addr == bb_addr(return-target)`
+(= the return PC), and `push_call_stack` stores exactly the return PC for real calls. So the
+seeded `ret_addr = ips[frame+1]` was off by one. On AArch64 a `ret` lands at SP **equal** to the
+seeded entry SP, so the match relies on `ret_addr`; the off-by-one fails it → the return is
+demoted to a jump and re-promoted to a call → an inverted edge across the seeded frame.
+
+**Fix** (`callstack.c`): `ce->ret_addr = ips[frame+1] + 1` (normalize to the return PC).
+
+**Reproducer / test** `callgrind/tests/seeded_return_inversion.c`: `outer -> mid -> inner` with
+`CALLGRIND_START_INSTRUMENTATION` inside `inner` (so the calls are seeded and only the returns
+are measured). Before the fix the output contains a spurious callee→caller edge (observed:
+`mid -> outer`); after the fix there are no call edges among `inner/mid/outer` (only `inner`'s
+real `malloc/free/memset`). The test fails on the unfixed build and passes on the fix.
+
+This matters for CodSpeed because scoped profiling always starts instrumentation several frames
+deep, so the workload returns back through seeded frames at the measurement boundary.
 
 ---
 
