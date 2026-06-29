@@ -19,6 +19,8 @@ EXTRA_DIST = \
 	runtime_obj_skip_underflow.c runtime_obj_skip_underflow_lib.c \
 	recursion_inversion.vgtest recursion_inversion.stderr.exp recursion_inversion.post.exp \
 	recursion_inversion.c \
+	seeded_return_inversion.vgtest seeded_return_inversion.stderr.exp seeded_return_inversion.post.exp \
+	seeded_return_inversion.c \
 	bug497723.stderr.exp bug497723.post.exp bug497723.vgtest \
 	simwork1.vgtest simwork1.stdout.exp simwork1.stderr.exp \
 	simwork2.vgtest simwork2.stdout.exp simwork2.stderr.exp \
@@ -37,7 +39,7 @@ EXTRA_DIST = \
 	inline-crossfile.vgtest inline-crossfile.stderr.exp inline-crossfile.stdout.exp inline-crossfile.post.exp \
 	inline-crossfile-helper1.h inline-crossfile-helper2.h filter_inline
 
-check_PROGRAMS = clreq find_debuginfo simwork threads inline-samefile inline-crossfile runtime_obj_skip_c runtime_obj_skip_underflow recursion_inversion
+check_PROGRAMS = clreq find_debuginfo simwork threads inline-samefile inline-crossfile runtime_obj_skip_c runtime_obj_skip_underflow recursion_inversion seeded_return_inversion
 
 AM_CFLAGS   += $(AM_FLAG_M3264_PRI)
 AM_CXXFLAGS += $(AM_FLAG_M3264_PRI)
@@ -50,6 +52,11 @@ inline_crossfile_CFLAGS = $(AM_CFLAGS) -O2 -g
 # non-inlined frames (the noinline attributes guard against further inlining)
 # and -g gives the source-level fn names the post-check greps for.
 recursion_inversion_CFLAGS = $(AM_CFLAGS) -O1 -g
+
+# Seeded-return test: instrumentation starts deep; -O0/-g keep inner/mid/outer
+# as distinct, non-specialized named frames (no constprop clones) so the
+# post-check can match them exactly.
+seeded_return_inversion_CFLAGS = $(AM_CFLAGS) -O0 -g
 
 threads_LDADD = -lpthread
 

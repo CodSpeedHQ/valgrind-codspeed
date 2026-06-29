@@ -1,0 +1,5 @@
+prereq: test -f seeded_return_inversion
+prog: seeded_return_inversion
+vgopts: --instr-atstart=no --compress-strings=no --callgrind-out-file=callgrind.out.seeded_return_inversion
+post: sh -c 'o=callgrind.out.seeded_return_inversion; test -f "$o" || { echo "FAIL: no callgrind output"; exit 1; }; awk -F= "/^fn=/{cur=\$2} /^cfn=/{if((cur~/^inner\$/||cur~/^mid\$/||cur~/^outer\$/)&&(\$2~/^mid\$/||\$2~/^outer\$/||\$2~/^main\$/))bad=bad cur\" -> \"\$2\"\n\"} END{if(bad!=\"\"){printf \"FAIL: seeded-frame inversion edge(s):\n%s\",bad; exit 1} print \"OK\"}" "$o"'
+cleanup: rm -f callgrind.out.seeded_return_inversion

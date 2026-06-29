@@ -536,7 +536,17 @@ void CLG_(reconstruct_call_stack_from_native)(ThreadId tid)
          * SP, sps[frame+1]; the outermost frame keeps its own SP as nothing
          * returns past it during measurement. */
         ce->sp       = (frame + 1 < (Int)n) ? sps[frame + 1] : sps[frame];
-        ce->ret_addr = (frame + 1 < (Int)n) ? ips[frame + 1] : 0;
+        /* VG_(get_StackTrace) reports caller frames at the *last byte of the
+         * call instruction* (m_stacktrace.c: `ips[i] = pc - 1`), not the
+         * return PC. setup_bbcc's return matcher compares ret_addr against
+         * bb_addr(return-target) == the return PC (the instruction after the
+         * call), and push_call_stack stores exactly that for real calls. So
+         * the seeded ret_addr must be normalized to the return PC with +1;
+         * otherwise on AArch64 — where a `ret` lands at SP equal to the
+         * seeded frame's entry SP and the match therefore relies on ret_addr —
+         * the off-by-one fails the match, the return is demoted to a jump and
+         * re-promoted to a call, inverting the edge across the seeded frame. */
+        ce->ret_addr = (frame + 1 < (Int)n) ? ips[frame + 1] + 1 : 0;
         cs->sp++;
         ensure_stack_size(cs->sp + 1);
         cs->entry[cs->sp].cxt = 0;
