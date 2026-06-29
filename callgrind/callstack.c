@@ -431,13 +431,33 @@ Int CLG_(unwind_call_stack)(Addr sp, Int minpops)
     while( (csp=CLG_(current_call_stack).sp) >0) {
 	call_entry* top_ce = &(CLG_(current_call_stack).entry[csp-1]);
 
-	if ((top_ce->sp < sp) ||
-	    ((top_ce->sp == sp) && minpops>0)) {
-
+	/* A frame whose entry SP lies strictly below the post-return SP has
+	 * been vacated by this return and is unwound unconditionally.
+	 *
+	 * `minpops` only bounds how many *SP-equal* frames a single return may
+	 * pop (the count setup_bbcc proved belong to this return by matching the
+	 * return target against recorded return addresses). SP-equal entry frames
+	 * exist on targets whose call instruction leaves SP unchanged — AArch64
+	 * bl/blr (return address in the link register) and PPC b(c)l — so a
+	 * callee's own entry frame records the caller's SP and ends up *beneath*
+	 * the SP-lower frames of any sub-calls the callee made (e.g. a libc/libm
+	 * function reached via the PLT that itself calls other functions).
+	 *
+	 * Therefore SP-lower pops must not consume the budget: if they did, the
+	 * still-open sub-call frames would exhaust it before the callee's
+	 * SP-equal entry frame is reached, leaving that frame stuck. A stuck
+	 * frame keeps the callee's context active (so the caller's continuation
+	 * is mis-attributed to the callee — inverted edges) and never decrements
+	 * the callee's recursion depth (fabricating spurious '2 clones). */
+	if (top_ce->sp < sp) {
+	    unwind_count++;
+	    CLG_(pop_call_stack)();
+	    continue;
+	}
+	if ((top_ce->sp == sp) && minpops>0) {
 	    minpops--;
 	    unwind_count++;
 	    CLG_(pop_call_stack)();
-	    csp=CLG_(current_call_stack).sp;
 	    continue;
 	}
 	break;
@@ -521,7 +541,18 @@ void CLG_(reconstruct_call_stack_from_native)(ThreadId tid)
          * SP, sps[frame+1]; the outermost frame keeps its own SP as nothing
          * returns past it during measurement. */
         ce->sp       = (frame + 1 < (Int)n) ? sps[frame + 1] : sps[frame];
-        ce->ret_addr = (frame + 1 < (Int)n) ? ips[frame + 1] : 0;
+        /* setup_bbcc classifies a return by matching the top frame's ret_addr
+         * against bb_addr(return-target) — the return PC, i.e. the instruction
+         * after the call — and push_call_stack stores exactly that for real
+         * calls. VG_(get_StackTrace), however, reports each caller frame at the
+         * last byte of its call instruction (m_stacktrace.c: `ips[i] = pc - 1`),
+         * i.e. return_PC - 1. Seeding ret_addr straight from ips[frame+1] would
+         * therefore be one byte low. That matters on AArch64/PPC, where a `ret`
+         * lands at SP *equal* to the seeded entry SP so the classifier falls
+         * back on ret_addr: the off-by-one fails the match, the return is
+         * demoted to a jump and re-promoted to a call, inverting the edge across
+         * the seeded frame. Normalize to the return PC with +1. */
+        ce->ret_addr = (frame + 1 < (Int)n) ? ips[frame + 1] + 1 : 0;
         cs->sp++;
         ensure_stack_size(cs->sp + 1);
         cs->entry[cs->sp].cxt = 0;

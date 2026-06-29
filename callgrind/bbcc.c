@@ -654,37 +654,80 @@ void CLG_(setup_bbcc)(BB* bb)
 
   csp = CLG_(current_call_stack).sp;
 
-  /* A return not matching the top call in our callstack is a jump */
+  /* Classify a `ret` and compute popcount_on_return: how many *SP-equal* shadow
+   * frames it must pop. SP-lower frames (sub-calls the returning function made,
+   * and on x86 the returning frame itself, since `call` pushes a return address)
+   * always unwind and are not counted here. The three cases below are keyed on
+   * where the top (newest, lowest-SP) frame sits relative to the post-return SP,
+   * preserving the original x86 behaviour exactly: on x86 a return is always the
+   * SP-lower-top case and never demotes; the SP-equal-top case only arises on
+   * AArch64/PPC, where the call instruction leaves SP unchanged. */
   if ( (jmpkind == jk_Return) && (csp >0)) {
-      Int csp_up = csp-1;      
-      call_entry* top_ce = &(CLG_(current_call_stack).entry[csp_up]);
+      call_entry* top_ce = &(CLG_(current_call_stack).entry[csp-1]);
+      Bool is_jump = False;
 
-      /* We have a real return if
-       * - the stack pointer (SP) left the current stack frame, or
-       * - SP has the same value as when reaching the current function
-       *   and the address of this BB is the return address of last call
-       *   (we even allow to leave multiple frames if the SP stays the
-       *    same and we find a matching return address)
-       * The latter condition is needed because on PPC, SP can stay
-       * the same over CALL=b(c)l / RET=b(c)lr boundaries
-       */
-      if (sp < top_ce->sp) popcount_on_return = 0;
-      else if (top_ce->sp == sp) {
-	  while(1) {
-	      if (top_ce->ret_addr == bb_addr(bb)) break;
-	      if (csp_up>0) {
-		  csp_up--;
-		  top_ce = &(CLG_(current_call_stack).entry[csp_up]);
-		  if (top_ce->sp == sp) {
-		      popcount_on_return++;
-		      continue; 
-		  }
-	      }
+      if (top_ce->sp > sp) {
+	  /* Post-return SP is below the top frame's entry SP: SP moved *deeper*,
+	   * so this `ret` did not leave the current frame — treat it as a jump.
+	   * (The top frame has the lowest SP, so every frame is SP-higher here.)
+	   * This is the original `sp < top_ce->sp` case. */
+	  is_jump = True;
+      }
+      else {
+	  Addr ret_target = bb_addr(bb);
+	  /* Skip the SP-lower frames the return vacated. On x86 the returning
+	   * frame itself is SP-lower (its `call` pushed a return address), so
+	   * note whether any skipped frame returns to the target: that marks an
+	   * x86-style return *from an SP-lower frame*, where the frame at the
+	   * return SP is the caller we return into — not part of the chain. */
+	  Int i = csp-1;
+	  Bool sp_lower_match = False;
+	  while (i >= 0 && CLG_(current_call_stack).entry[i].sp < sp) {
+	      if (CLG_(current_call_stack).entry[i].ret_addr == ret_target)
+		  sp_lower_match = True;
+	      i--;
+	  }
+
+	  if (sp_lower_match) {
+	      /* x86-style return: the returning frame was SP-lower and pops on
+	       * its own; the SP-equal frame at the return SP is the caller, which
+	       * must not be popped (it may even share the return address under
+	       * recursion). No SP-equal frames to pop. */
 	      popcount_on_return = 0;
-	      break;
+	  }
+	  else if (i >= 0 && CLG_(current_call_stack).entry[i].sp == sp) {
+	      /* The returning frame is SP-equal — the case that exists where the
+	       * call instruction leaves SP unchanged (AArch64 bl/blr, PPC b(c)l).
+	       * Pop the SP-equal block down to AND INCLUDING the *deepest* frame
+	       * whose recorded return address is the return target; the frame
+	       * below it is the caller we return into. The deepest match pops a
+	       * whole PLT-stub + callee pair (same return address) or a tail-call
+	       * chain a->b->c (c's `ret` lands past b and a) in one go, instead of
+	       * leaving the stub/tail frames stuck — which would re-root the
+	       * caller's continuation under the callee (inverted edges) and
+	       * fabricate '2 recursion clones. */
+	      Int count = 0;
+	      popcount_on_return = 0;
+	      for (Int j = i; j >= 0 && CLG_(current_call_stack).entry[j].sp == sp; j--) {
+		  count++;
+		  if (CLG_(current_call_stack).entry[j].ret_addr == ret_target)
+		      popcount_on_return = count;
+	      }
+	      /* Top frame is SP-equal and nothing in the block returns to the
+	       * target: a `ret` that does not match our call stack — a jump (the
+	       * original SP-equal-top behaviour). */
+	      if (popcount_on_return == 0 && i == csp-1)
+		  is_jump = True;
+	  }
+	  else {
+	      /* An SP-higher caller reached after skipping SP-lower frames (the
+	       * common x86 return), or every frame was SP-lower: no SP-equal
+	       * frames to pop. */
+	      popcount_on_return = 0;
 	  }
       }
-      if (popcount_on_return == 0) {
+
+      if (is_jump) {
 	  jmpkind = jk_Jump;
 	  ret_without_call = True;
       }
@@ -789,7 +832,12 @@ void CLG_(setup_bbcc)(BB* bb)
       CLG_(pop_call_stack)();
     }
     else {
-	CLG_ASSERT(popcount_on_return >0);
+	/* popcount_on_return is the number of *SP-equal* frames this return
+	 * pops; it may legitimately be 0 when the return vacates only SP-lower
+	 * frames (every return on x86, where `call` pushes a return address, and
+	 * AArch64/PPC returns whose SP-equal frame is the caller we stop at).
+	 * unwind_call_stack still pops the SP-lower frames in that case. */
+	CLG_ASSERT(popcount_on_return >= 0);
 	CLG_(unwind_call_stack)(sp, popcount_on_return);
     }
   }
