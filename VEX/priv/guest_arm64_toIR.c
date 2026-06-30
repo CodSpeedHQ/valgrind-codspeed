@@ -7422,7 +7422,7 @@ Bool dis_ARM64_branch_etc(/*MB_OUT*/DisResult* dres, UInt insn,
    /* -------------------- B{L} uncond -------------------- */
    if (INSN(30,26) == BITS5(0,0,1,0,1)) {
       /* 000101 imm26  B  (PC + sxTo64(imm26 << 2))
-         100101 imm26  B  (PC + sxTo64(imm26 << 2))
+         100101 imm26  BL (PC + sxTo64(imm26 << 2))
       */
       UInt  bLink  = INSN(31,31);
       ULong uimm64 = INSN(25,0) << 2;
@@ -7432,7 +7432,11 @@ Bool dis_ARM64_branch_etc(/*MB_OUT*/DisResult* dres, UInt insn,
       }
       putPC(mkU64(guest_PC_curr_instr + simm64));
       dres->whatNext = Dis_StopHere;
-      dres->jk_StopHere = Ijk_Call;
+      /* Only BL (which writes the link register) is a call; a plain B is
+         an ordinary unconditional branch.  Mislabelling B as Ijk_Call makes
+         callgrind treat every branch to a function epilogue / tail target as
+         a call, corrupting recursive and cyclic call graphs on arm64. */
+      dres->jk_StopHere = bLink ? Ijk_Call : Ijk_Boring;
       DIP("b%s 0x%llx\n", bLink == 1 ? "l" : "",
                           guest_PC_curr_instr + simm64);
       return True;
