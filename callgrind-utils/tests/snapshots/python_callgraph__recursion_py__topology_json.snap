@@ -1,0 +1,101 @@
+---
+source: tests/python_callgraph.rs
+expression: json
+---
+{
+  "nodes": [
+    {
+      "function": "<unsymbolicated>",
+      "file": "???",
+      "object": "_ctypes.cpython.so"
+    },
+    {
+      "function": "???",
+      "file": "???",
+      "object": "ld-linux"
+    },
+    {
+      "function": "???",
+      "file": "???",
+      "object": "libc.so.6"
+    },
+    {
+      "function": "clg_start",
+      "file": "clgctl.c",
+      "object": "libclgctl.so"
+    },
+    {
+      "function": "<unsymbolicated>",
+      "file": "???",
+      "object": "libffi.so"
+    },
+    {
+      "function": "ffi_call",
+      "file": "???",
+      "object": "libffi.so"
+    },
+    {
+      "function": "ffi_prep_cif",
+      "file": "???",
+      "object": "libffi.so"
+    }
+  ],
+  "edges": [
+    {
+      "caller": 0,
+      "callee": 0
+    },
+    {
+      "caller": 0,
+      "callee": 2
+    },
+    {
+      "caller": 0,
+      "callee": 5
+    },
+    {
+      "caller": 0,
+      "callee": 6
+    },
+    {
+      "caller": 1,
+      "callee": 1
+    },
+    {
+      "caller": 1,
+      "callee": 2
+    },
+    {
+      "caller": 2,
+      "callee": 0
+    },
+    {
+      "caller": 2,
+      "callee": 1
+    },
+    {
+      "caller": 2,
+      "callee": 2
+    },
+    {
+      "caller": 3,
+      "callee": 4
+    },
+    {
+      "caller": 4,
+      "callee": 0
+    },
+    {
+      "caller": 4,
+      "callee": 2
+    },
+    {
+      "caller": 4,
+      "callee": 4
+    },
+    {
+      "caller": 5,
+      "callee": 4
+    }
+  ]
+}

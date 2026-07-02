@@ -1,0 +1,19 @@
+---
+source: tests/snapshot.rs
+expression: "graph.to_folded_without_costs().join(\"\\n\")"
+---
+run_measured <cost>
+run_measured;caller <cost>
+run_measured;caller;??? <cost>
+run_measured;caller;???;??? <cost>
+run_measured;caller;???;??? <cost>
+run_measured;caller;???;??? <cost>
+run_measured;caller;???;??? <cost>
+run_measured;caller;???;??? <cost>
+run_measured;caller;dealloc1 <cost>
+run_measured;caller;dealloc1;dealloc2 <cost>
+run_measured;caller;dealloc1;dealloc2;??? <cost>
+run_measured;caller;dealloc1;dealloc2;???;??? <cost>
+run_measured;caller;dealloc1;dealloc2;???;??? <cost>
+run_measured;caller;dealloc1;dealloc2;???;???;??? <cost>
+run_measured;caller;post_free_work.constprop.0 <cost>

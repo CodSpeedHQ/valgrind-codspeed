@@ -1,0 +1,10 @@
+---
+source: tests/snapshot.rs
+expression: "graph.to_folded_without_costs().join(\"\\n\")"
+---
+main <cost>
+main;is_even <cost>
+main;is_even;is_odd <cost>
+main;is_even;is_odd;is_even'2 <cost>
+main;is_even;is_odd;is_even'2;is_odd'2 <cost>
+main;is_even;is_odd;is_even'2;is_odd'2;is_even'2 <cost>

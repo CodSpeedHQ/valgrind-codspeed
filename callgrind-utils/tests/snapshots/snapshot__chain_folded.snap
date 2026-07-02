@@ -1,0 +1,8 @@
+---
+source: tests/snapshot.rs
+expression: "graph.to_folded_without_costs().join(\"\\n\")"
+---
+main <cost>
+main;a <cost>
+main;a;b <cost>
+main;a;b;c <cost>

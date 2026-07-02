@@ -1,0 +1,126 @@
+# callgrind format
+version: 1
+creator: callgrind-fixture
+pid: 1
+cmd: ./prog
+desc: I1 cache
+desc: D1 cache
+positions: line
+events: Ir
+summary: 1000
+totals: 1000
+
+# ===== Part 1 =====
+# Header / context lines: ob=, fl=, fn= define compressed IDs 1 for each space.
+# Object ID 1 = /path/to/clreq ; File ID 1 = file1.c ; Function ID 1 = main.
+ob=(1) /path/to/clreq
+fl=(1) file1.c
+fn=(1) main
+
+# --- main body: cost/subposition lines using +N / * / -N / 0x... (all ignored) ---
+0x401000 4
++5 8
+* 3
+-2 1
+
+# --- two-line call spec: cfn=(2) func1 / calls=1 50 / cost 16 400 ---
+# Defines Function ID 2 = func1. The cost line (16 400) is present but ignored.
+cfn=(2) func1
+calls=1 50
+16 400
+
+# --- cfl= alias equals cfi= for a callee file spec ---
+# cfl=(5) cflfile.c defines File ID 5 = cflfile.c and sets the callee file.
+cfl=(5) cflfile.c
+cfn=cflop
+calls=1 52
+18 30
+
+# --- cfni= inline function line: ignored for topology (no node/edge created) ---
+cfni=(7) some_inline
+# --- omitted cfi/cfl: callee inherits the CURRENT file context (file1.c here) ---
+cfn=nofile
+calls=1 53
+19 10
+
+# --- same function name in two different objects/files -> TWO distinct nodes ---
+# helper in liba/fileA.c .  Object ID 2 = liba ; File ID 2 = fileA.c ; Function ID 4 = helper.
+cob=(2) liba
+cfi=(2) fileA.c
+cfn=(4) helper
+calls=1 60
+20 5
+# helper in libb/fileB.c (same name, different object+file -> distinct node).
+# cfn=(4) is a REFERENCE reusing Function ID 4 = helper.
+cob=(3) libb
+cfi=(3) fileB.c
+cfn=(4)
+calls=1 61
+21 5
+
+# --- cob= overrides caller object (callee in extlib, file inherited from context) ---
+# Object ID 4 = extlib . No cfi -> callee inherits current file (file1.c).
+cob=(4) extlib
+cfn=extfn
+calls=1 70
+22 3
+
+# --- switch caller context to func1 (fn=(2) REFERENCE -> resolves to func1) ---
+fl=(1)
+fn=(2)
+ob=(1)
+# func1 calls func2 .  Defines Function ID 3 = func2 .
+cfn=(3) func2
+calls=1 54
+23 100
+
+# --- switch caller context to func2 (fn=(3) REFERENCE) ---
+fl=(1)
+fn=(3)
+ob=(1)
+# func2 calls rec .  Defines Function ID 5 = rec .
+cfn=(5) rec
+calls=1 55
+24 50
+# func2 calls func1 : cfn=(2) REFERENCE resolves to func1 (name compression reuse).
+cfn=(2)
+calls=1 62
+25 20
+
+# --- switch caller context to rec (fn=(5) REFERENCE); recursion -> self-edge ---
+fl=(1)
+fn=(5)
+ob=(1)
+cfn=(5)
+calls=1 56
+26 7
+
+# --- inline fi=/fe= file transition BEFORE a call with no cfi ---
+# inlhost fl=file1.c .  fi=(6) inline.c switches the CURRENT file context to inline.c.
+# The call below has NO cfi/cfl, so the callee inherits inline.c (NOT the fl file1.c).
+fl=(1) file1.c
+fn=inlhost
+ob=(1)
+fi=(6) inline.c
+cfn=inltarget
+calls=1 57
+27 4
+# fe=(1) switches the current file context back to the function file (file1.c).
+fe=(1)
+
+# ===== Part 2: multi-part merge (ID maps persist across parts) =====
+part: 2
+# References resolve via the persistent ID maps:
+#   fl=(1) -> file1.c , fn=(1) -> main , ob=(1) -> /path/to/clreq
+fl=(1)
+fn=(1)
+ob=(1)
+# main calls part2fn : this edge only appears in part 2 and must merge into the graph.
+cfn=part2fn
+calls=1 100
+29 2
+# bare cfn= with NO calls= line -> NO edge. Per cl-format.xml, CallSpec requires a
+# calls= line (CallLine); cfn= alone only sets callee context and is discarded. The
+# "28 1" below is a self-cost line of main (ignored). `nocnt` must NOT become a node.
+cfn=nocnt
+28 1

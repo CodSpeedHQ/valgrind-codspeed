@@ -1,0 +1,8 @@
+---
+source: tests/snapshot.rs
+expression: "graph.to_folded_without_costs().join(\"\\n\")"
+---
+run_measured <cost>
+run_measured;stage_a <cost>
+run_measured;stage_a;stage_b <cost>
+run_measured;stage_a;stage_b;stage_c <cost>

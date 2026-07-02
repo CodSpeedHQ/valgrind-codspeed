@@ -1,0 +1,11 @@
+---
+source: tests/snapshot.rs
+expression: "graph.to_folded_without_costs().join(\"\\n\")"
+---
+run_measured <cost>
+run_measured;outer <cost>
+run_measured;outer;memset <cost>
+run_measured;outer;??? <cost>
+run_measured;outer;memset <cost>
+run_measured;outer;leaf <cost>
+run_measured;outer;sibling <cost>

@@ -1,0 +1,10 @@
+---
+source: tests/snapshot.rs
+expression: "graph.to_folded_without_costs().join(\"\\n\")"
+---
+main <cost>
+main;compute <cost>
+main;compute;fib <cost>
+main;compute;fib;fib'2 <cost>
+main;compute;fib;fib'2;fib'2 <cost>
+main;compute;square <cost>
