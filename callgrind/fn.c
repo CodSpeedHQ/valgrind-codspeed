@@ -711,6 +711,42 @@ fn_node* CLG_(get_fn_node)(BB* bb)
                       (UWord)bb->offset, bb_addr(bb));
       }
 
+#if defined(VGA_arm64)
+      /* aarch64 TLS-descriptor resolvers (_dl_tlsdesc_return,
+       * _dl_tlsdesc_undefweak, _dl_tlsdesc_dynamic) are transparent
+       * dynamic-linker trampolines, the same class as PLT stubs and
+       * _dl_runtime_resolve above: every `__thread` access in code built
+       * with the (default) TLS descriptor model compiles to a GOT-loaded
+       * {resolver, arg} pair and a `blr` into the resolver, which returns
+       * straight back into the middle of the accessing function.
+       *
+       * Unlike _dl_runtime_resolve they never jump onward (pop_on_jump
+       * would never fire: the exit is a plain `ret` to a non-entry
+       * address), so treat them like PLT stubs instead: fn->skip, gated on
+       * --skip-plt. A named node here is pure noise between a function and
+       * its own straight-line code. Worse, when the TLS access is made
+       * from obj-skipped code (production: the CPython binary under
+       * pytest-codspeed), the skipped->nonskipped splice in setup_bbcc
+       * pushes the resolver frame with ret_addr 0; its `ret` back into the
+       * middle of skipped code can never match, the RET-w/o-CALL promotion
+       * re-enters the skipped object with `nonskipped` pointing at the
+       * resolver, and from then on skipped cost and call edges pile up
+       * under `_dl_tlsdesc_return` -- observed pulling nearly whole Python
+       * flamegraphs under that node. As a skip push the frame is not
+       * spliced and records the architectural X30 (see push_call_stack),
+       * so the resolver's return pops cleanly and all cost keeps flowing
+       * to the real non-skipped caller. */
+      if (VG_(strncmp)(fn->name, "_dl_tlsdesc_", 12) == 0) {
+	  fn->skip = CLG_(clo).skip_plt;
+
+	  if (VG_(clo_verbosity) > 1)
+	      VG_(message)(Vg_DebugMsg, "Symbol match: found tlsdesc resolver:"
+                                        " %s +%#lx=%#lx\n",
+		      bb->obj->name + bb->obj->last_slash_pos,
+                      (UWord)bb->offset, bb_addr(bb));
+      }
+#endif
+
       fn->is_malloc  = (VG_(strcmp)(fn->name, "malloc")==0);
       fn->is_realloc = (VG_(strcmp)(fn->name, "realloc")==0);
       fn->is_free    = (VG_(strcmp)(fn->name, "free")==0);
