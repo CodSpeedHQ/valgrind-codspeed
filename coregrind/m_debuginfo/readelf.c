@@ -1500,6 +1500,37 @@ out:
 }
 #endif
 
+/* Try one directory as a root for the standard .build-id/xx/yyyy.debug
+   layout. On success, returns the opened image and sets *debugpath_out
+   to a freshly allocated path (which the caller owns); on failure,
+   returns NULL and leaves *debugpath_out untouched. */
+static
+DiImage* try_buildid_dir( const HChar* dir, SizeT dirlen,
+                          const HChar* buildid, Bool rel_ok,
+                          HChar** debugpath_out )
+{
+   DiImage* dimg;
+   HChar* debugpath;
+
+   if (dirlen == 0)
+      return NULL;
+
+   debugpath = ML_(dinfo_zalloc)("di.tbid.1",
+                                 dirlen + VG_(strlen)(buildid) + 19);
+   VG_(memcpy)(debugpath, dir, dirlen);
+   VG_(sprintf)(debugpath + dirlen, "/.build-id/%c%c/%s.debug",
+                buildid[0], buildid[1], buildid + 2);
+
+   dimg = open_debug_file(debugpath, buildid, 0, rel_ok, NULL);
+   if (dimg == NULL) {
+      ML_(dinfo_free)(debugpath);
+      return NULL;
+   }
+
+   *debugpath_out = debugpath;
+   return dimg;
+}
+
 /* Try to find a separate debug file for a given object file.  If
    found, return its DiImage, which should be freed by the caller.  If
    |buildid| is non-NULL, then a debug object matching it is
@@ -1519,16 +1550,42 @@ DiImage* find_debug_file( struct _DebugInfo* di,
    HChar*   debugpath = NULL; /* where we found it */
 
    if (buildid != NULL) {
-      debugpath = ML_(dinfo_zalloc)("di.fdf.1",
-                                    VG_(strlen)(buildid) + 33);
+      /* Nix packages ship separate debug outputs under their own store
+         paths, never under /usr/lib/debug (which doesn't exist on
+         NixOS). NIX_DEBUG_INFO_DIRS is the established convention (also
+         honoured by gdb/lldb via nixpkgs wrappers) for a colon-separated
+         list of trees that mirror the standard .build-id/xx/yyyy.debug
+         layout; try each, then --extra-debuginfo-path, before falling
+         back to the FHS path. */
+      const HChar* nix_dirs = VG_(getenv)("NIX_DEBUG_INFO_DIRS");
+      const HChar* p = nix_dirs;
 
-      VG_(sprintf)(debugpath, "/usr/lib/debug/.build-id/%c%c/%s.debug",
-                   buildid[0], buildid[1], buildid + 2);
+      while (dimg == NULL && p != NULL && *p != 0) {
+         const HChar* colon = VG_(strchr)(p, ':');
+         SizeT dirlen = colon ? (SizeT)(colon - p) : VG_(strlen)(p);
 
-      dimg = open_debug_file(debugpath, buildid, 0, rel_ok, NULL);
-      if (!dimg) {
-         ML_(dinfo_free)(debugpath);
-         debugpath = NULL;
+         dimg = try_buildid_dir(p, dirlen, buildid, rel_ok, &debugpath);
+
+         p = colon ? colon + 1 : p + dirlen;
+      }
+
+      if (dimg == NULL && extrapath != NULL) {
+         dimg = try_buildid_dir(extrapath, VG_(strlen)(extrapath),
+                                buildid, rel_ok, &debugpath);
+      }
+
+      if (dimg == NULL) {
+         debugpath = ML_(dinfo_zalloc)("di.fdf.1",
+                                       VG_(strlen)(buildid) + 33);
+
+         VG_(sprintf)(debugpath, "/usr/lib/debug/.build-id/%c%c/%s.debug",
+                      buildid[0], buildid[1], buildid + 2);
+
+         dimg = open_debug_file(debugpath, buildid, 0, rel_ok, NULL);
+         if (!dimg) {
+            ML_(dinfo_free)(debugpath);
+            debugpath = NULL;
+         }
       }
    }
 
