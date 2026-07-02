@@ -26,6 +26,9 @@
 
 #include "global.h"
 #include "pub_tool_stacktrace.h"
+#if defined(VGA_arm64)
+#include "pub_tool_guest.h"     /* VexGuestArchState, for guest_X30 */
+#endif
 
 /*------------------------------------------------------------*/
 /*--- Call stack, operations                               ---*/
@@ -234,6 +237,49 @@ void CLG_(push_call_stack)(BBCC* from, UInt jmp, BBCC* to, Addr sp, Bool skip)
 
     /* return address is only is useful with a real call;
      * used to detect RET w/o CALL */
+#if defined(VGA_arm64)
+    /* On arm64 a call does not push its return address: `bl`/`blr` write it
+     * to the link register X30, and SP does not move across the call/return
+     * pair. So unlike on x86, where a leftover frame is swept by the pure
+     * SP-progress rules, the return detector here fully depends on ret_addr:
+     * a return pops the same-SP run of frames above and including the one
+     * whose recorded ret_addr matches the return target (non-matching
+     * frames in the run, e.g. a promoted tail jump's ret_addr==0 entry, are
+     * absorbed into the same pop group).
+     *
+     * Record the guest X30 -- the architectural return target, just written
+     * by the call that ended the previous BB -- for every frame entered by
+     * a real call, instead of statically computing "address after the call
+     * instruction of <from>/<jmp>". The two agree for an honestly
+     * attributed call, but <from>/<jmp> may describe a different call site:
+     * after a call into skipped code (a libc PLT hop) returns, setup_bbcc
+     * splices the still-set `nonskipped` BB in as the call source, whose
+     * last jump is some *earlier* call of that BB.
+     *
+     * The splice also routes the skipped->nonskipped jump (PLT stub ->
+     * libc body, an emulated call that never updated X30) through this
+     * jk_Call branch. Such a frame must record 0 like any other emulated
+     * call: giving it the (spliced or X30-inherited) address of the skip
+     * frame right below would duplicate that frame's ret_addr, so the
+     * callee's single return matches the top entry only and leaks the skip
+     * frame -- never popped again on arm64 (no SP movement), and starving
+     * the one-pop budget of the next same-SP return, which cascades into
+     * misattributed callers and phantom 'N recursion clones. A real call
+     * is recognizable as: statically a call in <from> AND not the
+     * skipped->nonskipped splice (skip pushes and calls made while
+     * `nonskipped` is clear are genuine; the splice is the nonskipped,
+     * non-skip delayed push -- see setup_bbcc). */
+    if ((from->bb->jmp[jmp].jmpkind == jk_Call) &&
+        (skip || !CLG_(current_state).nonskipped)) {
+      Addr lr;
+      VG_(get_shadow_regs_area)(CLG_(current_tid), (UChar*)&lr, 0,
+                                offsetof(VexGuestArchState, guest_X30),
+                                sizeof(lr));
+      ret_addr = lr;
+    }
+    else
+      ret_addr = 0;
+#else
     if (from->bb->jmp[jmp].jmpkind == jk_Call) {
       UInt instr = from->bb->jmp[jmp].instr;
       ret_addr = bb_addr(from->bb) +
@@ -242,6 +288,7 @@ void CLG_(push_call_stack)(BBCC* from, UInt jmp, BBCC* to, Addr sp, Bool skip)
     }
     else
       ret_addr = 0;
+#endif
 
     /* put jcc on call stack */
     current_entry->jcc = jcc;
