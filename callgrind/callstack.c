@@ -568,7 +568,15 @@ void CLG_(reconstruct_call_stack_from_native)(ThreadId tid)
          * SP, sps[frame+1]; the outermost frame keeps its own SP as nothing
          * returns past it during measurement. */
         ce->sp       = (frame + 1 < (Int)n) ? sps[frame + 1] : sps[frame];
-        ce->ret_addr = (frame + 1 < (Int)n) ? ips[frame + 1] : 0;
+        /* ret_addr must be the exact architectural return target: the arm64
+         * return detector (setup_bbcc) matches it against bb_addr() of the
+         * returned-into block, and push_call_stack records the exact X30 there.
+         * But VG_(get_StackTrace) reports each caller IP as return_addr - 1 (so
+         * symbolization lands in the calling instruction, not the one after);
+         * undo that bias here, else every seeded frame's return is off by one,
+         * is misread as a jump, and the seeded skipped interpreter/ctypes frames
+         * never pop -- leaking them as the graph root. */
+        ce->ret_addr = (frame + 1 < (Int)n) ? ips[frame + 1] + 1 : 0;
         cs->sp++;
         ensure_stack_size(cs->sp + 1);
         cs->entry[cs->sp].cxt = 0;

@@ -1249,8 +1249,11 @@ UInt VG_(get_StackTrace_wrk) ( ThreadId tid_if_known,
    ips[0] = uregs.pc;
    i = 1;
 
-   /* Loop unwinding the stack, using CFI. */
+   /* Loop unwinding the stack: CFI first, AAPCS64 frame-pointer chain as
+      the fallback. */
    while (True) {
+      Addr old_sp;
+
       if (debug) {
          VG_(printf)("i: %d, pc: 0x%lx, sp: 0x%lx\n",
                      i, uregs.pc, uregs.sp);
@@ -1259,12 +1262,58 @@ UInt VG_(get_StackTrace_wrk) ( ThreadId tid_if_known,
       if (i >= max_n_ips)
          break;
 
+      old_sp = uregs.sp;
+
       if (VG_(use_CF_info)( &uregs, fp_min, fp_max )) {
          if (sps) sps[i] = uregs.sp;
          if (fps) fps[i] = uregs.x29;
          ips[i++] = uregs.pc - 1;
          if (debug)
             VG_(printf)("USING CFI: pc: 0x%lx, sp: 0x%lx\n",
+                        uregs.pc, uregs.sp);
+         uregs.pc = uregs.pc - 1;
+         RECURSIVE_MERGE(cmrf,ips,i);
+         continue;
+      }
+
+      /* If VG_(use_CF_info) fails, the location has no unwind info: JIT
+         pages (e.g. CPython's -X perf trampolines) or hand-written
+         assembly.  Fall back to following the AAPCS64 frame-pointer chain:
+         X29 points at a frame record { saved X29, saved X30 }.  Code built
+         for fp-based profilers (perf, samply) maintains this chain exactly
+         where CFI is missing.  Mirrors the amd64 %rbp fallback, with the
+         same guards: the record must lie inside the stack, the recovered
+         SP must make progress towards the stack base, and the next record
+         must be strictly further up (a saved X29 of 0 is the conventional
+         chain terminator: emit this frame, the bounds check ends the walk
+         on the next iteration).  Stop rather than emit a bogus trail. */
+      if (VG_IS_8_ALIGNED(uregs.x29)
+          && fp_min <= uregs.x29
+          && uregs.x29 <= fp_max - 2 * sizeof(Addr)) {
+         Addr next_x29 = ((Addr*)uregs.x29)[0];
+         Addr next_pc  = ((Addr*)uregs.x29)[1];
+         /* End-of-chain sentinel, same test the other unwinders in this
+            file use.  Recorded pcs are decremented by 1 (see below) so the
+            symbol lookup lands on the call insn rather than the return
+            address; both 0 and 1 collapse to the null address 0 after that
+            -1, so treat either as "no real caller" and stop. */
+         if (0 == next_pc || 1 == next_pc) break;
+         uregs.sp = uregs.x29 + 2 * sizeof(Addr);
+         if (old_sp >= uregs.sp
+             || (next_x29 != 0 && next_x29 <= uregs.x29)) {
+            if (debug)
+               VG_(printf)("     FF end of stack sp %#lx next x29 %#lx\n",
+                           uregs.sp, next_x29);
+            break;
+         }
+         uregs.x29 = next_x29;
+         uregs.x30 = next_pc;
+         uregs.pc  = next_pc;
+         if (sps) sps[i] = uregs.sp;
+         if (fps) fps[i] = uregs.x29;
+         ips[i++] = uregs.pc - 1; /* -1: refer to calling insn, not the RA */
+         if (debug)
+            VG_(printf)("USING FP: pc: 0x%lx, sp: 0x%lx\n",
                         uregs.pc, uregs.sp);
          uregs.pc = uregs.pc - 1;
          RECURSIVE_MERGE(cmrf,ips,i);
