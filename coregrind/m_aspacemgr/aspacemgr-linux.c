@@ -1862,7 +1862,17 @@ Addr VG_(am_startup) ( Addr sp_at_startup )
                     sp_at_startup );
 
 #  if VG_WORDSIZE == 8
+#    if defined(VGP_amd64_linux)
+     // Startup inserts a one-page reservation at vStart (the midpoint of
+     // [minAddr, maxAddr]), splitting the initial free space. A floating
+     // client mmap searches upward from cStart, so the largest contiguous
+     // hole it can get runs up to that split, i.e. ~half of maxAddr. 128G
+     // left only a ~64G client hole, rejecting multi-hundred-GB lazily-backed
+     // reservations. 1T gives a ~512G hole, well within amd64's 47-bit VA.
+     aspacem_maxAddr = (Addr)0x10000000000ULL - 1; // 1T
+#    else
      aspacem_maxAddr = (Addr)0x2000000000ULL - 1; // 128G
+#    endif
 #    ifdef ENABLE_INNER
      { Addr cse = VG_PGROUNDDN( sp_at_startup ) - 1;
        if (aspacem_maxAddr > cse)
