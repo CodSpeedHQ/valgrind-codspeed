@@ -22,6 +22,8 @@ COMMANDS = [
     "testdata/take_strings-aarch64 varbinview_non_null",
     "echo Hello, World!",
     "python3 testdata/test.py",
+    "stress-ng --cpu 1 --cpu-ops 10",
+    "stress-ng --cpu 4 --cpu-ops 10",
 ]
 
 # Callgrind configurations: (extra args, config name, requires_codspeed). The
