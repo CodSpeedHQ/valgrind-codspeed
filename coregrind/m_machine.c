@@ -844,12 +844,27 @@ static Bool VG_(parse_cpuinfo)(void)
 
 #if defined(VGP_arm64_linux)
 
-/* Check to see whether we are running on a Cavium core, and if so auto-enable
-   the fallback LLSC implementation.  See #369459. */
+/* Check /proc/cpuinfo for cores whose exclusive monitor cannot be relied on
+   for guest LDXR/STXR passthrough, and auto-enable the fallback (CAS-based)
+   LL/SC implementation for them:
+   - Cavium/ThunderX (implementer 0x43): strict monitor, see #369459.
+   - CODSPEED: Cortex-A72 (part 0xd08).  Under instrumentation the
+     LDAXR..STXR window spans two translations with hundreds of host
+     instructions in between (an AArch64 conditional branch always ends a
+     superblock, guest_arm64_toIR.c dis_ARM64_branch_etc), so guest progress
+     depends on the monitor surviving all of that.  Observed live (2026-07,
+     intermittent ARM64 callgrind CI hangs): a sticky per-run state where an
+     uncontended glibc CAS retries ~1M/s forever at 100% CPU, and retry
+     storms silently inflate callgrind-measured costs at atomic sites.
+   The fallback records the LL value and implements SC as a real host CAS,
+   independent of the hardware monitor.  On unlisted cores
+   --sim-hints=fallback-llsc still force-enables it. */
 
 static Bool VG_(parse_cpuinfo)(void)
 {
-   const char *search_Cavium_str = "CPU implementer\t: 0x43";
+   const char *search_Cavium_str  = "CPU implementer\t: 0x43";
+   const char *search_ARM_impl    = "CPU implementer\t: 0x41";
+   const char *search_A72_part    = "CPU part\t: 0xd08";
 
    Int    n, fh;
    SysRes fd;
@@ -890,8 +905,13 @@ static Bool VG_(parse_cpuinfo)(void)
    file_buf[num_bytes] = '\0';
    VG_(close)(fh);
 
-   /* Parse file */
-   if (VG_(strstr)(file_buf, search_Cavium_str) != NULL)
+   /* Parse file.  Cortex-A72 = ARM Ltd (0x41) part 0xd08; require both so an
+      unrelated implementer reusing the part value does not match.  (Both
+      strings anywhere in the file is close enough: a false positive only
+      enables the fallback, which is the safe direction.) */
+   if (VG_(strstr)(file_buf, search_Cavium_str) != NULL
+       || (VG_(strstr)(file_buf, search_ARM_impl) != NULL
+           && VG_(strstr)(file_buf, search_A72_part) != NULL))
       vai.arm64_requires_fallback_LLSC = True;
 
    VG_(free)(file_buf);
