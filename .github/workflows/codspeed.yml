@@ -95,6 +95,12 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v5
 
+      # Compiled locally rather than checked in (unlike the take_strings-*
+      # binaries) since it has no arch-specific dependencies beyond libc.
+      - name: Build bench fixtures
+        working-directory: bench/testdata
+        run: cc -O2 -o llsc_tzconvert_bench llsc_tzconvert_bench.c
+
       # Generate the codspeed.yml for this Valgrind version. The script derives
       # the version label from `valgrind --version`, so each matrix job emits its
       # own config (e.g. valgrind.codspeed / valgrind-3.26.0 / valgrind-3.25.1).

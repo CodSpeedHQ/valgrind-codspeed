@@ -24,6 +24,11 @@ COMMANDS = [
     "python3 testdata/test.py",
     "stress-ng --cpu 1 --cpu-ops 10",
     "stress-ng --cpu 4 --cpu-ops 10",
+    # Repeated localtime()/__tz_convert() calls: the guest CAS loop
+    # (outline-atomics LDAXR/STXR helper) that triggered the ARM64
+    # fallback-LL/SC livelock fix. Built by the "Build bench fixtures" CI
+    # step from testdata/llsc_tzconvert_bench.c (not checked in as a binary).
+    "testdata/llsc_tzconvert_bench 5000",
 ]
 
 # Callgrind configurations: (extra args, config name, requires_codspeed). The

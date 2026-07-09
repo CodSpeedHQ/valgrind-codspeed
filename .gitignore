@@ -2568,3 +2568,9 @@ test-suite.log
 
 # Capstone build install prefix (built from the third_party/capstone submodule)
 /.capstone
+
+# fake CodSpeed benchmark fixture binary (compiled from testdata/llsc_tzconvert_bench.c)
+/bench/testdata/llsc_tzconvert_bench
+
+# python bytecode cache left behind when something imports generate_config.py as a module
+/bench/__pycache__/
