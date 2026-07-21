@@ -1445,14 +1445,15 @@ void CLG_(zero_all_cost)(Bool only_current_thread)
   if (only_current_thread)
     zero_thread_cost(CLG_(get_current_thread)());
   else
-    CLG_(forall_threads)(zero_thread_cost);
+    /* Exited threads too: their costs are still to be dumped, so leaving them
+     * out would carry pre-zero cost past the boundary. */
+    CLG_(forall_threads_incl_exited)(zero_thread_cost);
 
   if (VG_(clo_verbosity) > 1)
     VG_(message)(Vg_DebugMsg, "  ...done\n");
 }
 
-static
-void unwind_thread(thread_info* t)
+void CLG_(unwind_thread)(thread_info* t)
 {
   /* unwind signal handlers */
   while(CLG_(current_state).sig !=0)
@@ -1487,7 +1488,7 @@ void CLG_(set_instrument_state)(const HChar* reason, Bool state)
   VG_(discard_translations_safely)( (Addr)0x1000, ~(SizeT)0xfff, "callgrind");
 
   /* reset internal state: call stacks, simulator */
-  CLG_(forall_threads)(unwind_thread);
+  CLG_(forall_threads)(CLG_(unwind_thread));
   CLG_(forall_threads)(zero_state_cost);
   (*CLG_(cachesim).clear)();
 
@@ -1686,7 +1687,9 @@ Bool CLG_(handle_client_request)(ThreadId tid, UWord *args, UWord *ret)
      break;
 
    case VG_USERREQ__ZERO_STATS:
-     CLG_(zero_all_cost)(True);
+     /* Zero every thread under per-thread dumps so part boundaries stay
+      * consistent across threads; otherwise only the caller is zeroed. */
+     CLG_(zero_all_cost)(!CLG_(clo).separate_threads);
       *ret = 0;                 /* meaningless */
       break;
 
@@ -1988,7 +1991,7 @@ void finish(void)
 
   /* pop all remaining items from CallStack for correct sum
    */
-  CLG_(forall_threads)(unwind_thread);
+  CLG_(forall_threads)(CLG_(unwind_thread));
 
   CLG_(dump_profile)(0, False);
 
@@ -2207,6 +2210,7 @@ void CLG_(pre_clo_init)(void)
     VG_(track_start_client_code)  ( & clg_start_client_code_callback );
     VG_(track_pre_deliver_signal) ( & CLG_(pre_signal) );
     VG_(track_post_deliver_signal)( & CLG_(post_signal) );
+    VG_(track_pre_thread_ll_exit) ( & CLG_(pre_thread_ll_exit) );
 
     CLG_(set_clo_defaults)();
 

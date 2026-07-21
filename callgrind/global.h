@@ -380,7 +380,9 @@ struct _BBCC {
     BB*      bb;           /* BB for this cost center */
 
     Context* cxt;          /* execution context of this BBCC */
-    ThreadId tid;          /* only for assertion check purpose */
+    UInt     tid;          /* owning thread's serial; identifies the thread
+                            * across recycled valgrind ThreadId slots.
+                            * Only for lookup/assertion purposes. */
     UInt     rec_index;    /* Recursion index in rec->bbcc for this bbcc */
     BBCC**   rec_array;    /* Variable sized array of pointers to 
 			    * recursion BBCCs. Shared. */
@@ -588,6 +590,19 @@ struct _exec_stack {
  */
 struct _thread_info {
 
+  /* Monotonic identity, never recycled unlike the valgrind ThreadId slot, so
+   * a new OS thread taking over a slot is never conflated with the dead one. */
+  UInt serial;
+  /* Kernel thread id (LWP id), snapshotted when the thread exits: from then on
+   * the core no longer knows it. Live threads are read from the core instead
+   * (see CLG_(thread_lwpid)). */
+  Int tid;
+  ThreadId slot;      /* valgrind ThreadId this thread runs in */
+  /* Name the thread gave itself, snapshotted when it exits (NULL if none);
+   * for live threads the current name is read from the core at dump time. */
+  HChar* name;
+  struct _thread_info* next_created;
+
   /* state */
   fn_stack fns;       /* function stack */
   call_stack calls;   /* context call arc stack */
@@ -710,6 +725,10 @@ void CLG_(collectBlockInfo)(IRSB* bbIn, UInt*, UInt*, Bool*);
 void CLG_(set_instrument_state)(const HChar*,Bool);
 void CLG_(dump_profile)(const HChar* trigger,Bool only_current_thread);
 void CLG_(zero_all_cost)(Bool only_current_thread);
+/* Pop everything left on the current thread's call stack, as done at program
+ * termination, so its pending costs settle into its cost containers. Safe on
+ * an already-unwound or empty state. */
+void CLG_(unwind_thread)(thread_info* t);
 Int CLG_(get_dump_counter)(void);
 void CLG_(fini)(Int exitcode);
 
@@ -785,7 +804,15 @@ thread_info** CLG_(get_threads)(void);
 thread_info* CLG_(get_current_thread)(void);
 void CLG_(switch_thread)(ThreadId tid);
 void CLG_(forall_threads)(void (*func)(thread_info*));
+/* Like forall_threads, but also visits threads that have exited, in creation
+ * order. Their costs stay attributed for the rest of the run, so anything
+ * walking per-thread cost has to see them. */
+void CLG_(forall_threads_incl_exited)(void (*func)(thread_info*));
+/* Kernel thread id (LWP id) of a thread, for the dump only. */
+Int CLG_(thread_lwpid)(thread_info* t);
+const HChar* CLG_(thread_name)(thread_info* t);
 void CLG_(run_thread)(ThreadId tid);
+void CLG_(pre_thread_ll_exit)(ThreadId tid);
 
 void CLG_(init_exec_state)(exec_state* es);
 void CLG_(init_exec_stack)(exec_stack*);
@@ -815,6 +842,8 @@ extern call_stack CLG_(current_call_stack);
 extern fn_stack   CLG_(current_fn_stack);
 extern exec_state CLG_(current_state);
 extern ThreadId   CLG_(current_tid);
+/* Serial of the current thread, 0 if none is loaded. */
+extern UInt       CLG_(current_thread_serial);
 extern FullCost   CLG_(total_cost);
 extern struct cachesim_if CLG_(cachesim);
 extern struct event_sets  CLG_(sets);

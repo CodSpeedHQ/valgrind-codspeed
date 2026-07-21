@@ -42,6 +42,17 @@ extern UInt VG_N_THREADS;
 /* Get the TID of the thread which currently has the CPU. */
 extern ThreadId VG_(get_running_tid) ( void );
 
+/* Get the name a thread set for itself (e.g. via prctl(PR_SET_NAME) or
+   pthread_setname_np on the calling thread), or NULL if it has none. The
+   returned pointer is owned by the core and only valid while the thread
+   is alive. */
+extern const HChar* VG_(get_thread_name) ( ThreadId tid );
+
+/* Get the kernel thread id (LWP id) of a thread, or 0 if tid is not a valid
+   live thread. Unlike ThreadId, this is the OS-level identity the rest of the
+   system sees. */
+extern Int VG_(get_thread_lwpid) ( ThreadId tid );
+
 #endif   // __PUB_TOOL_THREADSTATE_H
 
 /*--------------------------------------------------------------------*/

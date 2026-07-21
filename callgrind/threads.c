@@ -29,6 +29,7 @@
 #include "pub_tool_threadstate.h"
 
 /* forward decls */
+static void load_thread_state(thread_info*);
 static exec_state* exec_state_save(void);
 static exec_state* exec_state_restore(void);
 static exec_state* push_exec_state(int);
@@ -58,8 +59,17 @@ static exec_stack current_states;
 
 /* current running thread */
 ThreadId CLG_(current_tid);
+UInt CLG_(current_thread_serial);
 
 static thread_info** thread;
+
+/* Every thread_info ever created, in creation order. A thread_info is never
+ * freed: an exited thread's costs stay attributed for the rest of the run.
+ * Creation order is a stable total order over live and exited threads alike,
+ * which is what dumping iterates in. */
+static thread_info* created_threads = 0;
+static thread_info** created_tail = &created_threads;
+static UInt last_thread_serial = 0;
 
 thread_info** CLG_(get_threads)(void)
 {
@@ -69,6 +79,27 @@ thread_info** CLG_(get_threads)(void)
 thread_info* CLG_(get_current_thread)(void)
 {
   return thread[CLG_(current_tid)];
+}
+
+/* A thread that exited has been detached from its slot, which another thread
+ * may since have taken over. */
+static Bool is_live(thread_info* t)
+{
+  return thread[t->slot] == t;
+}
+
+/* Kernel thread id (LWP id) of a thread, for the dump only: read from the core
+ * while the thread is alive, from the snapshot taken at exit otherwise. */
+Int CLG_(thread_lwpid)(thread_info* t)
+{
+  return is_live(t) ? VG_(get_thread_lwpid)(t->slot) : t->tid;
+}
+
+/* Name of a thread, NULL if it never named itself. Same live/exited split as
+ * CLG_(thread_lwpid). */
+const HChar* CLG_(thread_name)(thread_info* t)
+{
+  return is_live(t) ? VG_(get_thread_name)(t->slot) : t->name;
 }
 
 void CLG_(init_threads)(void)
@@ -95,14 +126,101 @@ void CLG_(forall_threads)(void (*func)(thread_info*))
   CLG_(switch_thread)(orig_tid);
 }
 
+/* Like forall_threads, but also visits threads that have exited. Creation
+ * order is used throughout: it is a stable total order, and unlike the
+ * ThreadId slot it is not recycled.
+ */
+void CLG_(forall_threads_incl_exited)(void (*func)(thread_info*))
+{
+  ThreadId orig_tid = CLG_(current_tid);
+  thread_info* t;
+
+  for(t = created_threads; t; t = t->next_created) {
+    if (is_live(t))
+      CLG_(switch_thread)(t->slot);
+    else {
+      /* An exited thread is not schedulable, so switch_thread cannot reach it.
+       * Detach from the live slot first -- that saves its running state -- then
+       * install the exited thread's containers by hand. Its stacks were folded
+       * in when it exited, so there is nothing to unwind. A later switch to a
+       * live thread reloads cleanly, discarding what we leave in the globals. */
+      CLG_(switch_thread)(VG_INVALID_THREADID);
+      load_thread_state(t);
+    }
+    (*func)(t);
+  }
+
+  CLG_(switch_thread)(orig_tid);
+}
+
+
+void CLG_(pre_thread_ll_exit)(ThreadId tid)
+{
+  thread_info* t;
+  const HChar* name;
+
+  CLG_ASSERT(tid < VG_N_THREADS);
+
+  /* Costs of all threads are cumulated into thread 1 unless kept separate, so
+   * there is no per-thread identity to preserve in that mode: leave the slot
+   * as-is, exactly as before. */
+  if (!CLG_(clo).separate_threads) return;
+
+  /* Nothing to detach if this thread never executed instrumented code. */
+  t = thread[tid];
+  if (t == 0) return;
+
+  /* Snapshot the kernel id while the core's ThreadState is still alive. */
+  t->tid = VG_(get_thread_lwpid)(tid);
+
+  CLG_DEBUG(0, ">> thread %u (kernel tid %d) exiting\n", tid, t->tid);
+
+  /* Load the exiting thread's state so its pending costs settle into its own
+   * containers before we detach it from the live slot. */
+  CLG_(switch_thread)(tid);
+  CLG_(unwind_thread)(t);
+  CLG_(copy_current_exec_stack)( &(t->states) );
+  CLG_(copy_current_call_stack)( &(t->calls) );
+  CLG_(copy_current_fn_stack)  ( &(t->fns) );
+  CLG_(copy_current_fn_array)  ( &(t->fn_active) );
+  CLG_(copy_current_bbcc_hash) ( &(t->bbccs) );
+  CLG_(copy_current_jcc_hash)  ( &(t->jccs) );
+
+  /* Snapshot the name while the core's ThreadState is still alive. */
+  name = VG_(get_thread_name)(tid);
+  if (name && name[0]) {
+    SizeT len = VG_(strlen)(name) + 1;
+    t->name = CLG_MALLOC("cl.threads.name", len);
+    VG_(strlcpy)(t->name, name, len);
+  }
+
+  /* Detach from the live slot, leaving the thread_info on the created list so
+   * dumps keep reporting its costs. The slot is now free for a future OS
+   * thread: force the next switch to reload rather than trusting current_tid. */
+  thread[tid] = 0;
+  CLG_(current_tid) = VG_INVALID_THREADID;
+  CLG_(current_thread_serial) = 0;
+}
+
 
 static
-thread_info* new_thread(void)
+thread_info* new_thread(ThreadId tid)
 {
     thread_info* t;
 
     t = (thread_info*) CLG_MALLOC("cl.threads.nt.1",
                                   sizeof(thread_info));
+
+    /* The kernel id is only needed for output, and the core may not know it
+     * yet (thread 1 is created before VG_(threads) exists), so it is resolved
+     * at dump time; the serial is the identity used everywhere else. */
+    t->serial = ++last_thread_serial;
+    t->tid = 0;
+    t->slot = tid;
+    t->name = NULL;
+    t->next_created = NULL;
+    *created_tail = t;
+    created_tail = &(t->next_created);
 
     /* init state */
     CLG_(init_exec_stack)( &(t->states) );
@@ -122,6 +240,26 @@ thread_info* new_thread(void)
     CLG_(init_jcc_hash)( &(t->jccs) );
     
     return t;
+}
+
+
+/* Install a thread's state as the current one; the load half of a thread
+ * switch, also used to reach threads that have exited.
+ */
+static void load_thread_state(thread_info* t)
+{
+  /* current context (including signal handler contexts) */
+  CLG_(set_current_exec_stack)( &(t->states) );
+  exec_state_restore();
+  CLG_(set_current_call_stack)( &(t->calls) );
+  CLG_(set_current_fn_stack)  ( &(t->fns) );
+
+  CLG_(set_current_fn_array)  ( &(t->fn_active) );
+  CLG_(current_thread_serial) = t->serial;
+  /* If we cumulate costs of threads, use TID 1 for all jccs/bccs */
+  if (!CLG_(clo).separate_threads) t = thread[1];
+  CLG_(set_current_bbcc_hash) ( &(t->bbccs) );
+  CLG_(set_current_jcc_hash)  ( &(t->jccs) );
 }
 
 
@@ -154,25 +292,11 @@ void CLG_(switch_thread)(ThreadId tid)
   CLG_ASSERT(tid < VG_N_THREADS);
 
   if (tid != VG_INVALID_THREADID) {
-    thread_info* t;
-
-    /* load thread state */
-
-    if (thread[tid] == 0) thread[tid] = new_thread();
-    t = thread[tid];
-
-    /* current context (including signal handler contexts) */
-    CLG_(set_current_exec_stack)( &(t->states) );
-    exec_state_restore();
-    CLG_(set_current_call_stack)( &(t->calls) );
-    CLG_(set_current_fn_stack)  ( &(t->fns) );
-    
-    CLG_(set_current_fn_array)  ( &(t->fn_active) );
-    /* If we cumulate costs of threads, use TID 1 for all jccs/bccs */
-    if (!CLG_(clo).separate_threads) t = thread[1];
-    CLG_(set_current_bbcc_hash) ( &(t->bbccs) );
-    CLG_(set_current_jcc_hash)  ( &(t->jccs) );
+    if (thread[tid] == 0) thread[tid] = new_thread(tid);
+    load_thread_state(thread[tid]);
   }
+  else
+    CLG_(current_thread_serial) = 0;
 }
 
 

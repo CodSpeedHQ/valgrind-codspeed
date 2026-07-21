@@ -117,6 +117,18 @@ ThreadId VG_(get_running_tid)(void)
    return VG_(running_tid);
 }
 
+const HChar* VG_(get_thread_name)(ThreadId tid)
+{
+   if (!VG_(is_valid_tid)(tid)) return NULL;
+   return VG_(threads)[tid].thread_name;
+}
+
+Int VG_(get_thread_lwpid)(ThreadId tid)
+{
+   if (!VG_(is_valid_tid)(tid)) return 0;
+   return VG_(threads)[tid].os_state.lwpid;
+}
+
 Bool VG_(is_running_thread)(ThreadId tid)
 {
    ThreadState *tst = VG_(get_ThreadState)(tid);

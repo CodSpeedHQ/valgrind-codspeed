@@ -165,7 +165,7 @@ BBCC* lookup_bbcc(BB* bb, Context* cxt)
 	   /* if we don't dump threads separate, tid doesn't have to match */
 	   return bbcc;
        }
-       if (bbcc->tid == CLG_(current_tid)) return bbcc;
+       if (bbcc->tid == CLG_(current_thread_serial)) return bbcc;
    }
 
    CLG_(stat).bbcc_lru_misses++;
@@ -179,7 +179,7 @@ BBCC* lookup_bbcc(BB* bb, Context* cxt)
    }
    
    CLG_DEBUG(2,"  lookup_bbcc(BB %#lx, Cxt %u, fn '%s'): %p (tid %u)\n",
-	    bb_addr(bb), cxt->base_number, cxt->fn[0]->name, 
+	    bb_addr(bb), cxt->base_number, cxt->fn[0]->name,
 	    bbcc, bbcc ? bbcc->tid : 0);
 
    CLG_DEBUGIF(2)
@@ -274,7 +274,7 @@ BBCC* new_bbcc(BB* bb)
 			    sizeof(BBCC) +
 			    (bb->cjmp_count+1) * sizeof(JmpData));
    bbcc->bb  = bb;
-   bbcc->tid = CLG_(current_tid);
+   bbcc->tid = CLG_(current_thread_serial);
 
    bbcc->ret_counter = 0;
    bbcc->skipped = 0;
@@ -381,8 +381,8 @@ static BBCC* clone_bbcc(BBCC* orig, Context* cxt, Int rec_index)
 
     if (rec_index == 0) {
 
-      /* hash insertion is only allowed if tid or cxt is different */
-      CLG_ASSERT((orig->tid != CLG_(current_tid)) ||
+      /* hash insertion is only allowed if thread or cxt is different */
+      CLG_ASSERT((orig->tid != CLG_(current_thread_serial)) ||
 		(orig->cxt != cxt));
 
       bbcc->rec_index = 0;
@@ -394,7 +394,7 @@ static BBCC* clone_bbcc(BBCC* orig, Context* cxt, Int rec_index)
     }
     else {
       if (CLG_(clo).separate_threads)
-	CLG_ASSERT(orig->tid == CLG_(current_tid));
+	CLG_ASSERT(orig->tid == CLG_(current_thread_serial));
 
       CLG_ASSERT(orig->cxt == cxt);
       CLG_ASSERT(orig->rec_array);

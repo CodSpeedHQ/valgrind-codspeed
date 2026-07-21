@@ -37,6 +37,12 @@ static Int out_counter = 0;
 static HChar* out_file = 0;
 static Bool dumps_initialized = False;
 
+/* With --combine-dumps, whether the single output file already carries its
+ * format header. A part can be skipped entirely (no thread had costs), so the
+ * first actual write may happen at out_counter > 1 yet still needs the header;
+ * hence tracked as file state, not derived from out_counter. */
+static Bool combined_header_written = False;
+
 /* Command */
 static HChar *cmdbuf;
 
@@ -1290,12 +1296,16 @@ void file_err(void)
  * Create a new dump file and write header.
  *
  * Naming: <CLG_(clo).filename_base>.<pid>[.<part>][-<tid>]
- *         <part> is skipped for final dump (trigger==0)
- *         <tid>  is skipped for thread 1 with CLG_(clo).separate_threads=no
+ *         <part>   is skipped for final dump (trigger==0)
+ *         <tid>    is the thread's kernel id, skipped with
+ *                  CLG_(clo).separate_threads=no
+ *
+ * ti is the thread being dumped (used for its tid and name); its costs
+ * must already be installed as the current state.
  *
  * Returns the file descriptor, and -1 on error (no write permission)
  */
-static VgFile *new_dumpfile(int tid, const HChar* trigger)
+static VgFile *new_dumpfile(thread_info* ti, const HChar* trigger)
 {
     Bool appending = False;
     int i;
@@ -1312,14 +1322,14 @@ static VgFile *new_dumpfile(int tid, const HChar* trigger)
 	    i += VG_(sprintf)(filename+i, ".%d", out_counter);
 
 	if (CLG_(clo).separate_threads)
-	    VG_(sprintf)(filename+i, "-%02d", tid);
+	    VG_(sprintf)(filename+i, "-%02d", CLG_(thread_lwpid)(ti));
 
 	fp = VG_(fopen)(filename, VKI_O_WRONLY|VKI_O_TRUNC, 0);
     }
     else {
 	VG_(sprintf)(filename, "%s", out_file);
         fp = VG_(fopen)(filename, VKI_O_WRONLY|VKI_O_APPEND, 0);
-	if (fp && out_counter>1)
+	if (fp && combined_header_written)
 	    appending = True;
     }
 
@@ -1354,11 +1364,17 @@ static VgFile *new_dumpfile(int tid, const HChar* trigger)
 
 	/* "cmd:" line */
 	VG_(fprintf)(fp, "cmd: %s", cmdbuf);
+
+	combined_header_written = True;
     }
 
     VG_(fprintf)(fp, "\npart: %d\n", out_counter);
     if (CLG_(clo).separate_threads) {
-	VG_(fprintf)(fp, "thread: %d\n", tid);
+	const HChar* tname = CLG_(thread_name)(ti);
+
+	VG_(fprintf)(fp, "thread: %d\n", CLG_(thread_lwpid)(ti));
+	if (tname && tname[0])
+	    VG_(fprintf)(fp, "desc: Thread name: %s\n", tname);
     }
 
     /* "desc:" lines */
@@ -1456,7 +1472,6 @@ static VgFile *new_dumpfile(int tid, const HChar* trigger)
    sum = CLG_(get_eventset_cost)( CLG_(sets).full );
    CLG_(zero_cost)(CLG_(sets).full, sum);
    if (CLG_(clo).separate_threads) {
-     thread_info* ti = CLG_(get_current_thread)();
      CLG_(add_diff_cost)(CLG_(sets).full, sum, ti->lastdump_cost,
 			   ti->states.entry[0]->cost);
    }
@@ -1514,21 +1529,55 @@ static void close_dumpfile(VgFile *fp)
 
 static const HChar* print_trigger;
 
+/* Whether any thread section was written for the part being dumped, and
+ * whether to bypass the zero-delta skip (used to force an empty section so
+ * the part still appears in the output). */
+static Bool part_section_written;
+static Bool force_empty_section;
+
 static void print_bbccs_of_thread(thread_info* ti)
 {
   BBCC **p, **array;
   FnPos lastFnPos;
   AddrPos lastAPos;
+  VgFile *print_fp;
 
   CLG_DEBUG(1, "+ print_bbccs(tid %u)\n", CLG_(current_tid));
 
-  VgFile *print_fp = new_dumpfile(CLG_(current_tid), print_trigger);
-  if (print_fp == NULL) {
-    CLG_DEBUG(1, "- print_bbccs(tid %u): No output...\n", CLG_(current_tid));
-    return;
+  p = array = prepare_dump();
+
+  /* With per-thread dumps, skip a thread that did nothing since the last dump
+   * (no BBCCs and a zero exec-state delta) so parts don't grow empty sections.
+   * A thread with never-dumped cost still has a nonzero delta (its
+   * lastdump_cost baseline is zero), so this never drops real data. */
+  if (CLG_(clo).separate_threads && !force_empty_section && array[0] == 0) {
+    /* Compared element-wise rather than via a scratch cost buffer: those are
+     * pool-allocated and must not be individually freed, and add_diff_cost
+     * would clobber lastdump_cost, which the real dump updates below. */
+    EventSet* es = CLG_(sets).full;
+    ULong* last = ti->lastdump_cost;
+    ULong* cur  = ti->states.entry[0]->cost;
+    Bool empty = True;
+    Int i;
+    for(i = 0; i < es->size; i++)
+      if (cur[i] != last[i]) { empty = False; break; }
+    if (empty) {
+      CLG_DEBUG(1, "- print_bbccs(tid %u): empty delta, skipped\n",
+                CLG_(current_tid));
+      VG_(free)(array);
+      return;
+    }
   }
 
-  p = array = prepare_dump();
+  print_fp = new_dumpfile(ti, print_trigger);
+  if (print_fp == NULL) {
+    CLG_DEBUG(1, "- print_bbccs(tid %u): No output...\n", CLG_(current_tid));
+    VG_(free)(array);
+    return;
+  }
+  part_section_written = True;
+
+  p = array;
   init_fpos(&lastFnPos);
   init_apos(&lastAPos, 0, 0, 0);
 
@@ -1596,6 +1645,16 @@ static void print_bbccs_of_thread(thread_info* ti)
 }
 
 
+/* Write an empty section for the first thread that can be written at all. */
+static void print_one_empty_section(thread_info* ti)
+{
+  if (part_section_written) return;
+
+  force_empty_section = True;
+  print_bbccs_of_thread(ti);
+  force_empty_section = False;
+}
+
 static void print_bbccs(const HChar* trigger, Bool only_current_thread)
 {
   init_dump_array();
@@ -1611,10 +1670,19 @@ static void print_bbccs(const HChar* trigger, Bool only_current_thread)
     print_bbccs_of_thread( CLG_(get_current_thread)() );
     CLG_(switch_thread)(orig_tid);
   }
-  else if (only_current_thread)
-    print_bbccs_of_thread( CLG_(get_current_thread)() );
-  else
-    CLG_(forall_threads)(print_bbccs_of_thread);
+  else {
+    /* Per-thread dumps flush every thread, exited ones included, so each
+     * thread's delta lands under the part being dumped -- otherwise threads
+     * other than the caller only ever get written by the termination dump. The
+     * only_current_thread hint is therefore ignored in this mode. */
+    part_section_written = False;
+    CLG_(forall_threads_incl_exited)(print_bbccs_of_thread);
+    if (!part_section_written)
+      /* Every thread was skipped as zero-delta, but the part header itself
+       * carries metadata (trigger, timerange) that consumers rely on: force
+       * one empty section so the part still appears. */
+      CLG_(forall_threads_incl_exited)(print_one_empty_section);
+  }
 
   free_dump_array();
 }
@@ -1755,6 +1823,7 @@ void CLG_(init_dumps)(void)
 	}
     }
     if (!sr_isError(res)) VG_(close)( (Int)sr_Res(res) );
+    combined_header_written = False;
 
     if (!dumps_initialized)
 	init_cmdbuf();
