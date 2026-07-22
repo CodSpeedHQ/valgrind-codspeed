@@ -53,6 +53,7 @@ CALLGRIND_SOURCES_COMMON = \
 	jumps.c \
 	main.c \
 	sim.c \
+	subprocess.c \
 	threads.c
 
 # We sneakily include "cg_branchpred.c" and "cg_arch.c" from cachegrind

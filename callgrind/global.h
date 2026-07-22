@@ -730,6 +730,8 @@ void CLG_(zero_all_cost)(Bool only_current_thread);
  * an already-unwound or empty state. */
 void CLG_(unwind_thread)(thread_info* t);
 Int CLG_(get_dump_counter)(void);
+void CLG_(reset_dump_counter)(void);
+void CLG_(restamp_syscall_time)(ThreadId tid);
 void CLG_(fini)(Int exitcode);
 
 /* from bb.c */
@@ -824,6 +826,13 @@ void CLG_(run_post_signal_on_call_stack_bottom)(void);
 
 /* from dump.c */
 void CLG_(init_dumps)(void);
+
+/* from subprocess.c */
+void CLG_(init_subprocess)(void);
+/* Fed the result of every syscall, to spot the ones spawning a process. */
+void CLG_(syscall_return)(SysRes res);
+void CLG_(print_spawned_children)(VgFile* fp);
+void CLG_(forget_spawned_children)(void);
 
 /*------------------------------------------------------------*/
 /*--- Exported global variables                            ---*/

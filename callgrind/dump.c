@@ -59,6 +59,15 @@ Int CLG_(get_dump_counter)(void)
   return out_counter;
 }
 
+/* Restart part numbering in a fork child: its dumps go to a fresh per-pid file
+ * whose parts start at 1, like an exec'd child. init_dumps() would reset the
+ * counter anyway on the pid change, but only at the first dump - too late for
+ * the part number this process forwards to its own children in the meantime. */
+void CLG_(reset_dump_counter)(void)
+{
+  out_counter = 0;
+}
+
 /*------------------------------------------------------------*/
 /*--- Output file related stuff                            ---*/
 /*------------------------------------------------------------*/
@@ -1369,6 +1378,11 @@ static VgFile *new_dumpfile(thread_info* ti, const HChar* trigger)
     }
 
     VG_(fprintf)(fp, "\npart: %d\n", out_counter);
+
+    /* Per-part, not in the once-per-file header, so a child spawned during a
+     * later part is still recorded. */
+    CLG_(print_spawned_children)(fp);
+
     if (CLG_(clo).separate_threads) {
 	const HChar* tname = CLG_(thread_name)(ti);
 
@@ -1683,6 +1697,10 @@ static void print_bbccs(const HChar* trigger, Bool only_current_thread)
        * one empty section so the part still appears. */
       CLG_(forall_threads_incl_exited)(print_one_empty_section);
   }
+
+  /* All of these have just been emitted under the part being dumped; a later
+   * part cannot reference them. */
+  CLG_(forget_spawned_children)();
 
   free_dump_array();
 }

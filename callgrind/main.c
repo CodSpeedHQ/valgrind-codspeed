@@ -1779,12 +1779,22 @@ void collect_time (struct vki_timespec *systime, struct vki_timespec *syscputime
   }
 }
 
+/* Stamp the start time of the syscall a thread is entering. Also used to
+   re-stamp it, when what was stamped no longer applies to the clocks the delta
+   will be computed against. */
+void CLG_(restamp_syscall_time)(ThreadId tid)
+{
+  if (CLG_(clo).collect_systime == systime_no) return;
+
+  collect_time(&syscalltime[tid],
+               CLG_(clo).collect_systime == systime_nsec ? &syscallcputime[tid] : NULL);
+}
+
 static
 void CLG_(pre_syscalltime)(ThreadId tid, UInt syscallno,
                            UWord* args, UInt nArgs)
 {
-  collect_time(&syscalltime[tid],
-               CLG_(clo).collect_systime == systime_nsec ? &syscallcputime[tid] : NULL);
+  CLG_(restamp_syscall_time)(tid);
 }
 
 /* Returns "after - before" in the unit as specified by --collect-systime.
@@ -1814,6 +1824,11 @@ static
 void CLG_(post_syscalltime)(ThreadId tid, UInt syscallno,
                             UWord* args, UInt nArgs, SysRes res)
 {
+  /* The result of a fork is the only place its child's pid appears. */
+  CLG_(syscall_return)(res);
+
+  if (CLG_(clo).collect_systime == systime_no) return;
+
   if (CLG_(current_state).bbcc) {
     Int o;
     struct vki_timespec ts_now;
@@ -2088,9 +2103,11 @@ void CLG_(post_clo_init)(void)
                 "sp-at-mem-access\n");
    }
 
+   /* Always needed: the wrapper is also how a fork's child pid is picked up. */
+   VG_(needs_syscall_wrapper)(CLG_(pre_syscalltime),
+                              CLG_(post_syscalltime));
+
    if (CLG_(clo).collect_systime != systime_no) {
-      VG_(needs_syscall_wrapper)(CLG_(pre_syscalltime),
-                                 CLG_(post_syscalltime));
       syscalltime = CLG_MALLOC("cl.main.pci.1",
                                VG_N_THREADS * sizeof syscalltime[0]);
       for (UInt i = 0; i < VG_N_THREADS; ++i) {
@@ -2211,6 +2228,8 @@ void CLG_(pre_clo_init)(void)
     VG_(track_pre_deliver_signal) ( & CLG_(pre_signal) );
     VG_(track_post_deliver_signal)( & CLG_(post_signal) );
     VG_(track_pre_thread_ll_exit) ( & CLG_(pre_thread_ll_exit) );
+
+    CLG_(init_subprocess)();
 
     CLG_(set_clo_defaults)();
 
