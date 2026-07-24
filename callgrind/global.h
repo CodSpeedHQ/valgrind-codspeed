@@ -730,7 +730,12 @@ void CLG_(init_fn_array)(fn_array*);
 void CLG_(copy_current_fn_array)(fn_array* dst);
 fn_array* CLG_(get_current_fn_array)(void);
 void CLG_(set_current_fn_array)(fn_array*);
-UInt* CLG_(get_fn_entry)(Int n);
+
+/* The active function array (function number -> active count). This is on
+ * the per-BB hot path (setup_bbcc, get_cxt, ...), so the accessor is inlined
+ * (see CLG_(get_fn_entry) below) to avoid a cross-TU function call for what
+ * is a single array index. */
+extern fn_array CLG_(current_fn_active);
 
 void      CLG_(init_obj_table)(void);
 obj_node* CLG_(get_obj_node)(DebugInfo* si);
@@ -852,6 +857,17 @@ extern ULong* CLG_(cost_base);
 #define CLG_DEBUG(x...) {}
 #define CLG_ASSERT(cond) tl_assert(cond);
 #endif
+
+/* Inlined hot-path accessor for the active function array. Defined after
+ * CLG_ASSERT so the assertion is available. Called once per basic block from
+ * setup_bbcc() (and from get_cxt/push_cxt), previously as an out-of-line
+ * cross-TU call in fn.c. */
+static __inline__
+UInt* CLG_(get_fn_entry)(Int n)
+{
+  CLG_ASSERT(n < CLG_(current_fn_active).size);
+  return CLG_(current_fn_active).array + n;
+}
 
 /* from debug.c */
 void CLG_(print_bbno)(void);
