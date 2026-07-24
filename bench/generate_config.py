@@ -93,6 +93,17 @@ CONFIGS = [
 # Label produced by `valgrind_version` for CodSpeed's custom build.
 CODSPEED_VERSION = "valgrind.codspeed"
 
+# Core options added only to upstream builds.
+#
+# Upstream lacks our Cortex-A72 fallback-LL/SC autodetection, so a guest CAS loop
+# livelocks under callgrind on the macro runner: the STXR never sees a live
+# exclusive monitor and the guest retries forever (3.26.0 hung 5/5 runs, 3.25.1
+# 1/5). This sim-hint, which upstream has shipped since 2017 for ThunderX, forces
+# the same CAS-based code path our build picks automatically. It also keeps the
+# measurements comparable, since retry iterations are counted as real guest
+# instructions.
+UPSTREAM_ONLY_ARGS = ["--sim-hints=fallback-llsc"]
+
 # Default walltime sampling settings applied to every benchmark.
 #
 # Valgrind runs are slow (a single execution can take seconds), so with the
@@ -154,8 +165,16 @@ def build_config(
                 if should_skip:
                     continue
                 name = f"test_valgrind[{version}, {cmd}, {config_name}]"
+                extra_args = [] if is_codspeed else UPSTREAM_ONLY_ARGS
                 exec_cmd = " ".join(
-                    [valgrind_path, "--tool=callgrind", "--log-file=/dev/null", *args, cmd]
+                    [
+                        valgrind_path,
+                        "--tool=callgrind",
+                        "--log-file=/dev/null",
+                        *extra_args,
+                        *args,
+                        cmd,
+                    ]
                 )
                 benchmarks.append({"name": name, "exec": exec_cmd})
 
