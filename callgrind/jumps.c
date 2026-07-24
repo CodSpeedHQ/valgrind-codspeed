@@ -80,8 +80,7 @@ static UInt jcc_hash_idx(BBCC* from, UInt jmp, BBCC* to, UInt size)
   /* Use bit mixing instead of modular division for power-of-2 table sizes.
    * Shift right to discard alignment zeros from heap pointers. */
   UWord h = ((UWord)from >> 4) + 7 * ((UWord)to >> 4) + 13 * jmp;
-  h ^= h >> 16;
-  return (UInt)h & (size - 1);
+  return CLG_(hash_final)(h, size);
 } 
 
 /* double size of jcc table  */

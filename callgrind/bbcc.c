@@ -149,11 +149,9 @@ UInt bbcc_hash_idx(BB* bb, Context* cxt, UInt size)
 
    /* Use bit mixing instead of modular division for power-of-2 table sizes.
     * Shift right to discard alignment zeros from heap pointers, use
-    * different shift amounts for bb and cxt to avoid cancellation on XOR,
-    * then fold upper bits down for better distribution in low bits. */
+    * different shift amounts for bb and cxt to avoid cancellation on XOR. */
    UWord h = ((UWord)bb >> 4) ^ ((UWord)cxt >> 3);
-   h ^= h >> 16;
-   return (UInt)h & (size - 1);
+   return CLG_(hash_final)(h, size);
 }
  
 
