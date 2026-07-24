@@ -34,10 +34,9 @@ build-in dir:
     # 64-bit Capstone, so the 32-bit secondary build (which has no Capstone) is
     # skipped.
     ./configure --enable-only64bit
-    make include/vgversion.h
-    make -j$(nproc) -C VEX
-    make -j$(nproc) -C coregrind
-    make -j$(nproc) -C callgrind
+    # Full parallel build: `make install` depends on `all`, so anything
+    # skipped here gets rebuilt serially at install time instead.
+    make -j$(nproc)
 
 
 install version:

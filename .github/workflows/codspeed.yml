@@ -6,6 +6,10 @@ on:
       - master
   pull_request:
   workflow_dispatch:
+  schedule:
+    # Keep the master-scoped caches warm: GitHub evicts caches unused for
+    # 7 days, and PRs can only restore caches from their own ref or master.
+    - cron: "0 6 * * 1,4"
 
 jobs:
   benchmarks:
@@ -54,7 +58,6 @@ jobs:
 
       # Build and install Valgrind
       - name: Update apt-get cache
-        if: steps.valgrind-cache.outputs.cache-hit != 'true'
         run: |
           sudo apt-get update
 
@@ -88,7 +91,6 @@ jobs:
           just install ${{ matrix.valgrind }}
 
           # Ensure libc6-dev is installed for Valgrind to work properly
-          sudo apt-get update
           sudo apt-get install -y libc6-dev stress-ng
 
       - name: Verify Valgrind build
