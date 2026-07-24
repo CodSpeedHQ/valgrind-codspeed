@@ -10,7 +10,10 @@ on:
 jobs:
   benchmarks:
     runs-on: codspeed-macro
-    timeout-minutes: 15
+    # Bumped from 15m: the walltime benchmarks now run a minimum number of
+    # rounds (see the "Generate CodSpeed config" step) instead of a single
+    # sample, which increases the benchmarking phase's duration.
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -104,9 +107,20 @@ jobs:
       # Generate the codspeed.yml for this Valgrind version. The script derives
       # the version label from `valgrind --version`, so each matrix job emits its
       # own config (e.g. valgrind.codspeed / valgrind-3.26.0 / valgrind-3.25.1).
+      #
+      # The walltime sampling knobs are passed explicitly so the
+      # stability/duration trade-off is visible and tunable here. `min-rounds`
+      # gives each benchmark several samples for a stable estimate; `max-time`
+      # caps per-benchmark wall time to keep the job within `timeout-minutes`.
       - name: Generate CodSpeed config
         working-directory: bench
-        run: ./generate_config.py --valgrind /usr/local/bin/valgrind --output codspeed.yml
+        run: >-
+          ./generate_config.py
+          --valgrind /usr/local/bin/valgrind
+          --output codspeed.yml
+          --warmup-time 1s
+          --min-rounds 5
+          --max-time 20s
 
       - name: Run the benchmarks
         uses: CodSpeedHQ/action@main

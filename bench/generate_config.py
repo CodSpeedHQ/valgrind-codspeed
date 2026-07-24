@@ -93,6 +93,26 @@ CONFIGS = [
 # Label produced by `valgrind_version` for CodSpeed's custom build.
 CODSPEED_VERSION = "valgrind.codspeed"
 
+# Default walltime sampling settings applied to every benchmark.
+#
+# Valgrind runs are slow (a single execution can take seconds), so with the
+# runner's default `max-time` of 3s the slowest benchmarks only complete a
+# single round. A one-sample estimate is dominated by run-to-run noise, which
+# is what makes these benchmarks unstable.
+#
+# We therefore ask the harness for a minimum number of measured rounds so
+# CodSpeed always has several samples to pick the representative time from,
+# plus one warmup round to discard cold-start effects (process spawn, page
+# faults, disk cache). `max-time` bounds the total wall time so fast
+# benchmarks don't over-run; when it is reached before `min-rounds`, the
+# harness stops early (max-time takes priority), keeping the workflow bounded.
+#
+# These are exposed as CLI flags so the CI workflow (and local runs) can tune
+# the stability/duration trade-off without editing this script.
+DEFAULT_WARMUP_TIME = "1s"
+DEFAULT_MIN_ROUNDS = 5
+DEFAULT_MAX_TIME = "20s"
+
 
 def valgrind_version(valgrind_path: str) -> str:
     """Return the normalized version label used in benchmark ids.
@@ -115,7 +135,12 @@ def valgrind_version(valgrind_path: str) -> str:
     return version
 
 
-def build_config(valgrind_paths: list) -> dict:
+def build_config(
+    valgrind_paths: list,
+    warmup_time: str = DEFAULT_WARMUP_TIME,
+    min_rounds: int = DEFAULT_MIN_ROUNDS,
+    max_time: str = DEFAULT_MAX_TIME,
+) -> dict:
     """Build the codspeed.yml document for all valgrind builds and commands."""
     benchmarks = []
     for valgrind_path in valgrind_paths:
@@ -132,7 +157,18 @@ def build_config(valgrind_paths: list) -> dict:
                 )
                 benchmarks.append({"name": name, "exec": exec_cmd})
 
+    # Root-level walltime options apply to every benchmark so all runs share the
+    # same sampling policy. `min-rounds` guarantees several samples for a stable
+    # estimate; `warmup-time` discards cold-start effects; `max-time` caps the
+    # total per-benchmark wall time so the workflow stays bounded.
+    walltime_options = {
+        "warmup-time": warmup_time,
+        "min-rounds": min_rounds,
+        "max-time": max_time,
+    }
+
     return {
+        "options": {"walltime": walltime_options},
         "benchmarks": benchmarks,
     }
 
@@ -157,9 +193,36 @@ def main():
         default="codspeed.yml",
         help="Path to write the generated config (default: codspeed.yml)",
     )
+    parser.add_argument(
+        "--warmup-time",
+        type=str,
+        default=DEFAULT_WARMUP_TIME,
+        help="Walltime warmup duration applied to every benchmark, discarded "
+        f"before measurement (default: {DEFAULT_WARMUP_TIME}). Set to '0s' to disable.",
+    )
+    parser.add_argument(
+        "--min-rounds",
+        type=int,
+        default=DEFAULT_MIN_ROUNDS,
+        help="Minimum number of measured rounds per benchmark; more rounds give "
+        f"a more stable estimate (default: {DEFAULT_MIN_ROUNDS}).",
+    )
+    parser.add_argument(
+        "--max-time",
+        type=str,
+        default=DEFAULT_MAX_TIME,
+        help="Maximum total wall time per benchmark (includes warmup). Bounds the "
+        "workflow duration; when reached before --min-rounds it takes priority "
+        f"(default: {DEFAULT_MAX_TIME}).",
+    )
     args = parser.parse_args()
 
-    config = build_config(args.valgrinds)
+    config = build_config(
+        args.valgrinds,
+        warmup_time=args.warmup_time,
+        min_rounds=args.min_rounds,
+        max_time=args.max_time,
+    )
 
     with open(args.output, "w") as f:
         json.dump(config, f, indent=2)
@@ -167,7 +230,9 @@ def main():
 
     print(
         f"Wrote {args.output} with {len(config['benchmarks'])} benchmarks "
-        f"({len(args.valgrinds)} valgrind builds x {len(COMMANDS)} commands x {len(CONFIGS)} configs)",
+        f"({len(args.valgrinds)} valgrind builds x {len(COMMANDS)} commands x {len(CONFIGS)} configs); "
+        f"walltime options: warmup-time={args.warmup_time}, min-rounds={args.min_rounds}, "
+        f"max-time={args.max_time}",
         file=sys.stderr,
     )
 
