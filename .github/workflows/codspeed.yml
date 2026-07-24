@@ -16,8 +16,9 @@ jobs:
     runs-on: codspeed-macro
     # Bumped from 15m: the walltime benchmarks now run a minimum number of
     # rounds (see the "Generate CodSpeed config" step) instead of a single
-    # sample, which increases the benchmarking phase's duration.
-    timeout-minutes: 25
+    # sample, which increases the benchmarking phase's duration. With no
+    # per-benchmark max-time, this timeout is what bounds the bench phase.
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -112,8 +113,9 @@ jobs:
       #
       # The walltime sampling knobs are passed explicitly so the
       # stability/duration trade-off is visible and tunable here. `min-rounds`
-      # gives each benchmark several samples for a stable estimate; `max-time`
-      # caps per-benchmark wall time to keep the job within `timeout-minutes`.
+      # gives each benchmark several samples for a stable estimate; the runner
+      # rejects combining it with `max-time`, so the bench phase is bounded by
+      # `timeout-minutes` instead.
       - name: Generate CodSpeed config
         working-directory: bench
         run: >-
@@ -122,7 +124,6 @@ jobs:
           --output codspeed.yml
           --warmup-time 1s
           --min-rounds 5
-          --max-time 20s
 
       - name: Run the benchmarks
         uses: CodSpeedHQ/action@main

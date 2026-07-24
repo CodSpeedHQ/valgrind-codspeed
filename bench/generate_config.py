@@ -103,15 +103,18 @@ CODSPEED_VERSION = "valgrind.codspeed"
 # We therefore ask the harness for a minimum number of measured rounds so
 # CodSpeed always has several samples to pick the representative time from,
 # plus one warmup round to discard cold-start effects (process spawn, page
-# faults, disk cache). `max-time` bounds the total wall time so fast
-# benchmarks don't over-run; when it is reached before `min-rounds`, the
-# harness stops early (max-time takes priority), keeping the workflow bounded.
+# faults, disk cache).
+#
+# The runner rejects `min-rounds` combined with `max-time` at config
+# validation, so no `max-time` is set. That also removes the 3s default:
+# per the harness docs, `max_time` defaults to unlimited when `min_rounds`
+# (or `min_time`/`max_rounds`) is set, so every benchmark completes its
+# rounds no matter how slow a single execution is.
 #
 # These are exposed as CLI flags so the CI workflow (and local runs) can tune
 # the stability/duration trade-off without editing this script.
 DEFAULT_WARMUP_TIME = "1s"
 DEFAULT_MIN_ROUNDS = 5
-DEFAULT_MAX_TIME = "20s"
 
 
 def valgrind_version(valgrind_path: str) -> str:
@@ -139,7 +142,6 @@ def build_config(
     valgrind_paths: list,
     warmup_time: str = DEFAULT_WARMUP_TIME,
     min_rounds: int = DEFAULT_MIN_ROUNDS,
-    max_time: str = DEFAULT_MAX_TIME,
 ) -> dict:
     """Build the codspeed.yml document for all valgrind builds and commands."""
     benchmarks = []
@@ -169,7 +171,6 @@ def build_config(
         "options": {
             "warmup-time": warmup_time,
             "min-rounds": min_rounds,
-            "max-time": max_time,
         },
         "benchmarks": benchmarks,
     }
@@ -209,21 +210,12 @@ def main():
         help="Minimum number of measured rounds per benchmark; more rounds give "
         f"a more stable estimate (default: {DEFAULT_MIN_ROUNDS}).",
     )
-    parser.add_argument(
-        "--max-time",
-        type=str,
-        default=DEFAULT_MAX_TIME,
-        help="Maximum total wall time per benchmark (includes warmup). Bounds the "
-        "workflow duration; when reached before --min-rounds it takes priority "
-        f"(default: {DEFAULT_MAX_TIME}).",
-    )
     args = parser.parse_args()
 
     config = build_config(
         args.valgrinds,
         warmup_time=args.warmup_time,
         min_rounds=args.min_rounds,
-        max_time=args.max_time,
     )
 
     with open(args.output, "w") as f:
@@ -233,8 +225,7 @@ def main():
     print(
         f"Wrote {args.output} with {len(config['benchmarks'])} benchmarks "
         f"({len(args.valgrinds)} valgrind builds x {len(COMMANDS)} commands x {len(CONFIGS)} configs); "
-        f"walltime options: warmup-time={args.warmup_time}, min-rounds={args.min_rounds}, "
-        f"max-time={args.max_time}",
+        f"walltime options: warmup-time={args.warmup_time}, min-rounds={args.min_rounds}",
         file=sys.stderr,
     )
 
