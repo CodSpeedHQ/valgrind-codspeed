@@ -161,14 +161,16 @@ def build_config(
     # same sampling policy. `min-rounds` guarantees several samples for a stable
     # estimate; `warmup-time` discards cold-start effects; `max-time` caps the
     # total per-benchmark wall time so the workflow stays bounded.
-    walltime_options = {
-        "warmup-time": warmup_time,
-        "min-rounds": min_rounds,
-        "max-time": max_time,
-    }
-
+    #
+    # The runner flattens WalltimeOptions into `options` (serde(flatten)), so
+    # the keys must sit directly under `options`; a nested `walltime:` block is
+    # silently ignored.
     return {
-        "options": {"walltime": walltime_options},
+        "options": {
+            "warmup-time": warmup_time,
+            "min-rounds": min_rounds,
+            "max-time": max_time,
+        },
         "benchmarks": benchmarks,
     }
 
