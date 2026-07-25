@@ -310,10 +310,38 @@ CacheResult cachesim_ref(cache_t2* c, Addr a, UChar size)
    return Hit;
 }
 
+/* Fast path for instruction fetches: consecutive instructions in a basic
+ * block almost always fall in the same cache line (a 64B line holds ~16
+ * instructions). We remember the last I1 line accessed; if the next fetch
+ * lands in that same line with no other I1 access in between, that line is
+ * still resident (the previous access made it MRU), so the result is a
+ * guaranteed L1 hit and the full set/tag lookup can be skipped. This does
+ * not change any event counts: the line was already made MRU, so not
+ * re-touching it leaves the cache state and all hit/miss counters identical.
+ *
+ * NO_ILINE is an impossible block value (all bits set), used to invalidate
+ * the cache on a straddling access or a cache clear. */
+#define NO_ILINE (~(UWord)0)
+static UWord last_iblock = NO_ILINE;
+
 static
 CacheModelResult cachesim_I1_ref(Addr a, UChar size)
 {
-    if ( cachesim_ref( &I1, a, size) == Hit ) return L1_Hit;
+    UWord block1 =  a         >> I1.line_size_bits;
+    UWord block2 = (a+size-1) >> I1.line_size_bits;
+
+    if (LIKELY(block1 == block2)) {
+        /* Single-line access: fast path if it matches the last I1 line. */
+        if (LIKELY(block1 == last_iblock)) return L1_Hit;
+        last_iblock = block1;
+        if ( cachesim_setref(&I1, block1 & I1.sets_min_1, block1) == Hit )
+            return L1_Hit;
+    } else {
+        /* Straddling access: fall back and invalidate the fast-path line. */
+        last_iblock = NO_ILINE;
+        if ( cachesim_ref( &I1, a, size) == Hit ) return L1_Hit;
+    }
+
     if ( cachesim_ref( &LL, a, size) == Hit ) return LL_Hit;
     return MemAccess;
 }
@@ -1427,6 +1455,9 @@ void cachesim_clear(void)
   cachesim_clearcache(&I1);
   cachesim_clearcache(&D1);
   cachesim_clearcache(&LL);
+
+  /* Invalidate the I1 fast-path line: the cache contents were just reset. */
+  last_iblock = NO_ILINE;
 
   prefetch_clear();
 }
