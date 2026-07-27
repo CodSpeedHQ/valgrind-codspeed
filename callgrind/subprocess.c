@@ -5,6 +5,59 @@
 #include "global.h"
 
 /*------------------------------------------------------------*/
+/*--- Instrumentation state handover (--instr-atstart=inherit)---*/
+/*------------------------------------------------------------*/
+
+/* A traced exec replaces the image (and resets valgrind) but keeps the PID, so
+ * runtime state can be handed over through a file whose name is derived from
+ * the PID alone: each process advertises "instrumentation is on" by keeping
+ * <tmpdir>/callgrind-instr-<pid> in existence, and a fresh valgrind started
+ * with --instr-atstart=inherit adopts the state advertised for its own PID. A
+ * fork child inherits the in-memory state with the address space and just
+ * republishes it under its new PID.
+ *
+ * The file is empty: its existence is the whole message.
+ */
+
+static void instr_state_path(HChar* buf, Int size)
+{
+   VG_(snprintf)(buf, size, "%s/callgrind-instr-%d",
+                 VG_(tmpdir)(), VG_(getpid)());
+}
+
+void CLG_(publish_instr_state)(Bool on)
+{
+   HChar path[256];
+   SysRes res;
+
+   if (CLG_(clo).instrument_atstart != instr_atstart_inherit) return;
+
+   instr_state_path(path, sizeof path);
+   if (!on) {
+      VG_(unlink)(path);
+      return;
+   }
+   res = VG_(open)(path, VKI_O_CREAT|VKI_O_WRONLY,
+                   VKI_S_IRUSR|VKI_S_IWUSR);
+   if (sr_isError(res)) {
+      VG_(message)(Vg_UserMsg,
+                   "warning: cannot create instrumentation state file %s\n",
+                   path);
+      return;
+   }
+   VG_(close)(sr_Res(res));
+}
+
+Bool CLG_(inherited_instr_state)(void)
+{
+   HChar path[256];
+   struct vg_stat st;
+
+   instr_state_path(path, sizeof path);
+   return !sr_isError(VG_(stat)(path, &st));
+}
+
+/*------------------------------------------------------------*/
 /*--- Children spawned by this process                     ---*/
 /*------------------------------------------------------------*/
 
@@ -68,6 +121,10 @@ static void clg_atfork_child(ThreadId tid)
    /* the inherited edges are the parent's; this process only reports the
     * children it spawns itself */
    CLG_(forget_spawned_children)();
+
+   /* the state file of the parent's PID belongs to the parent; advertise the
+    * inherited in-memory state under our own PID */
+   CLG_(publish_instr_state)(CLG_(instrument_state));
 
    CLG_(zero_all_cost)(False);
 

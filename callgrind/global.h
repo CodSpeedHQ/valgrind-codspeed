@@ -78,6 +78,17 @@ typedef enum {
    systime_nsec
 } Collect_Systime;
 
+/* Whether to instrument from the start.
+   instr_atstart_no : start with instrumentation off
+   instr_atstart_yes : start with instrumentation on
+   instr_atstart_inherit : like "no", but adopt the state advertised by this
+                           PID's pre-exec image, and advertise ours likewise */
+typedef enum {
+   instr_atstart_no,
+   instr_atstart_yes,
+   instr_atstart_inherit
+} Instr_Atstart;
+
 typedef struct _CommandLineOptions CommandLineOptions;
 struct _CommandLineOptions {
 
@@ -113,7 +124,7 @@ struct _CommandLineOptions {
   Bool collect_bus;      /* Collect global bus events */
 
   /* Instrument options */
-  Bool instrument_atstart;  /* Instrument at start? */
+  Instr_Atstart instrument_atstart;  /* Instrument at start? */
   Bool simulate_cache;      /* Call into cache simulator ? */
   Bool simulate_branch;     /* Call into branch prediction simulator ? */
   Bool cycle_estimation;    /* Estimate per-instruction cycles (Ct/Cl) ? */
@@ -833,6 +844,10 @@ void CLG_(init_subprocess)(void);
 void CLG_(syscall_return)(SysRes res);
 void CLG_(print_spawned_children)(VgFile* fp);
 void CLG_(forget_spawned_children)(void);
+/* Advertise the instrumentation state this process is in to a process
+ * inheriting from it, and adopt what was advertised to this one. */
+void CLG_(publish_instr_state)(Bool on);
+Bool CLG_(inherited_instr_state)(void);
 
 /*------------------------------------------------------------*/
 /*--- Exported global variables                            ---*/

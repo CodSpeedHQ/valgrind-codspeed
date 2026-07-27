@@ -429,7 +429,12 @@ Bool CLG_(process_cmd_line_option)(const HChar* arg)
 
    else if VG_BOOL_CLO(arg, "--collect-atstart", CLG_(clo).collect_atstart) {}
 
-   else if VG_BOOL_CLO(arg, "--instr-atstart", CLG_(clo).instrument_atstart) {}
+   else if VG_XACT_CLO(arg, "--instr-atstart=no",
+                       CLG_(clo).instrument_atstart, instr_atstart_no) {}
+   else if VG_XACT_CLO(arg, "--instr-atstart=yes",
+                       CLG_(clo).instrument_atstart, instr_atstart_yes) {}
+   else if VG_XACT_CLO(arg, "--instr-atstart=inherit",
+                       CLG_(clo).instrument_atstart, instr_atstart_inherit) {}
 
    else if VG_BOOL_CLO(arg, "--separate-threads", CLG_(clo).separate_threads) {}
 
@@ -604,7 +609,9 @@ void CLG_(print_usage)(void)
 #endif
 
 "\n   data collection options:\n"
-"    --instr-atstart=no|yes    Do instrumentation at callgrind start [yes]\n"
+"    --instr-atstart=no|yes|inherit  Do instrumentation at callgrind start [yes]\n"
+"        inherit    Like 'no', but inherit the instrumentation state across\n"
+"                   a traced exec.\n"
 "    --collect-atstart=no|yes  Collect at process/thread start [yes]\n"
 "    --toggle-collect=<func>   Toggle collection on enter/leave function\n"
 "    --collect-jumps=no|yes    Collect jumps? [no]\n"
@@ -693,7 +700,7 @@ void CLG_(set_clo_defaults)(void)
   CLG_(clo).skip_direct_recursion = False;
 
   /* Instrumentation */
-  CLG_(clo).instrument_atstart = True;
+  CLG_(clo).instrument_atstart = instr_atstart_yes;
   CLG_(clo).simulate_cache = False;
   CLG_(clo).simulate_branch = False;
   CLG_(clo).cycle_estimation = False;

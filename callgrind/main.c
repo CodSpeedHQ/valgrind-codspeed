@@ -1481,6 +1481,9 @@ void CLG_(set_instrument_state)(const HChar* reason, Bool state)
 	     reason, state ? "ON" : "OFF");
     return;
   }
+  /* advertise before switching: the advertised state must never lag behind
+   * the state this process is actually in */
+  CLG_(publish_instr_state)(state);
   CLG_(instrument_state) = state;
   CLG_DEBUG(2, "%s: Switching instrumentation %s ...\n",
 	   reason, state ? "ON" : "OFF");
@@ -2069,6 +2072,9 @@ void finish(void)
 void CLG_(fini)(Int exitcode)
 {
   finish();
+  /* only runs at process exit, not on exec: the advertised state must
+   * survive a traced exec for the next image to adopt it */
+  CLG_(publish_instr_state)(False);
 }
 
 
@@ -2182,7 +2188,15 @@ void CLG_(post_clo_init)(void)
    CLG_(init_threads)();
    CLG_(run_thread)(1);
 
-   CLG_(instrument_state) = CLG_(clo).instrument_atstart;
+   switch (CLG_(clo).instrument_atstart) {
+   case instr_atstart_yes: CLG_(instrument_state) = True;  break;
+   case instr_atstart_no:  CLG_(instrument_state) = False; break;
+   case instr_atstart_inherit:
+      /* the adopted state is already the advertised one, so nothing to
+       * publish here: the file this image found is the file it keeps */
+      CLG_(instrument_state) = CLG_(inherited_instr_state)();
+      break;
+   }
 
    if (VG_(clo_verbosity) > 0) {
       VG_(message)(Vg_UserMsg,
