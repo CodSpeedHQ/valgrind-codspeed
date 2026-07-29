@@ -26,6 +26,7 @@
 
 #include "global.h"
 #include "pub_tool_stacktrace.h"
+#include "pub_tool_threadstate.h"
 #if defined(VGA_arm64)
 #include "pub_tool_guest.h"     /* VexGuestArchState, for guest_X30 */
 #endif
@@ -500,9 +501,10 @@ Int CLG_(unwind_call_stack)(Addr sp, Int minpops)
  *
  * Called on the OFF->ON instrumentation transition: the client (e.g.
  * pytest_codspeed) typically reaches CALLGRIND_START_INSTRUMENTATION several
- * libpython frames deep. Without seeding, csp stays at 0 while the real
- * stack is non-empty, and every subsequent ret trips handleUnderflow and
- * leaks the returned-into fn as a top-level fn= block.
+ * libpython frames deep, and other threads sit parked mid-stack. Without
+ * seeding, csp stays at 0 while the real stack is non-empty, and every
+ * subsequent ret trips handleUnderflow and leaks the returned-into fn as a
+ * top-level fn= block.
  *
  * We push a (jcc=0, skip-style) call_entry for every native frame so
  * SP-based unwind works. For frames that should appear in the output
@@ -512,7 +514,9 @@ Int CLG_(unwind_call_stack)(Addr sp, Int minpops)
  * deliberately excluded from the cxt chain — they get SP-only entries. */
 #define CLG_RECON_MAX_FRAMES 256
 
-void CLG_(reconstruct_call_stack_from_native)(ThreadId tid)
+/* Seeds the call stack currently installed in the globals, which must be the
+ * one belonging to tid. */
+static void seed_call_stack_from_native(ThreadId tid)
 {
     Addr ips[CLG_RECON_MAX_FRAMES];
     Addr sps[CLG_RECON_MAX_FRAMES];
@@ -522,6 +526,18 @@ void CLG_(reconstruct_call_stack_from_native)(ThreadId tid)
 
     UInt n = VG_(get_StackTrace)(tid, ips, CLG_RECON_MAX_FRAMES, sps, NULL, 0);
     if (n == 0) return;
+
+    /* A thread other than the running one is unwound from the register state
+     * saved when it was descheduled, usually inside a syscall. A single frame
+     * means the unwinder got no further than that point: the one entry would
+     * carry a made-up entry SP (see the ce->sp comment below), and everything
+     * the thread runs next would be re-parented under it. Starting empty is
+     * the lesser evil. */
+    if (n < 2 && tid != VG_(get_running_tid)()) {
+        CLG_DEBUG(1, "  seed: thread %u unwound to a single frame, skipping\n",
+                  tid);
+        return;
+    }
 
     /* Push bottom-up: oldest caller first, current frame last. */
     for (Int frame = n - 1; frame >= 0; frame--) {
@@ -581,4 +597,30 @@ void CLG_(reconstruct_call_stack_from_native)(ThreadId tid)
         ensure_stack_size(cs->sp + 1);
         cs->entry[cs->sp].cxt = 0;
     }
+
+    CLG_DEBUG(1, "  seed: thread %u seeded with %u frame(s), csp=%d\n",
+              tid, n, cs->sp);
+}
+
+void CLG_(reconstruct_call_stack_from_native)(ThreadId requesting_tid)
+{
+    /* Every live thread is seeded, not only the requesting one. A thread parked
+     * in a syscall at the transition has a non-empty native stack and an empty
+     * shadow stack just the same, and its first ret underflows: handleUnderflow
+     * pushes the returned-into fn as a fresh top-level context without
+     * consulting fn->skip, so an obj-skipped frame becomes a visible root and
+     * everything the thread does afterwards is recorded under it.
+     *
+     * The call stack, context chain and fn stack live in globals belonging to
+     * whichever thread is switched in, so each thread is seeded under its own
+     * switch_thread. */
+    for (ThreadId tid = 1; tid < VG_N_THREADS; tid++) {
+        /* Zero for any tid that is not a live thread. */
+        if (VG_(get_thread_lwpid)(tid) == 0) continue;
+
+        CLG_(switch_thread)(tid);
+        seed_call_stack_from_native(tid);
+    }
+
+    CLG_(switch_thread)(requesting_tid);
 }
