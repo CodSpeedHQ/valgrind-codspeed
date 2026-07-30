@@ -58,6 +58,24 @@ Bool CLG_(inherited_instr_state)(void)
 }
 
 /*------------------------------------------------------------*/
+/*--- --obj-skip handover for objects added at runtime      ---*/
+/*------------------------------------------------------------*/
+
+/* CALLGRIND_ADD_OBJ_SKIP() adds an object to skip after startup, so unlike an
+ * --obj-skip on the original command line it is not something a traced exec
+ * would replay to the child. Appending it to VG_(args_for_valgrind) folds it
+ * into the same argv the core already reconstructs for exec'd children, so
+ * the child picks it up as an ordinary --obj-skip option.
+ */
+void CLG_(publish_obj_skip)(const HChar* obj_name)
+{
+   HChar* arg = VG_(malloc)("cl.subprocess.objskip.1",
+                            VG_(strlen)(obj_name) + sizeof("--obj-skip="));
+   VG_(sprintf)(arg, "--obj-skip=%s", obj_name);
+   VG_(addToXA)(VG_(args_for_valgrind), &arg);
+}
+
+/*------------------------------------------------------------*/
 /*--- Children spawned by this process                     ---*/
 /*------------------------------------------------------------*/
 

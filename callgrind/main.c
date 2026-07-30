@@ -1717,6 +1717,7 @@ Bool CLG_(handle_client_request)(ThreadId tid, UWord *args, UWord *ret)
    case VG_USERREQ__ADD_OBJ_SKIP: {
      const HChar* path = (const HChar*)args[1];
      CLG_(add_obj_to_skip)(path);
+     CLG_(publish_obj_skip)(path);
      *ret = 0;
      break;
    }

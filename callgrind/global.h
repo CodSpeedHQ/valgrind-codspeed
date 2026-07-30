@@ -848,6 +848,9 @@ void CLG_(forget_spawned_children)(void);
  * inheriting from it, and adopt what was advertised to this one. */
 void CLG_(publish_instr_state)(Bool on);
 Bool CLG_(inherited_instr_state)(void);
+/* Forward an object added via CALLGRIND_ADD_OBJ_SKIP to child valgrind
+ * processes, as if it had been passed on the command line. */
+void CLG_(publish_obj_skip)(const HChar* obj_name);
 
 /*------------------------------------------------------------*/
 /*--- Exported global variables                            ---*/
