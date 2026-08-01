@@ -30,7 +30,7 @@
 /*--- Jump Cost Center (JCC) operations, including Calls   ---*/
 /*------------------------------------------------------------*/
 
-#define N_JCC_INITIAL_ENTRIES  4437
+#define N_JCC_INITIAL_ENTRIES  8192
 
 static jcc_hash current_jccs;
 
@@ -77,7 +77,10 @@ void CLG_(set_current_jcc_hash)(jcc_hash* h)
 __inline__
 static UInt jcc_hash_idx(BBCC* from, UInt jmp, BBCC* to, UInt size)
 {
-  return (UInt) ( (UWord)from + 7* (UWord)to + 13*jmp) % size;
+  /* Use bit mixing instead of modular division for power-of-2 table sizes.
+   * Shift right to discard alignment zeros from heap pointers. */
+  UWord h = ((UWord)from >> 4) + 7 * ((UWord)to >> 4) + 13 * jmp;
+  return CLG_(hash_final)(h, size);
 } 
 
 /* double size of jcc table  */
@@ -88,7 +91,7 @@ static void resize_jcc_table(void)
     UInt new_idx;
     jCC *curr_jcc, *next_jcc;
 
-    new_size  = 2* current_jccs.size +3;
+    new_size  = 2* current_jccs.size;
     new_table = (jCC**) CLG_MALLOC("cl.jumps.rjt.1",
                                    new_size * sizeof(jCC*));
  
