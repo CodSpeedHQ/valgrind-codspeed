@@ -307,21 +307,31 @@ void CLG_(init_obj_table)(void)
 	obj_table[i] = 0;
 }
 
-#define HASH_CONSTANT   256
+#define FNV_OFFSET_BASIS   2166136261u
+#define FNV_PRIME          16777619u
 
-static UInt str_hash(const HChar *s, UInt table_size)
+/* Compute a full 32-bit FNV-1a hash of a string.
+ * FNV-1a provides excellent distribution, much better than the
+ * original shift-by-8 hash which only considered the last 4 bytes
+ * of each string.  The improved distribution reduces chain lengths
+ * in the hash tables and eliminates most strcmp calls when combined
+ * with the stored-hash comparison in lookup functions.
+ */
+static UInt str_hash_full(const HChar *s)
 {
-    int hash_value = 0;
-    for ( ; *s; s++)
-        hash_value = (HASH_CONSTANT * hash_value + *s) % table_size;
-    return hash_value;
+    UInt hash = FNV_OFFSET_BASIS;
+    for ( ; *s; s++) {
+        hash ^= (UChar)*s;
+        hash *= FNV_PRIME;
+    }
+    return hash;
 }
-
 
 static const HChar* anonymous_obj = "???";
 
 static __inline__ 
-obj_node* new_obj_node(DebugInfo* di, obj_node* next)
+obj_node* new_obj_node(DebugInfo* di, UInt objname_full_hash,
+                       obj_node* next)
 {
    Int i;
    obj_node* obj;
@@ -330,6 +340,7 @@ obj_node* new_obj_node(DebugInfo* di, obj_node* next)
    obj->name  = di ? VG_(strdup)( "cl.fn.non.2",
                                   VG_(DebugInfo_get_filename)(di) )
                    : anonymous_obj;
+   obj->name_hash = objname_full_hash;
    for (i = 0; i < N_FILE_ENTRIES; i++) {
       obj->files[i] = NULL;
    }
@@ -359,21 +370,24 @@ obj_node* new_obj_node(DebugInfo* di, obj_node* next)
 obj_node* CLG_(get_obj_node)(DebugInfo* di)
 {
     obj_node*    curr_obj_node;
+    UInt         objname_full_hash;
     UInt         objname_hash;
     const HChar* obj_name;
     
     obj_name = di ? VG_(DebugInfo_get_filename)(di) : anonymous_obj;
 
     /* lookup in obj hash */
-    objname_hash = str_hash(obj_name, N_OBJ_ENTRIES);
+    objname_full_hash = str_hash_full(obj_name);
+    objname_hash = objname_full_hash % N_OBJ_ENTRIES;
     curr_obj_node = obj_table[objname_hash];
-    while (NULL != curr_obj_node && 
-	   VG_(strcmp)(obj_name, curr_obj_node->name) != 0) {
+    while (NULL != curr_obj_node &&
+	   (curr_obj_node->name_hash != objname_full_hash ||
+	    VG_(strcmp)(obj_name, curr_obj_node->name) != 0)) {
 	curr_obj_node = curr_obj_node->next;
     }
     if (NULL == curr_obj_node) {
 	obj_table[objname_hash] = curr_obj_node = 
-	    new_obj_node(di, obj_table[objname_hash]);
+	    new_obj_node(di, objname_full_hash, obj_table[objname_hash]);
     }
 
     return curr_obj_node;
@@ -381,13 +395,14 @@ obj_node* CLG_(get_obj_node)(DebugInfo* di)
 
 
 static __inline__ 
-file_node* new_file_node(const HChar *filename,
+file_node* new_file_node(const HChar *filename, UInt filename_full_hash,
 			 obj_node* obj, file_node* next)
 {
   Int i;
   file_node* file = (file_node*) CLG_MALLOC("cl.fn.nfn.1",
                                            sizeof(file_node));
   file->name  = VG_(strdup)("cl.fn.nfn.2", filename);
+  file->name_hash = filename_full_hash;
   for (i = 0; i < N_FN_ENTRIES; i++) {
     file->fns[i] = NULL;
   }
@@ -403,6 +418,7 @@ file_node* CLG_(get_file_node)(obj_node* curr_obj_node,
                                const HChar *dir, const HChar *file)
 {
     file_node* curr_file_node;
+    UInt       filename_full_hash;
     UInt       filename_hash;
 
     /* Build up an absolute pathname, if there is a directory available */
@@ -414,15 +430,17 @@ file_node* CLG_(get_file_node)(obj_node* curr_obj_node,
     VG_(strcat)(filename, file);
 
     /* lookup in file hash */
-    filename_hash = str_hash(filename, N_FILE_ENTRIES);
+    filename_full_hash = str_hash_full(filename);
+    filename_hash = filename_full_hash % N_FILE_ENTRIES;
     curr_file_node = curr_obj_node->files[filename_hash];
-    while (NULL != curr_file_node && 
-	   VG_(strcmp)(filename, curr_file_node->name) != 0) {
+    while (NULL != curr_file_node &&
+	   (curr_file_node->name_hash != filename_full_hash ||
+	    VG_(strcmp)(filename, curr_file_node->name) != 0)) {
 	curr_file_node = curr_file_node->next;
     }
     if (NULL == curr_file_node) {
 	curr_obj_node->files[filename_hash] = curr_file_node = 
-	    new_file_node(filename, curr_obj_node, 
+	    new_file_node(filename, filename_full_hash, curr_obj_node, 
 			  curr_obj_node->files[filename_hash]);
     }
 
@@ -433,12 +451,13 @@ file_node* CLG_(get_file_node)(obj_node* curr_obj_node,
 static void resize_fn_array(void);
 
 static __inline__ 
-fn_node* new_fn_node(const HChar *fnname,
+fn_node* new_fn_node(const HChar *fnname, UInt fnname_full_hash,
 		     file_node* file, fn_node* next)
 {
     fn_node* fn = (fn_node*) CLG_MALLOC("cl.fn.nfnnd.1",
                                          sizeof(fn_node));
     fn->name = VG_(strdup)("cl.fn.nfnnd.2", fnname);
+    fn->name_hash = fnname_full_hash;
 
     CLG_(stat).distinct_fns++;
     fn->number   = CLG_(stat).distinct_fns;
@@ -481,20 +500,23 @@ fn_node* get_fn_node_infile(file_node* curr_file_node,
 			    const HChar *fnname)
 {
     fn_node* curr_fn_node;
+    UInt     fnname_full_hash;
     UInt     fnname_hash;
 
     CLG_ASSERT(curr_file_node != 0);
 
     /* lookup in function hash */
-    fnname_hash = str_hash(fnname, N_FN_ENTRIES);
+    fnname_full_hash = str_hash_full(fnname);
+    fnname_hash = fnname_full_hash % N_FN_ENTRIES;
     curr_fn_node = curr_file_node->fns[fnname_hash];
-    while (NULL != curr_fn_node && 
-	   VG_(strcmp)(fnname, curr_fn_node->name) != 0) {
+    while (NULL != curr_fn_node &&
+	   (curr_fn_node->name_hash != fnname_full_hash ||
+	    VG_(strcmp)(fnname, curr_fn_node->name) != 0)) {
 	curr_fn_node = curr_fn_node->next;
     }
     if (NULL == curr_fn_node) {
 	curr_file_node->fns[fnname_hash] = curr_fn_node = 
-            new_fn_node(fnname, curr_file_node,
+            new_fn_node(fnname, fnname_full_hash, curr_file_node,
 			curr_file_node->fns[fnname_hash]);
     }
 
