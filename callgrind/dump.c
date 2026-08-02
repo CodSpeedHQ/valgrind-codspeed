@@ -609,9 +609,38 @@ void fprint_pos(VgFile *fp, const AddrPos* curr, const AddrPos* last)
 static
 void fprint_cost(VgFile *fp, const EventMapping* es, const ULong* cost)
 {
-  HChar *mcost = CLG_(mappingcost_as_string)(es, cost);
-  VG_(fprintf)(fp, "%s\n", mcost);
-  CLG_FREE(mcost);
+  /* This is the innermost part of the dump: it runs once per written
+   * cost line, i.e. tens of thousands of times for a medium sized
+   * profile.  Format the events straight into the output file's buffer.
+   *
+   * Going via CLG_(mappingcost_as_string)() instead would build the very
+   * same line in a freshly allocated XArray that is grown one character
+   * at a time, VG_(strdup)() it, print it and then free both -- roughly
+   * a dozen heap operations per line, for a string that is thrown away
+   * immediately.  The bytes written are identical.
+   */
+  Int i, skipped = 0;
+
+  if (!cost || es->size == 0) {
+    VG_(fprintf)(fp, "\n");
+    return;
+  }
+
+  /* At least one entry */
+  VG_(fprintf)(fp, "%llu", cost[es->entry[0].offset]);
+
+  for(i = 1; i < es->size; i++) {
+    if (cost[es->entry[i].offset] == 0) {
+      skipped++;
+      continue;
+    }
+    while(skipped > 0) {
+      VG_(fprintf)(fp, " 0");
+      skipped--;
+    }
+    VG_(fprintf)(fp, " %llu", cost[es->entry[i].offset]);
+  }
+  VG_(fprintf)(fp, "\n");
 }
 
 
