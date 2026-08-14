@@ -91,6 +91,11 @@ void msgpack_free(msgpack_buffer* mb)
 
 void msgpack_reset(msgpack_buffer* mb) { mb->size = 0; }
 
+void msgpack_ensure_capacity(msgpack_buffer* mb, Int needed)
+{
+   msgpack_ensure(mb, needed);
+}
+
 void msgpack_write_nil(msgpack_buffer* mb) { write_byte(mb, 0xc0); }
 
 void msgpack_write_bool(msgpack_buffer* mb, Bool val)

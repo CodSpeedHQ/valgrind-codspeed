@@ -639,9 +639,10 @@ void TG_(setup_bbcc)(BB* bb)
       }
    }
 
+   fn_node* bb_fn_node = NULL; /* cached for reuse below */
    if (jmpkind == jk_Call) {
-      fn_node* node = TG_(get_fn_node)(bb);
-      skip          = node->skip;
+      bb_fn_node = TG_(get_fn_node)(bb);
+      skip       = bb_fn_node->skip;
    }
 
    TG_DEBUGIF(1)
@@ -703,7 +704,9 @@ void TG_(setup_bbcc)(BB* bb)
 
    /* Change new context if needed, taking delayed_push into account */
    if ((delayed_push && !skip) || (TG_(current_state).cxt == 0)) {
-      TG_(push_cxt)(TG_(get_fn_node)(bb));
+      if (!bb_fn_node)
+         bb_fn_node = TG_(get_fn_node)(bb);
+      TG_(push_cxt)(bb_fn_node);
    }
    TG_ASSERT(TG_(current_fn_stack).top > TG_(current_fn_stack).bottom);
 

@@ -51,15 +51,106 @@ trace_output TG_(trace_out) = {
 #define MSGPACK_CHUNK_ROWS  4096         /* Rows per compressed chunk */
 #define MSGPACK_INITIAL_BUF (256 * 1024) /* Initial buffer size */
 
+/* String intern table: maps string pointer -> integer ID.
+ * Since fn_node/obj_node/file_node names are stable interned pointers,
+ * we can use the pointer value directly as the hash key.
+ */
+#define INTERN_HASH_SIZE 4096
+
+typedef struct _intern_entry {
+   const HChar*          str;
+   Int                   len;
+   UInt                  id;
+   struct _intern_entry* next;
+} intern_entry;
+
+typedef struct {
+   intern_entry* buckets[INTERN_HASH_SIZE];
+   UInt          next_id;
+   /* Ordered list for writing the string table */
+   const HChar** strings;
+   Int*          lengths;
+   UInt          strings_cap;
+} intern_table;
+
 typedef struct {
    msgpack_buffer buf;           /* Buffer for serializing rows */
    UInt           rows_in_chunk; /* Number of rows in current chunk */
    UInt           n_event_cols;  /* Number of dynamic event columns */
    const HChar**  col_names;     /* Column names (for header) */
    Int            ncols;         /* Total columns including events */
+   UChar*         compress_buf;  /* Persistent compression output buffer */
+   SizeT          compress_cap;  /* Capacity of compress_buf */
+   intern_table   interns;       /* String interning table */
 } msgpack_state;
 
 static msgpack_state mp_state;
+
+/* Intern a string: returns its integer ID. If not seen before, assigns a new
+ * ID. */
+static UInt intern_string(const HChar* str, Int len)
+{
+   /* Use pointer value as hash key (strings are interned/stable pointers) */
+   UWord         h = ((UWord)str >> 3) % INTERN_HASH_SIZE;
+   intern_entry* e = mp_state.interns.buckets[h];
+   while (e) {
+      if (e->str == str)
+         return e->id;
+      e = e->next;
+   }
+
+   /* New string - assign ID */
+   UInt id = mp_state.interns.next_id++;
+
+   /* Store in hash */
+   intern_entry* ne            = VG_(malloc)("tg.intern", sizeof(intern_entry));
+   ne->str                     = str;
+   ne->len                     = len;
+   ne->id                      = id;
+   ne->next                    = mp_state.interns.buckets[h];
+   mp_state.interns.buckets[h] = ne;
+
+   /* Store in ordered list for string table output */
+   if (id >= mp_state.interns.strings_cap) {
+      UInt new_cap =
+         mp_state.interns.strings_cap ? mp_state.interns.strings_cap * 2 : 256;
+      mp_state.interns.strings = VG_(realloc)(
+         "tg.intern.s", mp_state.interns.strings, new_cap * sizeof(HChar*));
+      mp_state.interns.lengths = VG_(realloc)(
+         "tg.intern.l", mp_state.interns.lengths, new_cap * sizeof(Int));
+      mp_state.interns.strings_cap = new_cap;
+   }
+   mp_state.interns.strings[id] = str;
+   mp_state.interns.lengths[id] = len;
+
+   return id;
+}
+
+static void init_intern_table(void)
+{
+   VG_(memset)(mp_state.interns.buckets, 0, sizeof(mp_state.interns.buckets));
+   mp_state.interns.next_id     = 0;
+   mp_state.interns.strings     = NULL;
+   mp_state.interns.lengths     = NULL;
+   mp_state.interns.strings_cap = 0;
+}
+
+static void free_intern_table(void)
+{
+   UInt i;
+   for (i = 0; i < INTERN_HASH_SIZE; i++) {
+      intern_entry* e = mp_state.interns.buckets[i];
+      while (e) {
+         intern_entry* next = e->next;
+         VG_(free)(e);
+         e = next;
+      }
+   }
+   if (mp_state.interns.strings)
+      VG_(free)(mp_state.interns.strings);
+   if (mp_state.interns.lengths)
+      VG_(free)(mp_state.interns.lengths);
+}
 
 /* Write a compressed chunk to the trace output */
 static void msgpack_flush_chunk(void)
@@ -69,17 +160,22 @@ static void msgpack_flush_chunk(void)
    if (TG_(trace_out).fd < 0)
       return;
 
-   /* Compress the msgpack data with zstd */
-   SizeT  src_size     = mp_state.buf.size;
-   SizeT  dst_capacity = tg_lz4_compress_bound(src_size);
-   UChar* compressed   = VG_(malloc)("tg.mp.compress", dst_capacity);
+   /* Compress the msgpack data with LZ4 */
+   SizeT src_size     = mp_state.buf.size;
+   SizeT dst_capacity = tg_lz4_compress_bound(src_size);
 
-   SizeT compressed_size =
-      tg_lz4_compress(compressed, dst_capacity, mp_state.buf.data, src_size);
+   /* Grow persistent compression buffer if needed */
+   if (dst_capacity > mp_state.compress_cap) {
+      if (mp_state.compress_buf)
+         VG_(free)(mp_state.compress_buf);
+      mp_state.compress_buf = VG_(malloc)("tg.mp.compress", dst_capacity);
+      mp_state.compress_cap = dst_capacity;
+   }
+
+   SizeT compressed_size = tg_lz4_compress(mp_state.compress_buf, dst_capacity,
+                                           mp_state.buf.data, src_size);
 
    if (compressed_size == 0) {
-      /* Compression failed, write raw with size=0 marker */
-      VG_(free)(compressed);
       return;
    }
 
@@ -96,9 +192,7 @@ static void msgpack_flush_chunk(void)
    VG_(write)(TG_(trace_out).fd, hdr, 8);
 
    /* Write compressed data */
-   VG_(write)(TG_(trace_out).fd, compressed, compressed_size);
-
-   VG_(free)(compressed);
+   VG_(write)(TG_(trace_out).fd, mp_state.compress_buf, compressed_size);
 
    /* Reset buffer for next chunk */
    msgpack_reset(&mp_state.buf);
@@ -116,7 +210,7 @@ static void msgpack_write_header(void)
 
    /* version */
    msgpack_write_key(&hdr, "version");
-   msgpack_write_uint(&hdr, 4);
+   msgpack_write_uint(&hdr, 5);
 
    /* format */
    msgpack_write_key(&hdr, "format");
@@ -227,8 +321,8 @@ static void msgpack_write_header(void)
    SizeT compressed_size =
       tg_lz4_compress(compressed, dst_capacity, hdr.data, src_size);
 
-   /* Magic + version (8 bytes): "TGMP" + version(4) - version 4 */
-   UChar magic[8] = {'T', 'G', 'M', 'P', 0x04, 0x00, 0x00, 0x00};
+   /* Magic + version (8 bytes): "TGMP" + version(5) */
+   UChar magic[8] = {'T', 'G', 'M', 'P', 0x05, 0x00, 0x00, 0x00};
    VG_(write)(TG_(trace_out).fd, magic, 8);
 
    /* Header chunk size (4 bytes uncompressed, 4 bytes compressed) */
@@ -299,6 +393,11 @@ static void msgpack_init_state(void)
    /* Initialize buffer */
    msgpack_init(&mp_state.buf, MSGPACK_INITIAL_BUF);
    mp_state.rows_in_chunk = 0;
+   mp_state.compress_buf  = NULL;
+   mp_state.compress_cap  = 0;
+
+   /* Initialize string intern table */
+   init_intern_table();
 
    /* Write file header */
    msgpack_write_header();
@@ -318,16 +417,29 @@ static void msgpack_add_row(ULong        seq,
                             const ULong* deltas,
                             Int          n_deltas)
 {
+   /* Intern strings -> integer IDs (avoids memcpy of string data per row) */
+   UInt fn_id   = intern_string(fn_name, fn_len);
+   UInt obj_id  = intern_string(obj_name, obj_len);
+   UInt file_id = intern_string(file_name, file_len);
+
+   /* Pre-ensure capacity for entire row to avoid per-field bounds checks.
+    * With interning: 1 (array hdr) + 9 (seq) + 5 (tid) + 5 (event)
+    *   + 5 (fn_id) + 5 (obj_id) + 5 (file_id) + 5 (line)
+    *   + 3 (counters array hdr) + n_deltas*9
+    */
+   Int worst_case = 43 + n_deltas * 9;
+   msgpack_ensure_capacity(&mp_state.buf, worst_case);
+
    /* Each row is a msgpack array: 7 fixed + 1 counters sub-array */
    msgpack_write_array_header(&mp_state.buf, 8);
 
-   /* Fixed columns */
+   /* Fixed columns - fn/obj/file are integer IDs, not strings */
    msgpack_write_uint(&mp_state.buf, seq);
    msgpack_write_int(&mp_state.buf, tid);
    msgpack_write_int(&mp_state.buf, event);
-   msgpack_write_str(&mp_state.buf, fn_name, fn_len);
-   msgpack_write_str(&mp_state.buf, obj_name, obj_len);
-   msgpack_write_str(&mp_state.buf, file_name, file_len);
+   msgpack_write_uint(&mp_state.buf, fn_id);
+   msgpack_write_uint(&mp_state.buf, obj_id);
+   msgpack_write_uint(&mp_state.buf, file_id);
    msgpack_write_int(&mp_state.buf, line);
 
    /* Counters sub-array */
@@ -395,11 +507,64 @@ static void msgpack_add_marker_row(ULong seq, Int tid, const HChar* marker)
    }
 }
 
+/* Write the string table as a special compressed chunk after all data.
+ * Format: a msgpack array of strings, indexed by intern ID. */
+static void msgpack_write_string_table(void)
+{
+   if (TG_(trace_out).fd < 0)
+      return;
+
+   UInt count = mp_state.interns.next_id;
+   if (count == 0)
+      return;
+
+   /* Serialize the string table into a temporary buffer */
+   msgpack_buffer stbl;
+   msgpack_init(&stbl, 4096);
+
+   msgpack_write_array_header(&stbl, count);
+   for (UInt i = 0; i < count; i++) {
+      msgpack_write_str(&stbl, mp_state.interns.strings[i],
+                        mp_state.interns.lengths[i]);
+   }
+
+   /* Compress and write as a chunk with special marker:
+    * We use uncompressed_size with high bit set to indicate string table */
+   SizeT  src_size     = stbl.size;
+   SizeT  dst_capacity = tg_lz4_compress_bound(src_size);
+   UChar* compressed   = VG_(malloc)("tg.stbl.compress", dst_capacity);
+
+   SizeT compressed_size =
+      tg_lz4_compress(compressed, dst_capacity, stbl.data, src_size);
+
+   if (compressed_size > 0) {
+      /* String table chunk marker: uncompressed size with bit 31 set */
+      UInt  marker = (UInt)src_size | 0x80000000u;
+      UChar hdr[8];
+      hdr[0] = (UChar)(marker & 0xff);
+      hdr[1] = (UChar)((marker >> 8) & 0xff);
+      hdr[2] = (UChar)((marker >> 16) & 0xff);
+      hdr[3] = (UChar)((marker >> 24) & 0xff);
+      hdr[4] = (UChar)(compressed_size & 0xff);
+      hdr[5] = (UChar)((compressed_size >> 8) & 0xff);
+      hdr[6] = (UChar)((compressed_size >> 16) & 0xff);
+      hdr[7] = (UChar)((compressed_size >> 24) & 0xff);
+      VG_(write)(TG_(trace_out).fd, hdr, 8);
+      VG_(write)(TG_(trace_out).fd, compressed, compressed_size);
+   }
+
+   VG_(free)(compressed);
+   msgpack_free(&stbl);
+}
+
 /* Close msgpack output */
 static void msgpack_close_output(void)
 {
    /* Flush any remaining rows */
    msgpack_flush_chunk();
+
+   /* Write the string table */
+   msgpack_write_string_table();
 
    /* Write end marker (zero-size chunk) */
    UChar end[8] = {0, 0, 0, 0, 0, 0, 0, 0};
@@ -407,6 +572,12 @@ static void msgpack_close_output(void)
 
    /* Cleanup */
    msgpack_free(&mp_state.buf);
+   free_intern_table();
+   if (mp_state.compress_buf) {
+      VG_(free)(mp_state.compress_buf);
+      mp_state.compress_buf = NULL;
+      mp_state.compress_cap = 0;
+   }
    if (mp_state.col_names) {
       VG_(free)(mp_state.col_names);
       mp_state.col_names = NULL;

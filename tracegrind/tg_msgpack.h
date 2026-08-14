@@ -17,6 +17,7 @@ typedef struct {
 void msgpack_init(msgpack_buffer* mb, Int capacity);
 void msgpack_free(msgpack_buffer* mb);
 void msgpack_reset(msgpack_buffer* mb);
+void msgpack_ensure_capacity(msgpack_buffer* mb, Int needed);
 
 /* Encode primitives */
 void msgpack_write_nil(msgpack_buffer* mb);

@@ -84,7 +84,7 @@ SizeT tg_lz4_compress(void*       dst,
                       SizeT       src_size)
 {
    int result = LZ4_compress_fast((const char*)src, (char*)dst, (int)src_size,
-                                  (int)dst_capacity, 2 /* acceleration */);
+                                  (int)dst_capacity, 4 /* acceleration */);
    if (result <= 0) {
       return 0;
    }
