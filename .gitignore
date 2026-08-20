@@ -1789,6 +1789,7 @@
 /none/tests/amd64/smc1
 /none/tests/amd64/sse4-64
 /none/tests/amd64/ssse3_misaligned
+/none/tests/amd64/synth_label
 /none/tests/amd64/tm1
 /none/tests/amd64/x87trigOOR
 /none/tests/amd64/xacq_xrel

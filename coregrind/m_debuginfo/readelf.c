@@ -285,22 +285,16 @@ Bool get_elf_symbol_info (
      )
 {
    Bool plausible;
+   Bool is_size0_label = False;
 #  if defined(VGP_ppc64be_linux)
    Bool is_in_opd;
 #  endif
    Bool in_text, in_data, in_sdata, in_rodata, in_bss, in_sbss;
    Addr text_svma, data_svma, sdata_svma, rodata_svma, bss_svma, sbss_svma;
    PtrdiffT text_bias, data_bias, sdata_bias, rodata_bias, bss_bias, sbss_bias;
-#     if defined(VGPV_arm_linux_android) \
-         || defined(VGPV_x86_linux_android) \
-         || defined(VGPV_mips32_linux_android) \
-         || defined(VGPV_arm64_linux_android)
    Addr available_size = 0;
 #define COMPUTE_AVAILABLE_SIZE(segsvma, segsize) \
         available_size = segsvma + segsize - sym_svma
-#else
-#define COMPUTE_AVAILABLE_SIZE(segsvma, segsize)
-#endif
 
    /* Set defaults */
    *sym_name_out_ioff = sym_name_ioff;
@@ -454,6 +448,25 @@ Bool get_elf_symbol_info (
       plausible = True;
 #  endif
 
+   /* Handwritten assembly often lacks .size directives, leaving entry
+      points as size-0 STT_NOTYPE labels (e.g. glibc's _dl_start_user).
+      Admit them when they lie in a known text section (available_size
+      is only nonzero when a section range check above matched); the
+      size stays 0 and canonicaliseSymtab later extends the label up to
+      the next symbol's start, as perf's symbols__fixup_end does.
+      '$'-prefixed names are ARM/AArch64 mapping symbols, not code
+      entry points. */
+   if (!plausible
+       && *is_text_out
+       && ELFXX_ST_TYPE(sym->st_info) == STT_NOTYPE
+       && *sym_size_out == 0
+       && available_size > 0
+       && sym_name_ioff != DiOffT_INVALID
+       && ML_(img_get_UChar)(escn_strtab->img, sym_name_ioff) != '$') {
+      plausible = True;
+      is_size0_label = True;
+   }
+
    if (!plausible)
       return False;
 
@@ -491,13 +504,17 @@ Bool get_elf_symbol_info (
          || defined(VGPV_arm64_linux_android)
       *sym_size_out = available_size ? available_size : 2048;
 #     else
-      if (TRACE_SYMTAB_ENABLED) {
-         HChar* sym_name = ML_(img_strdup)(escn_strtab->img,
-                                           "di.gesi.2", sym_name_ioff);
-         TRACE_SYMTAB("    ignore -- size=0: %s\n", sym_name);
-         if (sym_name) ML_(dinfo_free)(sym_name);
+      if (!is_size0_label) {
+         if (TRACE_SYMTAB_ENABLED) {
+            HChar* sym_name = ML_(img_strdup)(escn_strtab->img,
+                                              "di.gesi.2", sym_name_ioff);
+            TRACE_SYMTAB("    ignore -- size=0: %s\n", sym_name);
+            if (sym_name) ML_(dinfo_free)(sym_name);
+         }
+         return False;
       }
-      return False;
+      /* Keep the size 0; canonicaliseSymtab extends the label up to
+         the next symbol's start. */
 #     endif
    }
 
@@ -666,10 +683,17 @@ Bool get_elf_symbol_info (
    /* If no part of the symbol falls within the mapped range,
       ignore it. */
    
+   /* Treat size-0 labels as occupying one byte in the text checks
+      below, so they cannot form a backwards range for
+      ML_(find_rx_mapping) (which asserts lo <= hi).  Only text
+      labels can still be size 0 at this point, so the non-text
+      checks are unaffected. */
+   Word sym_extent = *sym_size_out > 0 ? *sym_size_out : 1;
+
    in_text 
       = di->text_present
         && di->text_size > 0
-        && !((*sym_avmas_out).main + *sym_size_out <= di->text_avma
+        && !((*sym_avmas_out).main + sym_extent <= di->text_avma
              || (*sym_avmas_out).main >= di->text_avma + di->text_size);
 
    in_data 
@@ -718,13 +742,13 @@ Bool get_elf_symbol_info (
       in_rx = (ML_(find_rx_mapping)(
                       di,
                       (*sym_avmas_out).main,
-                      (*sym_avmas_out).main + *sym_size_out - 1) != NULL);
+                      (*sym_avmas_out).main + sym_extent - 1) != NULL);
       if (in_text)
          vg_assert(in_rx);
       if (!in_rx) {
          TRACE_SYMTAB(
             "ignore -- %#lx .. %#lx outside .text svma range %#lx .. %#lx\n",
-            (*sym_avmas_out).main, (*sym_avmas_out).main + *sym_size_out - 1,
+            (*sym_avmas_out).main, (*sym_avmas_out).main + sym_extent - 1,
             di->text_avma,
             di->text_avma + di->text_size - 1);
          return False;

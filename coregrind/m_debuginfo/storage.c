@@ -366,8 +366,10 @@ void ML_(addSym) ( struct _DebugInfo* di, DiSym* sym )
    vg_assert(sym->pri_name != NULL);
    vg_assert(sym->sec_names == NULL);
 
-   /* Ignore zero-sized syms. */
-   if (sym->size == 0) return;
+   /* Ignore zero-sized symbols, except text ones: those may be
+      handwritten-asm labels lacking a .size directive, which
+      canonicaliseSymtab extends up to the next symbol's start. */
+   if (sym->size == 0 && !sym->isText) return;
 
    if (di->symtab_used == di->symtab_size) {
       new_sz = 2 * di->symtab_size;
@@ -1501,6 +1503,11 @@ static Int compare_DiSym ( const void* va, const void* vb )
    const DiSym* b = vb;
    if (a->avmas.main < b->avmas.main) return -1;
    if (a->avmas.main > b->avmas.main) return  1;
+   /* Smaller size first at equal addresses: a zero-sized label then
+      sees the real symbol at the same address as its "next symbol" in
+      canonicaliseSymtab's size fixup, gets a zero gap, and is dropped,
+      so real symbols always win their own address. */
+   if (a->size != b->size) return a->size < b->size ? -1 : 1;
    return 0;
 }
 
@@ -1753,6 +1760,35 @@ static void canonicaliseSymtab ( struct _DebugInfo* di )
    /* Sort by address. */
    VG_(ssort)(di->symtab, di->symtab_used, 
                           sizeof(*di->symtab), compare_DiSym);
+
+   /* Zero-sized text symbols are labels from handwritten assembly
+      lacking .size directives (e.g. glibc's _dl_start_user).  Give
+      each the gap up to the next symbol's start, clamped to the end
+      of .text, the same way perf's symbols__fixup_end does.  Anything
+      still zero-sized afterwards (a label aliasing a real symbol's
+      address, or lying outside .text) is dropped. */
+   { Word r, w = 0;
+     for (r = 0; r < (Word)di->symtab_used; r++) {
+        DiSym* sym = &di->symtab[r];
+        if (sym->size == 0 && sym->isText && di->text_present) {
+           Addr end = di->text_avma + di->text_size;
+           if (r+1 < (Word)di->symtab_used
+               && di->symtab[r+1].avmas.main < end)
+              end = di->symtab[r+1].avmas.main;
+           if (end > sym->avmas.main) {
+              Addr gap = end - sym->avmas.main;
+              Addr max_size = (1LL << 31) - 1;
+              sym->size = (UInt)(gap > max_size ? max_size : gap);
+           }
+        }
+        if (sym->size == 0)
+           continue;
+        if (w < r)
+           di->symtab[w] = *sym;
+        w++;
+     }
+     di->symtab_used = w;
+   }
 
   cleanup_more:
  
