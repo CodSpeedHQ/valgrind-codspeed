@@ -1,3 +1,10 @@
+valgrind (1:3.26.0-0codspeed7) UNRELEASED; urgency=medium
+
+  * feat(callgrind): track subprocesses across fork and exec (#25)
+  * fix(callgrind): represent os threads under --separate-threads=yes (#24)
+
+ -- Adrien Cacciaguerra <adrien@codspeed.io>  Mon, 24 Aug 2026 12:12:25 +0000
+
 valgrind (1:3.26.0-0codspeed6) UNRELEASED; urgency=medium
 
   * fix: hangs on ARM64 due to atomics (#23)
