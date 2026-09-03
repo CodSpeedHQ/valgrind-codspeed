@@ -7,6 +7,9 @@ on:
     branches: [ master ]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   test-callgrind:
     strategy:
@@ -44,16 +47,12 @@ jobs:
             build-essential \
             automake \
             autoconf \
-            cmake \
             libc6-dev \
             gdb \
             docbook \
             docbook-xsl \
             docbook-xml \
             xsltproc
-
-      - name: Build Capstone (cycle-estimation decoder)
-        uses: ./.github/actions/build-capstone
 
       - name: Run autogen
         run: ./autogen.sh
@@ -66,6 +65,10 @@ jobs:
 
       - name: Build Valgrind
         run: make -j$(nproc)
+
+      # The vendored build must not write anything into the submodule checkout.
+      - name: Check the Capstone submodule is clean
+        run: test -z "$(git -C third_party/capstone status --porcelain --untracked-files=all)"
 
       - name: Build test dependencies
         run: |
@@ -84,3 +87,59 @@ jobs:
         with:
           name: callgrind-test-logs-${{ matrix.runner.ubuntu-version }}
           path: callgrind/tests/*.log
+
+  # `make` builds the vendored submodule; this guards the other supported path,
+  # --with-capstone=PATH, which debian/rules forwards CAPSTONE_DIR to.
+  build-with-prebuilt-capstone:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Update apt-get cache
+        run: sudo apt-get update
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get install -y \
+            build-essential \
+            automake \
+            autoconf \
+            cmake \
+            libc6-dev
+
+      # Not the distribution's libcapstone-dev: a Valgrind tool links
+      # -nodefaultlibs and runs without glibc's %fs TLS, so the decoder has to
+      # be built without stack-protector and without fortify, which no distro
+      # package is.
+      - name: Build Capstone outside the source tree
+        run: |
+          cmake -S third_party/capstone -B "$RUNNER_TEMP/capstone-build" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCAPSTONE_ARCHITECTURE_DEFAULT=OFF \
+            -DCAPSTONE_X86_SUPPORT=ON \
+            -DCAPSTONE_ARM64_SUPPORT=ON \
+            -DCAPSTONE_BUILD_SHARED_LIBS=OFF \
+            -DCAPSTONE_BUILD_CSTOOL=OFF \
+            -DCMAKE_INSTALL_LIBDIR=lib \
+            -DCMAKE_INSTALL_PREFIX="$RUNNER_TEMP/capstone" \
+            -DCMAKE_C_FLAGS="-fno-stack-protector -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -fPIC"
+          cmake --build "$RUNNER_TEMP/capstone-build" -j"$(nproc)"
+          cmake --install "$RUNNER_TEMP/capstone-build"
+
+      - name: Run autogen
+        run: ./autogen.sh
+
+      - name: Configure
+        run: ./configure --enable-only64bit --with-capstone="$RUNNER_TEMP/capstone"
+
+      - name: Build Valgrind
+        run: make -j$(nproc)
+
+      - name: Check cycle estimation
+        run: |
+          ./vg-in-place --tool=callgrind --cycle-estimation=yes \
+            --callgrind-out-file=/dev/null /bin/true 2>&1 | grep -q 'Events    : Ir Ct Cl'
+
