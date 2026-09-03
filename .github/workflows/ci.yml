@@ -44,16 +44,12 @@ jobs:
             build-essential \
             automake \
             autoconf \
-            cmake \
             libc6-dev \
             gdb \
             docbook \
             docbook-xsl \
             docbook-xml \
             xsltproc
-
-      - name: Build Capstone (cycle-estimation decoder)
-        uses: ./.github/actions/build-capstone
 
       - name: Run autogen
         run: ./autogen.sh
