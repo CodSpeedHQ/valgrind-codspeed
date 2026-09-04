@@ -36,8 +36,9 @@
         });
       in
       {
-        # Expose the pinned Capstone so the autotools build and scripts can find
-        # it via `nix build .#capstone` or the CAPSTONE_DIR env var below.
+        # Expose the pinned Capstone for the builds that want a prebuilt decoder
+        # rather than the vendored submodule: `nix build .#capstone`, then pass it
+        # to configure as --with-capstone=PATH (or CAPSTONE_DIR).
         packages.capstone = capstone;
 
         devShells.default = pkgs.mkShell {
@@ -62,10 +63,6 @@
             pkgs.gcc
             pkgs.pkg-config
           ];
-
-          # Consumed by configure (--with-capstone), the LUT generator, and the
-          # standalone cycledecode test. Point them at the hardening-free build.
-          CAPSTONE_DIR = "${capstone}";
         };
       }
     );

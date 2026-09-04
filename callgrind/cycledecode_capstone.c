@@ -55,6 +55,7 @@ extern char* vgPlain_strncpy(char* d, const char* s, unsigned long n);
 extern char* vgPlain_strchr(const char* s, char c);
 extern char* vgPlain_strrchr(const char* s, char c);
 extern char* vgPlain_strstr(const char* h, const char* n);
+extern char* vgPlain_strcat(char* d, const char* s);
 
 static const char* const CLG_CD_CC = "clg.cycledecode";
 
@@ -91,10 +92,16 @@ int printf(const char* fmt, ...)
 }
 int puts(const char* s) { return printf("%s\n", s); }
 
-/* Capstone's SStream references stderr/fwrite on a buffer-overflow guard in the
- * op_str text path (which this code never reads). Valgrind has no FILE* layer,
- * so stderr is a sentinel and fwrite routes the bytes to the Valgrind log fd,
- * making such an overflow visible rather than swallowed. */
+/* Capstone's SStream references stderr/fprintf on a buffer-overflow guard in
+ * the op_str text path (which this code never reads). Valgrind has no FILE*
+ * layer, so stderr is a sentinel and these route the bytes to the Valgrind log
+ * fd, making such an overflow visible rather than swallowed.
+ *
+ * Both fprintf and fwrite are needed: the guard calls fprintf, which GCC folds
+ * into fwrite for a format string with no conversions, but only when builtins
+ * are enabled. Valgrind's tool CFLAGS pass -fno-builtin, so whether the object
+ * ends up referencing fprintf or fwrite depends on how Capstone was compiled.
+ * Defining both keeps the tool linkable either way. */
 extern int vgPlain_write(int fd, const void* buf, int count);
 FILE*      stderr = 0;
 size_t     fwrite(const void* p, size_t size, size_t nmemb, FILE* f)
@@ -102,6 +109,15 @@ size_t     fwrite(const void* p, size_t size, size_t nmemb, FILE* f)
    (void)f;
    vgPlain_write(2, p, (int)(size * nmemb));
    return nmemb;
+}
+int fprintf(FILE* f, const char* fmt, ...)
+{
+   (void)f;
+   va_list ap;
+   va_start(ap, fmt);
+   unsigned int r = vgPlain_vprintf(fmt, ap);
+   va_end(ap);
+   return (int)r;
 }
 
 size_t strlen(const char* s) { return vgPlain_strlen(s); }
@@ -118,6 +134,7 @@ char* strncpy(char* d, const char* s, size_t n)
 char* strchr(const char* s, int c) { return vgPlain_strchr(s, (char)c); }
 char* strrchr(const char* s, int c) { return vgPlain_strrchr(s, (char)c); }
 char* strstr(const char* h, const char* n) { return vgPlain_strstr(h, n); }
+char* strcat(char* d, const char* s) { return vgPlain_strcat(d, s); }
 
 /*------------------------------------------------------------*/
 /*--- Capstone handle: open / decode                        -*/

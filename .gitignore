@@ -2567,7 +2567,14 @@ test-suite.log
 # autoconf backup
 /configure~
 
-# Capstone build install prefix (built from the third_party/capstone submodule)
+# /third_party/ (vendored Capstone, built by third_party/Makefile.am)
+/third_party/Makefile
+/third_party/Makefile.in
+/third_party/libcapstone.a
+/third_party/capstone-stubs/.deps
+/third_party/capstone-stubs/.dirstamp
+
+# install prefix of a Capstone built by hand for --with-capstone
 /.capstone
 
 # fake CodSpeed benchmark fixture binary (compiled from testdata/llsc_tzconvert_bench.c)

@@ -22,6 +22,7 @@ EXP_TOOLS = \
 # Put docs last because building the HTML is slow and we want to get
 # everything else working before we try it.
 SUBDIRS = \
+	third_party \
 	include \
 	VEX \
 	coregrind \

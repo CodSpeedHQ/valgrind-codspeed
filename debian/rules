@@ -28,8 +28,9 @@ CONFARGS = \
 	--enable-only64bit \
 	--with-gdbscripts-dir=/usr/share/gdb/auto-load
 
-# Callgrind cycle estimation requires Capstone; the release workflow builds a
-# static decoder and exports its prefix as CAPSTONE_DIR.
+# Callgrind cycle estimation needs Capstone. The build compiles the vendored
+# third_party/capstone submodule by default; CAPSTONE_DIR, when set, points at a
+# prebuilt decoder to use instead.
 ifneq ($(CAPSTONE_DIR),)
   CONFARGS += --with-capstone=$(CAPSTONE_DIR)
 endif
