@@ -36,20 +36,16 @@ jobs:
       - name: Install packaging deps
         run: sudo apt-get install -y build-essential devscripts debhelper dh-make
       - name: Install build deps
-        run: sudo apt-get install -y debhelper-compat gdb mpi-default-dev pkgconf cmake docbook docbook-xsl docbook-xml xsltproc
+        run: sudo apt-get install -y debhelper-compat gdb mpi-default-dev pkgconf docbook docbook-xsl docbook-xml xsltproc
       - name: Configure GPG Key
         run: echo -n "$GPG_SIGNING_KEY" | base64 --decode | gpg --import
         env:
           GPG_SIGNING_KEY: ${{ secrets.GPG_SIGNING_KEY }}
 
-      # debian/rules forwards $CAPSTONE_DIR to configure via --with-capstone.
-      - name: Build Capstone (cycle-estimation decoder)
-        uses: ./.github/actions/build-capstone
-
       - name: Build the deb package
         id: build_deb
         run: |
-          debuild -e CAPSTONE_DIR --no-tgz-check -nc
+          debuild --no-tgz-check -nc
           echo "asset-path=$(find .. -name 'valgrind_*.deb')" >> "$GITHUB_OUTPUT"
         env:
           DEBEMAIL: ${{ vars.MAINTAINER_EMAIL }}

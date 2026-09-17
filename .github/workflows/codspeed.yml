@@ -72,16 +72,11 @@ jobs:
             build-essential \
             automake \
             autoconf \
-            cmake \
             gdb \
             docbook \
             docbook-xsl \
             docbook-xml \
             xsltproc
-
-      - name: Build Capstone (cycle-estimation decoder)
-        if: steps.valgrind-cache.outputs.cache-hit != 'true' && matrix.valgrind == 'local'
-        uses: ./.github/actions/build-capstone
 
       - name: Build Valgrind (${{ matrix.valgrind }})
         if: steps.valgrind-cache.outputs.cache-hit != 'true'
