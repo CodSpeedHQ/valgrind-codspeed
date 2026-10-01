@@ -425,17 +425,21 @@ Bool get_debug_pos(BBCC* bbcc, Addr addr, AddrPos* p)
     return found_file_line;
 }
 
-/* Get inline function name for an address, with caching.
+/* Get inline function name for an address.
  * Returns True if address is in an inlined function, False otherwise.
  * If True, *inl_fn will be set to the inline function name.
+ *
+ * Served from the debug cache when get_debug_pos() filled the entry for this
+ * address. Otherwise the cache is left alone: the entry belongs to another
+ * address, and storing only the inline name there would hand it out for that
+ * other address.
  */
 static Bool get_inline_info(Addr addr, const HChar** inl_fn)
 {
     int cachepos = addr % DEBUG_CACHE_SIZE;
+    Bool has_inline;
 
-    /* Check cache first - but only if inline info was already queried for this address */
     if (debug_cache_addr[cachepos] == addr && debug_cache_inlfn[cachepos] != 0) {
-        /* We have cached inline info for this address */
         if (debug_cache_inlfn[cachepos] == (const HChar*)(-1)) {
             /* Special marker: no inline function at this address */
             *inl_fn = 0;
@@ -446,16 +450,9 @@ static Bool get_inline_info(Addr addr, const HChar** inl_fn)
     }
 
     DiEpoch ep = VG_(current_DiEpoch)();
-    Bool has_inline = VG_(get_inline_fnname)(ep, addr, inl_fn);
-
-    if (has_inline) {
-        /* Cache the inline function name */
-        debug_cache_inlfn[cachepos] = *inl_fn;
-    } else {
+    has_inline = VG_(get_inline_fnname)(ep, addr, inl_fn);
+    if (!has_inline)
         *inl_fn = 0;
-        /* Use special marker -1 to indicate "no inline function" */
-        debug_cache_inlfn[cachepos] = (const HChar*)(-1);
-    }
 
     CLG_DEBUG(3, "  get_inline_info(%#lx): %s\n",
              addr, has_inline ? *inl_fn : "(not inlined)");
@@ -520,8 +517,10 @@ static void fprint_apos(VgFile *fp, AddrPos* curr, AddrPos* last,
         const HChar* inline_fn = 0;
         Bool is_inline = get_inline_info(curr_addr, &inline_fn);
 
-        /* Output cfni= if inline function changed */
-        if (is_inline && inline_fn && inline_fn != last_inline_fn) {
+        /* Output cfni= if inline function changed. Names are compared by
+         * content: the same name is not always the same pointer. */
+        if (is_inline && inline_fn &&
+            (!last_inline_fn || VG_(strcmp)(inline_fn, last_inline_fn) != 0)) {
             VG_(fprintf)(fp, "cfni=%s\n", inline_fn);
             last_inline_fn = inline_fn;
         }
