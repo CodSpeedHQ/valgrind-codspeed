@@ -6,6 +6,14 @@
 # third_party/capstone submodule is compiled by third_party/Makefile.am;
 # --with-capstone=PATH (or CAPSTONE_DIR) selects a prebuilt install instead.
 AC_DEFUN([CODSPEED_CAPSTONE], [
+# Capstone is compiled for the primary platform only, and cycledecode.c does not
+# build without it, so a secondary (bi-arch) Callgrind cannot be built.
+if test -n "$VGCONF_PLATFORM_SEC_CAPS"; then
+   AC_MSG_ERROR([Callgrind cycle estimation needs Capstone, which is only built
+for the primary platform ($VGCONF_PLATFORM_PRI_CAPS), not for the secondary one
+($VGCONF_PLATFORM_SEC_CAPS). Configure with --enable-only64bit or --enable-only32bit.])
+fi
+
 AC_ARG_WITH([capstone],
    [AS_HELP_STRING([--with-capstone=PATH],
       [use a prebuilt Capstone install for Callgrind cycle estimation instead
@@ -47,6 +55,18 @@ fi
 CAPSTONE_CFLAGS="-DCLG_WITH_CAPSTONE -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 $CAPSTONE_INCLUDES"
 AC_SUBST([CAPSTONE_CFLAGS])
 AC_SUBST([CAPSTONE_LIBS])
+])
+
+# CODSPEED_ONLY64BIT_DEFAULT
+# --------------------------
+# Default to --enable-only64bit unless --enable-only64bit or --enable-only32bit
+# was given either way: see the secondary platform check in CODSPEED_CAPSTONE.
+#
+# Must be called before Valgrind's AC_ARG_ENABLE(only64bit).
+AC_DEFUN([CODSPEED_ONLY64BIT_DEFAULT], [
+if test -z "${enable_only64bit+set}" -a -z "${enable_only32bit+set}"; then
+   enable_only64bit=yes
+fi
 ])
 
 # CODSPEED_C_STD_GNU17
