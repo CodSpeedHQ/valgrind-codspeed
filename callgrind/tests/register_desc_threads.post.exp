@@ -1,0 +1,20 @@
+part: 1
+desc: Benchmark pid: 42
+thread: 1
+desc: Trigger: Client Request: first
+part: 1
+desc: Benchmark pid: 42
+thread: 2
+desc: Trigger: Client Request: first
+part: 2
+thread: 1
+desc: Trigger: Client Request: second
+part: 2
+thread: 2
+desc: Trigger: Client Request: second
+part: 3
+thread: 1
+desc: Trigger: Program termination
+part: 3
+thread: 2
+desc: Trigger: Program termination

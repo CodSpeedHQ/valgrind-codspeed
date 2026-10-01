@@ -1,0 +1,17 @@
+part: 1
+desc: Benchmark pid: 42
+desc: Other: a b
+desc: Trigger: Client Request: first
+part: 2
+desc: Trigger: Client Request: second
+part: 3
+desc: Pending: kept
+desc: Trigger: Client Request: third
+part: 4
+desc: Trigger: Program termination
+---
+part: 1
+desc: Trigger: Client Request: child
+part: 2
+desc: Trigger: Program termination
+---

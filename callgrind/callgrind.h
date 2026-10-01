@@ -79,7 +79,8 @@ typedef
       VG_USERREQ__DUMP_STATS_AT,
       VG_USERREQ__START_INSTRUMENTATION,
       VG_USERREQ__STOP_INSTRUMENTATION,
-      VG_USERREQ__ADD_OBJ_SKIP
+      VG_USERREQ__ADD_OBJ_SKIP,
+      VG_USERREQ__REGISTER_DESC
    } Vg_CallgrindClientRequest;
 
 /* Dump current state of cost centers, and zero them afterwards */
@@ -132,5 +133,13 @@ typedef
 #define CALLGRIND_ADD_OBJ_SKIP(path)                                 \
   VALGRIND_DO_CLIENT_REQUEST_STMT(VG_USERREQ__ADD_OBJ_SKIP,          \
                                   path, 0, 0, 0, 0)
+
+/* Attach a "desc: <desc>" line to the header of the next dumped part, without
+   dumping. Use the "<key>: <value>" form other desc lines follow. Line breaks
+   in desc are written as spaces. Lines registered after the last dump are
+   dropped if the process exits or execs before dumping again. */
+#define CALLGRIND_REGISTER_DESC(desc)                                \
+  VALGRIND_DO_CLIENT_REQUEST_STMT(VG_USERREQ__REGISTER_DESC,         \
+                                  desc, 0, 0, 0, 0)
 
 #endif /* __CALLGRIND_H */
