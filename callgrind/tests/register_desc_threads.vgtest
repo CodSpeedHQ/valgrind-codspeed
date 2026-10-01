@@ -1,0 +1,4 @@
+prog: register_desc_threads
+vgopts: --separate-threads=yes --combine-dumps=yes --callgrind-out-file=callgrind.out.register_desc_threads
+post: grep -E "^(part:|thread:|desc: (Benchmark|Trigger))" callgrind.out.register_desc_threads | awk '/^thread:/ { if (!($2 in id)) id[$2] = ++n; $2 = id[$2] } { print }'
+cleanup: rm -f callgrind.out.register_desc_threads
