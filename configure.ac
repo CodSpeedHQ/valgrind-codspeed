@@ -332,6 +332,9 @@ AC_SUBST(VGCONF_PLATFORM_ARM_ARCH)
 # but only one gets installed.  So if you use an in-place build, both can be
 # used. --njn]
 
+# CodSpeed: 64-bit only by default. See m4/codspeed_capstone.m4.
+CODSPEED_ONLY64BIT_DEFAULT
+
 # Check if a 64-bit only build has been requested
 AC_CACHE_CHECK([for a 64-bit only build], vg_cv_only64bit,
    [AC_ARG_ENABLE(only64bit,
