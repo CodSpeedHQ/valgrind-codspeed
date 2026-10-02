@@ -970,11 +970,19 @@ static Bool fprint_bbcc(VgFile *fp, BBCC* bbcc, AddrPos* last)
   return something_written;
 }
 
+/* Three-way comparison, as -1, 0 or 1: a difference can overflow an int. */
+#define CMP3(a, b) (((a) > (b)) - ((a) < (b)))
+
 /* order by
  *  recursion,
  *  from->bb->obj, from->bb->fn
  *  obj, fn[0]->file, fn
  *  address
+ *
+ * Nodes are ordered by their creation number, not their address: subtracting
+ * pointers to separately allocated nodes is undefined, and with node sizes
+ * that are not a power of two the result is not even a consistent order, so
+ * the sort could split the BBCCs of one function into several blocks.
  */
 static int my_cmp(BBCC** pbbcc1, BBCC** pbbcc2)
 {
@@ -988,30 +996,31 @@ static int my_cmp(BBCC** pbbcc1, BBCC** pbbcc2)
     int off = 1;
 
     if (cxt1->fn[0]->file->obj != cxt2->fn[0]->file->obj)
-	return cxt1->fn[0]->file->obj - cxt2->fn[0]->file->obj;
+	return CMP3(cxt1->fn[0]->file->obj->number,
+		    cxt2->fn[0]->file->obj->number);
 
     if (cxt1->fn[0]->file != cxt2->fn[0]->file)
-	return cxt1->fn[0]->file - cxt2->fn[0]->file;
+	return CMP3(cxt1->fn[0]->file->number, cxt2->fn[0]->file->number);
 
     if (cxt1->fn[0] != cxt2->fn[0])
-	return cxt1->fn[0] - cxt2->fn[0];
+	return CMP3(cxt1->fn[0]->number, cxt2->fn[0]->number);
 
     if (bbcc1->rec_index != bbcc2->rec_index)
-	return bbcc1->rec_index - bbcc2->rec_index;
+	return CMP3(bbcc1->rec_index, bbcc2->rec_index);
 
     while((off < cxt1->size) && (off < cxt2->size)) {
 	fn_node* ffn1 = cxt1->fn[off];
 	fn_node* ffn2 = cxt2->fn[off];
 	if (ffn1->file->obj != ffn2->file->obj)
-	    return ffn1->file->obj - ffn2->file->obj;
+	    return CMP3(ffn1->file->obj->number, ffn2->file->obj->number);
 	if (ffn1 != ffn2)
-	    return ffn1 - ffn2;
+	    return CMP3(ffn1->number, ffn2->number);
 	off++;
     }
     if      (cxt1->size > cxt2->size) return 1;
     else if (cxt1->size < cxt2->size) return -1;
 
-    return bbcc1->bb->offset - bbcc2->bb->offset;
+    return CMP3(bbcc1->bb->offset, bbcc2->bb->offset);
 #endif
 }
 
