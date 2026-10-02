@@ -425,17 +425,21 @@ Bool get_debug_pos(BBCC* bbcc, Addr addr, AddrPos* p)
     return found_file_line;
 }
 
-/* Get inline function name for an address, with caching.
+/* Get inline function name for an address.
  * Returns True if address is in an inlined function, False otherwise.
  * If True, *inl_fn will be set to the inline function name.
+ *
+ * Served from the debug cache when get_debug_pos() filled the entry for this
+ * address. Otherwise the cache is left alone: the entry belongs to another
+ * address, and storing only the inline name there would hand it out for that
+ * other address.
  */
 static Bool get_inline_info(Addr addr, const HChar** inl_fn)
 {
     int cachepos = addr % DEBUG_CACHE_SIZE;
+    Bool has_inline;
 
-    /* Check cache first - but only if inline info was already queried for this address */
     if (debug_cache_addr[cachepos] == addr && debug_cache_inlfn[cachepos] != 0) {
-        /* We have cached inline info for this address */
         if (debug_cache_inlfn[cachepos] == (const HChar*)(-1)) {
             /* Special marker: no inline function at this address */
             *inl_fn = 0;
@@ -446,16 +450,9 @@ static Bool get_inline_info(Addr addr, const HChar** inl_fn)
     }
 
     DiEpoch ep = VG_(current_DiEpoch)();
-    Bool has_inline = VG_(get_inline_fnname)(ep, addr, inl_fn);
-
-    if (has_inline) {
-        /* Cache the inline function name */
-        debug_cache_inlfn[cachepos] = *inl_fn;
-    } else {
+    has_inline = VG_(get_inline_fnname)(ep, addr, inl_fn);
+    if (!has_inline)
         *inl_fn = 0;
-        /* Use special marker -1 to indicate "no inline function" */
-        debug_cache_inlfn[cachepos] = (const HChar*)(-1);
-    }
 
     CLG_DEBUG(3, "  get_inline_info(%#lx): %s\n",
              addr, has_inline ? *inl_fn : "(not inlined)");
@@ -520,8 +517,10 @@ static void fprint_apos(VgFile *fp, AddrPos* curr, AddrPos* last,
         const HChar* inline_fn = 0;
         Bool is_inline = get_inline_info(curr_addr, &inline_fn);
 
-        /* Output cfni= if inline function changed */
-        if (is_inline && inline_fn && inline_fn != last_inline_fn) {
+        /* Output cfni= if inline function changed. Names are compared by
+         * content: the same name is not always the same pointer. */
+        if (is_inline && inline_fn &&
+            (!last_inline_fn || VG_(strcmp)(inline_fn, last_inline_fn) != 0)) {
             VG_(fprintf)(fp, "cfni=%s\n", inline_fn);
             last_inline_fn = inline_fn;
         }
@@ -971,11 +970,19 @@ static Bool fprint_bbcc(VgFile *fp, BBCC* bbcc, AddrPos* last)
   return something_written;
 }
 
+/* Three-way comparison, as -1, 0 or 1: a difference can overflow an int. */
+#define CMP3(a, b) (((a) > (b)) - ((a) < (b)))
+
 /* order by
  *  recursion,
  *  from->bb->obj, from->bb->fn
  *  obj, fn[0]->file, fn
  *  address
+ *
+ * Nodes are ordered by their creation number, not their address: subtracting
+ * pointers to separately allocated nodes is undefined, and with node sizes
+ * that are not a power of two the result is not even a consistent order, so
+ * the sort could split the BBCCs of one function into several blocks.
  */
 static int my_cmp(BBCC** pbbcc1, BBCC** pbbcc2)
 {
@@ -989,30 +996,31 @@ static int my_cmp(BBCC** pbbcc1, BBCC** pbbcc2)
     int off = 1;
 
     if (cxt1->fn[0]->file->obj != cxt2->fn[0]->file->obj)
-	return cxt1->fn[0]->file->obj - cxt2->fn[0]->file->obj;
+	return CMP3(cxt1->fn[0]->file->obj->number,
+		    cxt2->fn[0]->file->obj->number);
 
     if (cxt1->fn[0]->file != cxt2->fn[0]->file)
-	return cxt1->fn[0]->file - cxt2->fn[0]->file;
+	return CMP3(cxt1->fn[0]->file->number, cxt2->fn[0]->file->number);
 
     if (cxt1->fn[0] != cxt2->fn[0])
-	return cxt1->fn[0] - cxt2->fn[0];
+	return CMP3(cxt1->fn[0]->number, cxt2->fn[0]->number);
 
     if (bbcc1->rec_index != bbcc2->rec_index)
-	return bbcc1->rec_index - bbcc2->rec_index;
+	return CMP3(bbcc1->rec_index, bbcc2->rec_index);
 
     while((off < cxt1->size) && (off < cxt2->size)) {
 	fn_node* ffn1 = cxt1->fn[off];
 	fn_node* ffn2 = cxt2->fn[off];
 	if (ffn1->file->obj != ffn2->file->obj)
-	    return ffn1->file->obj - ffn2->file->obj;
+	    return CMP3(ffn1->file->obj->number, ffn2->file->obj->number);
 	if (ffn1 != ffn2)
-	    return ffn1 - ffn2;
+	    return CMP3(ffn1->number, ffn2->number);
 	off++;
     }
     if      (cxt1->size > cxt2->size) return 1;
     else if (cxt1->size < cxt2->size) return -1;
 
-    return bbcc1->bb->offset - bbcc2->bb->offset;
+    return CMP3(bbcc1->bb->offset, bbcc2->bb->offset);
 #endif
 }
 
