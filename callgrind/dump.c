@@ -197,7 +197,7 @@ static void print_fn(VgFile *fp, const HChar* tag, const fn_node* fn)
         VG_(fprintf)(fp, "%s\n", fn->name);
 }
 
-static void print_mangled_fn(VgFile *fp, const HChar* tag, 
+static void print_mangled_fn(VgFile *fp, const HChar* tag,
 			     Context* cxt, int rec_index)
 {
     int i;
@@ -235,7 +235,7 @@ static void print_mangled_fn(VgFile *fp, const HChar* tag,
 	if (rec_index >0)
 	    VG_(fprintf)(fp, "'%d", rec_index +1);
 	for(i=1;i<cxt->size;i++)
-	    VG_(fprintf)(fp, "'(%u)", 
+	    VG_(fprintf)(fp, "'(%u)",
 			      cxt->fn[i]->pure_cxt->base_number);
 	VG_(fprintf)(fp, "\n");
 
@@ -291,7 +291,7 @@ static Bool print_fn_pos(VgFile *fp, FnPos* last, BBCC* bbcc)
 	    last->cxt = 0; /* reprint context */
 	    res = True;
 	}
-	
+
 	if (last->cxt != bbcc->cxt) {
 	    fn_node* last_from = (last->cxt && last->cxt->size >1) ?
 				 last->cxt->fn[1] : 0;
@@ -346,7 +346,7 @@ static Bool print_fn_pos(VgFile *fp, FnPos* last, BBCC* bbcc)
     last->cxt = bbcc->cxt;
 
     CLG_DEBUG(2, "- print_fn_pos: %s\n", res ? "changed" : "");
-    
+
     return res;
 }
 
@@ -381,7 +381,7 @@ Bool get_debug_pos(BBCC* bbcc, Addr addr, AddrPos* p)
     Bool found_file_line;
 
     int cachepos = addr % DEBUG_CACHE_SIZE;
-    
+
     if (debug_cache_addr[cachepos] == addr) {
 	p->line = debug_cache_line[cachepos];
 	p->file = debug_cache_file[cachepos];
@@ -476,7 +476,7 @@ static void copy_apos(AddrPos* dst, AddrPos* src)
     dst->bb_addr = src->bb_addr;
     dst->file    = src->file;
     dst->line    = src->line;
-}   
+}
 
 /* copy file position and init cost */
 static void init_fcost(AddrCost* c, Addr addr, Addr bbaddr, file_node* file)
@@ -554,7 +554,7 @@ void fprint_pos(VgFile *fp, const AddrPos* curr, const AddrPos* last)
     else {
 	if (CLG_(clo).dump_instr) {
 	    int diff = curr->addr - last->addr;
-	    if ( CLG_(clo).compress_pos && (last->addr >0) && 
+	    if ( CLG_(clo).compress_pos && (last->addr >0) &&
 		 (diff > -100) && (diff < 100)) {
 		if (diff >0)
 		    VG_(fprintf)(fp, "+%d ", diff);
@@ -569,7 +569,7 @@ void fprint_pos(VgFile *fp, const AddrPos* curr, const AddrPos* last)
 
 	if (CLG_(clo).dump_bb) {
 	    int diff = curr->bb_addr - last->bb_addr;
-	    if ( CLG_(clo).compress_pos && (last->bb_addr >0) && 
+	    if ( CLG_(clo).compress_pos && (last->bb_addr >0) &&
 		 (diff > -100) && (diff < 100)) {
 		if (diff >0)
 		    VG_(fprintf)(fp, "+%d ", diff);
@@ -584,7 +584,7 @@ void fprint_pos(VgFile *fp, const AddrPos* curr, const AddrPos* last)
 
 	if (CLG_(clo).dump_line) {
 	    int diff = curr->line - last->line;
-	    if ( CLG_(clo).compress_pos && (last->line >0) && 
+	    if ( CLG_(clo).compress_pos && (last->line >0) &&
 		 (diff > -100) && (diff < 100)) {
 
 		if (diff >0)
@@ -627,7 +627,7 @@ static void fprint_fcost(VgFile *fp, AddrCost* c, AddrPos* last)
 	     c->p.file->name, c->p.line, c->p.bb_addr, c->p.addr);
     CLG_(print_cost)(-5, CLG_(sets).full, c->cost);
   }
-    
+
   fprint_pos(fp, &(c->p), last);
   copy_apos( last, &(c->p) ); /* update last to current position */
 
@@ -654,17 +654,17 @@ static void fprint_jcc(VgFile *fp, jCC* jcc, AddrPos* curr, AddrPos* last,
 
     CLG_ASSERT(jcc->to !=0);
     CLG_ASSERT(jcc->from !=0);
-    
+
     if (!get_debug_pos(jcc->to, bb_addr(jcc->to->bb), &target)) {
 	/* if we don't have debug info, don't switch to file "???" */
 	target.file = last->file;
     }
 
     if ((jcc->jmpkind == jk_CondJump) || (jcc->jmpkind == jk_Jump)) {
-	    
+
       /* this is a JCC for a followed conditional or boring jump. */
       CLG_ASSERT(CLG_(is_zero_cost)( CLG_(sets).full, jcc->cost));
-	
+
       /* objects among jumps should be the same.
        * Otherwise this jump would have been changed to a call
        *  (see setup_bbcc)
@@ -683,7 +683,7 @@ static void fprint_jcc(VgFile *fp, jCC* jcc, AddrPos* curr, AddrPos* last,
 	if (last->file != target.file) {
             print_file(fp, "jfi=", target.file);
 	}
-	
+
 	if (jcc->from->cxt != jcc->to->cxt) {
 	    if (CLG_(clo).mangle_names)
 		print_mangled_fn(fp, "jfn",
@@ -691,7 +691,7 @@ static void fprint_jcc(VgFile *fp, jCC* jcc, AddrPos* curr, AddrPos* last,
 	    else
 		print_fn(fp, "jfn", jcc->to->cxt->fn[0]);
 	}
-	    
+
 	if (jcc->jmpkind == jk_CondJump) {
 	    /* format: jcnd=<followed>/<executions> <target> */
 	    VG_(fprintf)(fp, "jcnd=%llu/%llu ",
@@ -702,7 +702,7 @@ static void fprint_jcc(VgFile *fp, jCC* jcc, AddrPos* curr, AddrPos* last,
 	    VG_(fprintf)(fp, "jump=%llu ",
 			 jcc->call_counter);
 	}
-		
+
 	fprint_pos(fp, &target, last);
 	VG_(fprintf)(fp, "\n");
 	fprint_pos(fp, curr, last);
@@ -714,7 +714,7 @@ static void fprint_jcc(VgFile *fp, jCC* jcc, AddrPos* curr, AddrPos* last,
 
     file = jcc->to->cxt->fn[0]->file;
     obj  = jcc->to->bb->obj;
-    
+
     /* object of called position different to object of this function?*/
     if (jcc->from->cxt->fn[0]->file->obj != obj) {
 	print_obj(fp, "cob=", obj);
@@ -731,7 +731,7 @@ static void fprint_jcc(VgFile *fp, jCC* jcc, AddrPos* curr, AddrPos* last,
 	print_fn(fp, "cfn", jcc->to->cxt->fn[0]);
 
     if (!CLG_(is_zero_cost)( CLG_(sets).full, jcc->cost)) {
-        VG_(fprintf)(fp, "calls=%llu ", 
+        VG_(fprintf)(fp, "calls=%llu ",
 		   jcc->call_counter);
 
 	fprint_pos(fp, &target, last);
@@ -804,7 +804,7 @@ static jCC* sort_jcc_list(jCC* head) {
  * Print all costs of a BBCC:
  * - FCCs of instructions
  * - JCCs of the unique jump of this BB
- * returns True if something was written 
+ * returns True if something was written
  */
 static Bool fprint_bbcc(VgFile *fp, BBCC* bbcc, AddrPos* last)
 {
@@ -843,7 +843,7 @@ static Bool fprint_bbcc(VgFile *fp, BBCC* bbcc, AddrPos* last)
     if (CLG_(clo).dump_bbs || CLG_(clo).dump_instr ||
 	(newCost->p.line != currCost->p.line) ||
 	(newCost->p.file != currCost->p.file)) {
-      
+
       if (!CLG_(is_zero_cost)( CLG_(sets).full, currCost->cost )) {
 	something_written = True;
 
@@ -852,13 +852,13 @@ static Bool fprint_bbcc(VgFile *fp, BBCC* bbcc, AddrPos* last)
 
 	fprint_fcost(fp, currCost, last);
       }
-	   
+
       /* switch buffers */
       currSum = 1 - currSum;
       currCost = &(ccSum[currSum]);
       newCost  = &(ccSum[1-currSum]);
     }
-       
+
     /* add line cost to current cost sum */
     (*CLG_(cachesim).add_icost)(currCost->cost, bbcc, instr_info, ecounter);
 
@@ -870,7 +870,7 @@ static Bool fprint_bbcc(VgFile *fp, BBCC* bbcc, AddrPos* last)
 		(!CLG_(is_zero_cost)( CLG_(sets).full, jcc->cost )))
 	      jcc_count++;
 
-	if (jcc_count>0) {    
+	if (jcc_count>0) {
 	    if (!CLG_(is_zero_cost)( CLG_(sets).full, currCost->cost )) {
 		/* no need to switch buffers, as position is the same */
 		fprint_apos(fp, &(currCost->p), last, bbcc->cxt->fn[0]->file, bbcc);
@@ -897,7 +897,7 @@ static Bool fprint_bbcc(VgFile *fp, BBCC* bbcc, AddrPos* last)
 	    jmp++;
 	}
   }
-  
+
   /* jCCs at end? If yes, dump cumulated line info first */
   jcc_count = 0;
   for(jcc=bbcc->jmp[jmp].jcc_list; jcc; jcc=jcc->next_from) {
@@ -906,7 +906,7 @@ static Bool fprint_bbcc(VgFile *fp, BBCC* bbcc, AddrPos* last)
 	   (!CLG_(is_zero_cost)( CLG_(sets).full, jcc->cost )))
 	  jcc_count++;
   }
-  
+
   if ( (bbcc->skipped &&
 	!CLG_(is_zero_cost)(CLG_(sets).full, bbcc->skipped)) ||
        (jcc_count>0) ) {
@@ -916,11 +916,11 @@ static Bool fprint_bbcc(VgFile *fp, BBCC* bbcc, AddrPos* last)
       fprint_apos(fp, &(currCost->p), last, bbcc->cxt->fn[0]->file, bbcc);
       fprint_fcost(fp, currCost, last);
     }
-    
+
     get_debug_pos(bbcc, bb_jmpaddr(bb), &(currCost->p));
     fprint_apos(fp, &(currCost->p), last, bbcc->cxt->fn[0]->file, bbcc);
     something_written = True;
-    
+
     /* first, print skipped costs for calls */
     if (bbcc->skipped && !CLG_(is_zero_cost)( CLG_(sets).full,
 					     bbcc->skipped )) {
@@ -953,20 +953,20 @@ static Bool fprint_bbcc(VgFile *fp, BBCC* bbcc, AddrPos* last)
       fprint_fcost(fp, currCost, last);
     }
     if (CLG_(clo).dump_bbs) VG_(fprintf)(fp, "\n");
-    
+
     /* when every cost was immediately written, we must have done so,
      * as this function is only called when there's cost in a BBCC
      */
     CLG_ASSERT(something_written);
   }
-  
+
   bbcc->ecounter_sum = 0;
   for(i=0; i<=bbcc->bb->cjmp_count; i++)
     bbcc->jmp[i].ecounter = 0;
   bbcc->ret_counter = 0;
-  
+
   CLG_DEBUG(1, "- fprint_bbcc: JCCs %d\n", jcc_count);
-  
+
   return something_written;
 }
 
@@ -1072,7 +1072,7 @@ static void CLG_(qsort)(BBCC **a, int n, int (*cmp)(BBCC**,BBCC**))
 		    for (pm = a; pm < a+n; pm++) {
 			VG_(printf)("   %3ld BB %#lx, ",
                                     pm - qsort_start + 0L,
-				    bb_addr((*pm)->bb));      
+				    bb_addr((*pm)->bb));
 			CLG_(print_cxt)(9, (*pm)->cxt, (*pm)->rec_index);
 		    }
 		}
@@ -1100,14 +1100,14 @@ static void CLG_(qsort)(BBCC **a, int n, int (*cmp)(BBCC**,BBCC**))
 		while ((pb <= pc) && ((r=cmp(pb, pv)) <= 0)) {
 		    if (r==0) {
 			/* same as pivot, to start */
-			swap(pa,pb); pa++; 
+			swap(pa,pb); pa++;
 		    }
 		    pb ++;
 		}
 		while ((pb <= pc) && ((r=cmp(pc, pv)) >= 0)) {
 		    if (r==0) {
 			/* same as pivot, to end */
-			swap(pc,pd); pd--; 
+			swap(pc,pd); pd--;
 		    }
 		    pc --;
 		}
@@ -1122,7 +1122,7 @@ static void CLG_(qsort)(BBCC **a, int n, int (*cmp)(BBCC**,BBCC**))
 	/* put pivot from start into middle */
 	if ((s = pa-a)>0) { for(r=0;r<s;r++) swap(a+r, pb+1-s+r); }
 	/* put pivot from end into middle */
-	if ((s = a+n-1-pd)>0) { for(r=0;r<s;r++) swap(pc+r, a+n-s+r); }	    
+	if ((s = a+n-1-pd)>0) { for(r=0;r<s;r++) swap(pc+r, a+n-s+r); }
 
 	CLG_DEBUGIF(8) {
 	  VG_(printf)("   PV BB %#lx, ", bb_addr((*pv)->bb));
@@ -1188,18 +1188,18 @@ static void cs_addCount(thread_info* ti)
   /* add BBCCs with active call in call stack of current thread.
    * update cost sums for active calls
    */
-      
+
   for(i = 0; i < CLG_(current_call_stack).sp; i++) {
     call_entry* e = &(CLG_(current_call_stack).entry[i]);
     if (e->jcc == 0) continue;
-    
+
     CLG_(add_diff_cost_lz)( CLG_(sets).full, &(e->jcc->cost),
 			   e->enter_cost, CLG_(current_state).cost);
     bbcc = e->jcc->from;
 
     CLG_DEBUG(1, " [%2d] (tid %u), added active: %s\n",
 	     i,CLG_(current_tid),bbcc->cxt->fn[0]->name);
-    
+
     if (bbcc->ecounter_sum>0 || bbcc->ret_counter>0) {
       /* already counted */
       continue;
@@ -1216,13 +1216,13 @@ static void cs_addPtr(thread_info* ti)
   /* add BBCCs with active call in call stack of current thread.
    * update cost sums for active calls
    */
-      
+
   for(i = 0; i < CLG_(current_call_stack).sp; i++) {
     call_entry* e = &(CLG_(current_call_stack).entry[i]);
     if (e->jcc == 0) continue;
 
     bbcc = e->jcc->from;
-    
+
     if (bbcc->ecounter_sum>0 || bbcc->ret_counter>0) {
       /* already counted */
       continue;
@@ -1236,7 +1236,7 @@ static void cs_addPtr(thread_info* ti)
 
 /**
  * Put all BBCCs with costs into a sorted array.
- * The returned arrays ends with a null pointer. 
+ * The returned arrays ends with a null pointer.
  * Must be freed after dumping.
  */
 static
@@ -1245,7 +1245,7 @@ BBCC** prepare_dump(void)
     BBCC **array;
 
     prepare_count = 0;
-    
+
     /* if we do not separate among threads, this gives all */
     /* count number of BBCCs with >0 executions */
     CLG_(forall_bbccs)(hash_addCount);
@@ -1262,7 +1262,7 @@ BBCC** prepare_dump(void)
     /* allocate bbcc array, insert BBCCs and sort */
     prepare_ptr = array =
       (BBCC**) CLG_MALLOC("cl.dump.pd.1",
-                          (prepare_count+1) * sizeof(BBCC*));    
+                          (prepare_count+1) * sizeof(BBCC*));
 
     CLG_(forall_bbccs)(hash_addPtr);
 
@@ -1300,6 +1300,48 @@ static void fprint_cost_ln(VgFile *fp, const HChar* prefix,
 static ULong bbs_done = 0;
 static HChar* filename = 0;
 
+/* "desc:" lines queued by the client for the next part. Written in every
+ * section of that part, like the spawned children, then dropped. */
+static HChar** part_descs = 0;
+static Int n_part_descs = 0;
+static Int part_descs_capacity = 0;
+
+void CLG_(add_part_desc)(const HChar* desc)
+{
+   HChar* copy;
+   Int i;
+
+   if (n_part_descs == part_descs_capacity) {
+      part_descs_capacity = part_descs_capacity ? part_descs_capacity * 2 : 4;
+      part_descs = VG_(realloc)("cl.dump.rpd.1", part_descs,
+                                part_descs_capacity * sizeof(HChar*));
+   }
+
+   copy = VG_(strdup)("cl.dump.rpd.2", desc);
+   /* a line break would end the desc line and corrupt the header */
+   for (i = 0; copy[i]; i++)
+      if (copy[i] == '\n' || copy[i] == '\r')
+         copy[i] = ' ';
+   part_descs[n_part_descs++] = copy;
+}
+
+static void print_part_descs(VgFile* fp)
+{
+   Int i;
+
+   for (i = 0; i < n_part_descs; i++)
+      VG_(fprintf)(fp, "desc: %s\n", part_descs[i]);
+}
+
+void CLG_(forget_part_descs)(void)
+{
+   Int i;
+
+   for (i = 0; i < n_part_descs; i++)
+      VG_(free)(part_descs[i]);
+   n_part_descs = 0;
+}
+
 static
 void file_err(void)
 {
@@ -1334,7 +1376,7 @@ static VgFile *new_dumpfile(thread_info* ti, const HChar* trigger)
 
     if (!CLG_(clo).combine_dumps) {
 	i = VG_(sprintf)(filename, "%s", out_file);
-    
+
 	if (trigger)
 	    i += VG_(sprintf)(filename+i, ".%d", out_counter);
 
@@ -1390,6 +1432,7 @@ static VgFile *new_dumpfile(thread_info* ti, const HChar* trigger)
     /* Per-part, not in the once-per-file header, so a child spawned during a
      * later part is still recorded. */
     CLG_(print_spawned_children)(fp);
+    print_part_descs(fp);
 
     if (CLG_(clo).separate_threads) {
 	const HChar* tname = CLG_(thread_name)(ti);
@@ -1441,7 +1484,7 @@ static VgFile *new_dumpfile(thread_info* ti, const HChar* trigger)
 	   if (fnc->dump_at_enter) {
 	       VG_(fprintf)(fp, "desc: Option: --fn-dump-at-enter=%s\n",
 			    fnc->name);
-	   }   
+	   }
 	   if (fnc->dump_at_leave) {
 	       VG_(fprintf)(fp, "desc: Option: --fn-dump-at-leave=%s\n",
 			    fnc->name);
@@ -1449,11 +1492,11 @@ static VgFile *new_dumpfile(thread_info* ti, const HChar* trigger)
 	   if (fnc->separate_callers != CLG_(clo).separate_callers) {
 	       VG_(fprintf)(fp, "desc: Option: --separate-callers%d=%s\n",
 			    fnc->separate_callers, fnc->name);
-	   }   
+	   }
 	   if (fnc->separate_recursions != CLG_(clo).separate_recursions) {
 	       VG_(fprintf)(fp, "desc: Option: --separate-recs%d=%s\n",
 			    fnc->separate_recursions, fnc->name);
-	   }   
+	   }
 	   fnc = fnc->next;
        }
    }
@@ -1532,7 +1575,7 @@ static void close_dumpfile(VgFile *fp)
     fprint_cost_ln(fp, "totals: ", CLG_(dumpmap),
 		   dump_total_cost);
     //fprint_fcc_ln(fp, "summary: ", &dump_total_fcc);
-    CLG_(add_cost_lz)(CLG_(sets).full, 
+    CLG_(add_cost_lz)(CLG_(sets).full,
 		     &CLG_(total_cost), dump_total_cost);
 
     VG_(fclose)(fp);
@@ -1606,7 +1649,7 @@ static void print_bbccs_of_thread(thread_info* ti)
   while(1) {
 
     /* on context/function change, print old cost buffer before */
-    if (lastFnPos.cxt && ((*p==0) ||				 
+    if (lastFnPos.cxt && ((*p==0) ||
 			 (lastFnPos.cxt != (*p)->cxt) ||
 			 (lastFnPos.rec_index != (*p)->rec_index))) {
       if (!CLG_(is_zero_cost)( CLG_(sets).full, ccSum[currSum].cost )) {
@@ -1615,18 +1658,18 @@ static void print_bbccs_of_thread(thread_info* ti)
 		    lastFnPos.cxt->fn[0]->file, 0);
 	fprint_fcost(print_fp, &ccSum[currSum], &lastAPos);
       }
-      
+
       if (ccSum[currSum].p.file != lastFnPos.cxt->fn[0]->file) {
 	/* switch back to file of function */
 	print_file(print_fp, "fe=", lastFnPos.cxt->fn[0]->file);
       }
       VG_(fprintf)(print_fp, "\n");
     }
-    
+
     if (*p == 0) break;
-    
+
     if (print_fn_pos(print_fp, &lastFnPos, *p)) {
-      
+
       /* new function */
       init_apos(&lastAPos, 0, 0, (*p)->cxt->fn[0]->file);
       init_fcost(&ccSum[0], 0, 0, 0);
@@ -1634,31 +1677,31 @@ static void print_bbccs_of_thread(thread_info* ti)
       currSum = 0;
       last_inline_fn = 0;  /* reset inline function tracking */
     }
-    
+
     if (CLG_(clo).dump_bbs) {
 	/* FIXME: Specify Object of BB if different to object of fn */
         int i;
 	ULong ecounter = (*p)->ecounter_sum;
         VG_(fprintf)(print_fp, "bb=%#lx ", (UWord)(*p)->bb->offset);
 	for(i = 0; i<(*p)->bb->cjmp_count;i++) {
-	    VG_(fprintf)(print_fp, "%u %llu ", 
+	    VG_(fprintf)(print_fp, "%u %llu ",
 				(*p)->bb->jmp[i].instr,
 				ecounter);
 	    ecounter -= (*p)->jmp[i].ecounter;
 	}
-	VG_(fprintf)(print_fp, "%u %llu\n", 
+	VG_(fprintf)(print_fp, "%u %llu\n",
 		     (*p)->bb->instr_count,
 		     ecounter);
     }
-    
+
     fprint_bbcc(print_fp, *p, &lastAPos);
-    
+
     p++;
   }
 
   close_dumpfile(print_fp);
   VG_(free)(array);
-  
+
   /* set counters of last dump */
   CLG_(copy_cost)( CLG_(sets).full, ti->lastdump_cost,
 		  CLG_(current_state).cost );
@@ -1709,6 +1752,7 @@ static void print_bbccs(const HChar* trigger, Bool only_current_thread)
   /* All of these have just been emitted under the part being dumped; a later
    * part cannot reference them. */
   CLG_(forget_spawned_children)();
+  CLG_(forget_part_descs)();
 
   free_dump_array();
 }
@@ -1814,7 +1858,7 @@ void CLG_(init_dumps)(void)
        return;
    }
    thisPID = currentPID;
-   
+
    if (!CLG_(clo).out_format)
      CLG_(clo).out_format = DEFAULT_OUTFORMAT;
 
@@ -1832,20 +1876,20 @@ void CLG_(init_dumps)(void)
    /* allocate space big enough for final filenames */
    filename = (HChar*) CLG_MALLOC("cl.dump.init_dumps.2",
                                  VG_(strlen)(out_file)+32);
-       
+
    /* Make sure the output base file can be written.
     * This is used for the dump at program termination.
     * We stop with an error here if we can not create the
     * file: This is probably because of missing rights,
     * and trace parts wouldn't be allowed to be written, too.
-    */ 
+    */
     VG_(strcpy)(filename, out_file);
     res = VG_(open)(filename, VKI_O_WRONLY|VKI_O_TRUNC, 0);
-    if (sr_isError(res)) { 
+    if (sr_isError(res)) {
 	res = VG_(open)(filename, VKI_O_CREAT|VKI_O_WRONLY,
 		       VKI_S_IRUSR|VKI_S_IWUSR);
 	if (sr_isError(res)) {
-	    file_err(); 
+	    file_err();
 	}
     }
     if (!sr_isError(res)) VG_(close)( (Int)sr_Res(res) );

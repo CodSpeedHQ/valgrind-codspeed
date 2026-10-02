@@ -706,8 +706,8 @@ void addEvent_D_guarded ( ClgState* clgs, InstrInfo* inode,
                                 ea, mkIRExpr_HWord( datasize ) );
    regparms    = 3;
    di          = unsafeIRDirty_0_N(
-                    regparms, 
-                    helperName, VG_(fnptr_to_fnentry)( helperAddr ), 
+                    regparms,
+                    helperName, VG_(fnptr_to_fnentry)( helperAddr ),
                     argv );
    di->guard = guard;
    addStmtToIRSB( clgs->sbOut, IRStmt_Dirty(di) );
@@ -914,7 +914,7 @@ void addConstMemStoreStmt( IRSB* bbOut, UWord addr, UInt val, IRType hWordTy)
 					     IRConst_U32( addr ) :
 					     IRConst_U64( addr )),
 				IRExpr_Const(IRConst_U32(val)) ));
-}   
+}
 
 
 /* add helper call to setup_bbcc, with pointer to BB struct as argument
@@ -999,7 +999,7 @@ IRSB* CLG_(instrument)( VgCallbackClosure* closure,
    CLG_ASSERT(Ist_IMark == st->tag);
 
    origAddr = st->Ist.IMark.addr + st->Ist.IMark.delta;
-   CLG_ASSERT(origAddr == st->Ist.IMark.addr 
+   CLG_ASSERT(origAddr == st->Ist.IMark.addr
                           + st->Ist.IMark.delta);  // XXX: check no overflow
 
    /* Get BB struct (creating if necessary).
@@ -1424,7 +1424,7 @@ static void zero_thread_cost(thread_info* t)
     if (!CLG_(current_call_stack).entry[i].jcc) continue;
 
     /* reset call counters to current for active calls */
-    CLG_(copy_cost)( CLG_(sets).full, 
+    CLG_(copy_cost)( CLG_(sets).full,
 		    CLG_(current_call_stack).entry[i].enter_cost,
 		    CLG_(current_state).cost );
     CLG_(current_call_stack).entry[i].jcc->call_counter = 0;
@@ -1433,7 +1433,7 @@ static void zero_thread_cost(thread_info* t)
   CLG_(forall_bbccs)(CLG_(zero_bbcc));
 
   /* set counter for last dump */
-  CLG_(copy_cost)( CLG_(sets).full, 
+  CLG_(copy_cost)( CLG_(sets).full,
 		  t->lastdump_cost, CLG_(current_state).cost );
 }
 
@@ -1525,18 +1525,18 @@ static void dump_state_of_thread_togdb(thread_info* ti)
       ce = CLG_(get_call_entry)(i);
       /* if this frame is skipped, we don't have counters */
       if (!ce->jcc) continue;
-      
+
       from = ce->jcc->from;
       VG_(gdb_printf)("function-%d-%d: %s\n",t, i, from->cxt->fn[0]->name);
       VG_(gdb_printf)("calls-%d-%d: %llu\n",t, i, ce->jcc->call_counter);
-      
+
       /* FIXME: EventSets! */
       CLG_(copy_cost)( CLG_(sets).full, sum, ce->jcc->cost );
       CLG_(copy_cost)( CLG_(sets).full, tmp, ce->enter_cost );
       CLG_(add_diff_cost)( CLG_(sets).full, sum,
 			  ce->enter_cost, CLG_(current_state).cost );
       CLG_(copy_cost)( CLG_(sets).full, ce->enter_cost, tmp );
-      
+
       mcost = CLG_(mappingcost_as_string)(CLG_(dumpmap), sum);
       VG_(gdb_printf)("events-%d-%d: %s\n",t, i, mcost);
       VG_(free)(mcost);
@@ -1571,7 +1571,7 @@ static void dump_state_togdb(void)
     VG_(free)(evmap);
     /* "part:" line (number of last part. Is 0 at start */
     VG_(gdb_printf)("part: %d\n", CLG_(get_dump_counter)());
-		
+
     /* threads */
     th = CLG_(get_threads)();
     VG_(gdb_printf)("threads:");
@@ -1584,7 +1584,7 @@ static void dump_state_togdb(void)
     CLG_(forall_threads)(dump_state_of_thread_togdb);
 }
 
-  
+
 static void print_monitor_help ( void )
 {
    VG_(gdb_printf) ("\n");
@@ -1610,7 +1610,7 @@ static Bool handle_gdb_monitor_command (ThreadId tid, const HChar *req)
    VG_(strcpy) (s, req);
 
    wcmd = VG_(strtok_r) (s, " ", &ssaveptr);
-   switch (VG_(keyword_id) ("help dump zero status instrumentation", 
+   switch (VG_(keyword_id) ("help dump zero status instrumentation",
                             wcmd, kwd_report_duplicated_matches)) {
    case -2: /* multiple matches */
       return True;
@@ -1660,7 +1660,7 @@ static Bool handle_gdb_monitor_command (ThreadId tid, const HChar *req)
      return True;
    }
 
-   default: 
+   default:
       tl_assert(0);
       return False;
    }
@@ -1674,7 +1674,7 @@ Bool CLG_(handle_client_request)(ThreadId tid, UWord *args, UWord *ret)
       return False;
 
    switch(args[0]) {
-   case VG_USERREQ__DUMP_STATS:     
+   case VG_USERREQ__DUMP_STATS:
       CLG_(dump_profile)("Client Request", True);
       *ret = 0;                 /* meaningless */
       break;
@@ -1721,6 +1721,11 @@ Bool CLG_(handle_client_request)(ThreadId tid, UWord *args, UWord *ret)
      *ret = 0;
      break;
    }
+
+   case VG_USERREQ__REGISTER_DESC:
+     CLG_(add_part_desc)((const HChar*)args[1]);
+     *ret = 0;
+     break;
 
    case VG_USERREQ__GDB_MONITOR_COMMAND: {
       Bool handled = handle_gdb_monitor_command (tid, (HChar*)args[1]);
@@ -2015,7 +2020,7 @@ void finish(void)
   CLG_(dump_profile)(0, False);
 
   if (VG_(clo_verbosity) == 0) return;
-  
+
   if (VG_(clo_stats)) {
     VG_(message)(Vg_DebugMsg, "\n");
     clg_print_stats();
@@ -2105,7 +2110,7 @@ void CLG_(post_clo_init)(void)
       CLG_DEBUG(1, " Using user specified value for "
                 "--vex-iropt-register-updates\n");
    } else {
-      CLG_DEBUG(1, 
+      CLG_DEBUG(1,
                 " Using default --vex-iropt-register-updates="
                 "sp-at-mem-access\n");
    }
@@ -2135,13 +2140,13 @@ void CLG_(post_clo_init)(void)
       CLG_DEBUG(1, " Using user specified value for "
                 "--px-file-backed\n");
    } else {
-      CLG_DEBUG(1, 
+      CLG_DEBUG(1,
                 " Using default --px-file-backed="
                 "sp-at-mem-access\n");
    }
 
    if (VG_(clo_vex_control).iropt_unroll_thresh != 0) {
-      VG_(message)(Vg_UserMsg, 
+      VG_(message)(Vg_UserMsg,
                    "callgrind only works with --vex-iropt-unroll-thresh=0\n"
                    "=> resetting it back to 0\n");
       VG_(clo_vex_control).iropt_unroll_thresh = 0;   // cannot be overridden.
@@ -2152,7 +2157,7 @@ void CLG_(post_clo_init)(void)
                    "=> resetting it back to 'no'\n");
       VG_(clo_vex_control).guest_chase = False; // cannot be overridden.
    }
-   
+
    CLG_DEBUG(1, "  dump threads: %s\n", CLG_(clo).separate_threads ? "Yes":"No");
    CLG_DEBUG(1, "  call sep. : %d\n", CLG_(clo).separate_callers);
    CLG_DEBUG(1, "  rec. sep. : %d\n", CLG_(clo).separate_recursions);

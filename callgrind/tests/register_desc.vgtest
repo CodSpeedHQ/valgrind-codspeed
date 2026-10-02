@@ -1,0 +1,4 @@
+prog: register_desc
+vgopts: --combine-dumps=yes --callgrind-out-file=callgrind.out.register_desc.%p
+post: sh -c 'for f in callgrind.out.register_desc.*; do if grep -q "^desc: Trigger: Client Request: child" "$f"; then c=$f; else p=$f; fi; done; for f in "$p" "$c"; do grep -E "^(part:|desc: (Benchmark|Other|Pending|Trigger))" "$f"; echo ---; done'
+cleanup: rm -f callgrind.out.register_desc.*
