@@ -62,10 +62,16 @@ AC_SUBST([CAPSTONE_LIBS])
 # Default to --enable-only64bit unless --enable-only64bit or --enable-only32bit
 # was given either way: see the secondary platform check in CODSPEED_CAPSTONE.
 #
-# Must be called before Valgrind's AC_ARG_ENABLE(only64bit).
+# This sets the cache variable rather than enable_only64bit, so that a
+# vg_cv_only64bit=no left in config.cache by an earlier bi-arch run does not
+# skip the default. A cached 32-bit only choice has no secondary platform
+# either, so it is kept.
+#
+# Must be called before Valgrind's AC_CACHE_CHECK for vg_cv_only64bit.
 AC_DEFUN([CODSPEED_ONLY64BIT_DEFAULT], [
-if test -z "${enable_only64bit+set}" -a -z "${enable_only32bit+set}"; then
-   enable_only64bit=yes
+if test -z "${enable_only64bit+set}" -a -z "${enable_only32bit+set}" \
+        -a "x$vg_cv_only32bit" != xyes; then
+   vg_cv_only64bit=yes
 fi
 ])
 
