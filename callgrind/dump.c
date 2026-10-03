@@ -361,6 +361,25 @@ static int        debug_cache_line[DEBUG_CACHE_SIZE];
 static Bool       debug_cache_info[DEBUG_CACHE_SIZE];
 static const HChar* debug_cache_inlfn[DEBUG_CACHE_SIZE];
 
+/* One-entry memo for the last file_node looked up by get_debug_pos().
+ *
+ * The cache above is keyed by instruction address, so it never hits while a
+ * dump walks the (all distinct) addresses of a basic block. Every one of
+ * those misses ends in CLG_(get_file_node), which rebuilds the absolute
+ * source path on the stack and hashes it character by character - even
+ * though consecutive addresses nearly always belong to the same source file.
+ *
+ * The (dir, file) strings come from the debug info and are interned per
+ * DebugInfo, so the same source file always yields the same pointers and
+ * comparing pointers is enough. The memo is only used within one dump: no
+ * guest code runs while dumping, so no debug info can be loaded or discarded
+ * in between, and init_debug_cache() resets it at the start of every dump.
+ */
+static obj_node*    debug_last_obj;
+static const HChar* debug_last_dir;
+static const HChar* debug_last_file;
+static file_node*   debug_last_node;
+
 static __inline__
 void init_debug_cache(void)
 {
@@ -372,6 +391,10 @@ void init_debug_cache(void)
 	debug_cache_info[i] = 0;
 	debug_cache_inlfn[i] = 0;
     }
+    debug_last_obj  = 0;
+    debug_last_dir  = 0;
+    debug_last_file = 0;
+    debug_last_node = 0;
 }
 
 static /* __inline__ */
@@ -397,7 +420,21 @@ Bool get_debug_pos(BBCC* bbcc, Addr addr, AddrPos* p)
             file = "???";
 	    p->line = 0;
 	}
-	p->file    = CLG_(get_file_node)(bbcc->bb->obj, dir, file);
+	/* Same source file as the previous lookup? Then reuse its node
+	 * instead of rebuilding and rehashing the absolute path. */
+	if ((bbcc->bb->obj == debug_last_obj) &&
+	    (dir  == debug_last_dir) &&
+	    (file == debug_last_file)) {
+	    p->file = debug_last_node;
+	}
+	else {
+	    p->file = CLG_(get_file_node)(bbcc->bb->obj, dir, file);
+
+	    debug_last_obj  = bbcc->bb->obj;
+	    debug_last_dir  = dir;
+	    debug_last_file = file;
+	    debug_last_node = p->file;
+	}
 
 	debug_cache_info[cachepos] = found_file_line;
 	debug_cache_addr[cachepos] = addr;
