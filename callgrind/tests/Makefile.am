@@ -10,6 +10,9 @@ EXTRA_DIST = \
 	ann1.post.exp ann1.stderr.exp ann1.vgtest \
 	ann2.post.exp ann2.stderr.exp ann2.vgtest \
 	clreq.vgtest clreq.stderr.exp \
+	register_desc.vgtest register_desc.stderr.exp register_desc.post.exp \
+	register_desc_threads.vgtest register_desc_threads.stderr.exp \
+	register_desc_threads.post.exp \
 	find_debuginfo.vgtest find_debuginfo.stderr.exp find_debuginfo.post.exp \
 	runtime_obj_skip_py.vgtest runtime_obj_skip_py.stderr.exp runtime_obj_skip_py.post.exp \
 	runtime_obj_skip_py.py runtime_obj_skip_py_shim.c \
@@ -35,7 +38,7 @@ EXTRA_DIST = \
 	inline-crossfile.vgtest inline-crossfile.stderr.exp inline-crossfile.stdout.exp inline-crossfile.post.exp \
 	inline-crossfile-helper1.h inline-crossfile-helper2.h filter_inline
 
-check_PROGRAMS = clreq find_debuginfo simwork threads inline-samefile inline-crossfile runtime_obj_skip_c runtime_obj_skip_underflow
+check_PROGRAMS = clreq register_desc register_desc_threads find_debuginfo simwork threads inline-samefile inline-crossfile runtime_obj_skip_c runtime_obj_skip_underflow
 
 AM_CFLAGS   += $(AM_FLAG_M3264_PRI)
 AM_CXXFLAGS += $(AM_FLAG_M3264_PRI)
@@ -45,6 +48,7 @@ inline_samefile_CFLAGS = $(AM_CFLAGS) -O2 -g
 inline_crossfile_CFLAGS = $(AM_CFLAGS) -O2 -g
 
 threads_LDADD = -lpthread
+register_desc_threads_LDADD = -lpthread
 
 # Shim loaded by runtime_obj_skip_py.py via ctypes. Built unconditionally;
 # the test's prereq skips it if the .so is missing.

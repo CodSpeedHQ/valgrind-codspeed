@@ -158,6 +158,8 @@
 /callgrind/tests/callgrind.out.*
 /callgrind/tests/vgcore.*
 /callgrind/tests/clreq
+/callgrind/tests/register_desc
+/callgrind/tests/register_desc_threads
 /callgrind/tests/simwork
 /callgrind/tests/threads
 /callgrind/tests/inline-samefile

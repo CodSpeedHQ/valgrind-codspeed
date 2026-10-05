@@ -139,6 +139,8 @@ static void clg_atfork_child(ThreadId tid)
    /* the inherited edges are the parent's; this process only reports the
     * children it spawns itself */
    CLG_(forget_spawned_children)();
+   /* likewise for desc lines the parent queued for its own next part */
+   CLG_(forget_part_descs)();
 
    /* the state file of the parent's PID belongs to the parent; advertise the
     * inherited in-memory state under our own PID */

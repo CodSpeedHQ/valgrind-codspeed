@@ -104,10 +104,10 @@ struct _CommandLineOptions {
   Bool dump_instr;
   Bool dump_bb;
   Bool dump_bbs;         /* Dump basic block information? */
-  
+
   /* Dump generation options */
   ULong dump_every_bb;     /* Dump every xxx BBs. */
-  
+
   /* Collection options */
   Bool separate_threads; /* Separate threads in dump? */
   Int  separate_callers; /* Separate dependent on how many callers? */
@@ -162,7 +162,7 @@ struct _Statistics {
   ULong bb_executions;
 
   Int  context_counter;
-  Int  bb_retranslations;  
+  Int  bb_retranslations;
 
   Int  distinct_objs;
   Int  distinct_files;
@@ -262,7 +262,7 @@ struct _jCC {
 };
 
 
-/* 
+/*
  * Info for one instruction of a basic block.
  */
 typedef struct _InstrInfo InstrInfo;
@@ -316,12 +316,12 @@ struct _BB {
 
   VgSectKind sect_kind;  /* section of this BB, e.g. PLT */
   UInt       instr_count;
-  
+
   /* filled by CLG_(get_fn_node) if debug info is available */
   fn_node*   fn;          /* debug info for this BB */
   UInt       line;
   Bool       is_entry;    /* True if this BB is a function entry */
-        
+
   BBCC*      bbcc_list;  /* BBCCs for same BB (see next_bbcc in BBCC) */
   BBCC*      last_bbcc;  /* Temporary: Cached for faster access (LRU) */
 
@@ -395,19 +395,19 @@ struct _BBCC {
                             * across recycled valgrind ThreadId slots.
                             * Only for lookup/assertion purposes. */
     UInt     rec_index;    /* Recursion index in rec->bbcc for this bbcc */
-    BBCC**   rec_array;    /* Variable sized array of pointers to 
+    BBCC**   rec_array;    /* Variable sized array of pointers to
 			    * recursion BBCCs. Shared. */
     ULong    ret_counter;  /* how often returned from jccs of this bbcc;
 			    * used to check if a dump for this BBCC is needed */
-    
+
     BBCC*    next_bbcc;    /* Chain of BBCCs for same BB */
     BBCC*    lru_next_bbcc; /* BBCC executed next the last time */
-    
+
     jCC*     lru_from_jcc; /* Temporary: Cached for faster access (LRU) */
     jCC*     lru_to_jcc;   /* Temporary: Cached for faster access (LRU) */
-    FullCost skipped;      /* cost for skipped functions called from 
+    FullCost skipped;      /* cost for skipped functions called from
 			    * jmp_addr. Allocated lazy */
-    
+
     BBCC*    next;         /* entry chain in hash */
     ULong*   cost;         /* start of 64bit costs for this BBCC */
     ULong    ecounter_sum; /* execution counter for first instruction of BB */
@@ -482,7 +482,7 @@ struct _obj_node {
  *
  * <nonskipped> is 0 if the function called is not skipped (usual case).
  * Otherwise, it is the last non-skipped BBCC. This one gets all
- * the calls to non-skipped functions and all costs in skipped 
+ * the calls to non-skipped functions and all costs in skipped
  * instructions.
  */
 struct _call_entry {
@@ -514,14 +514,14 @@ struct _exec_state {
   /* the signum of the handler, 0 for main thread context
    */
   Int sig;
-  
+
   /* the old call stack pointer at entering the signal handler */
   Int orig_sp;
-  
+
   FullCost cost;
   Bool     collect;
   Context* cxt;
-  
+
   /* number of conditional jumps passed in last BB */
   Int   jmps_passed;
   BBCC* bbcc;      /* last BB executed */
@@ -541,7 +541,7 @@ typedef struct _cxt_hash cxt_hash;
 struct _cxt_hash {
   UInt size, entries;
   Context** table;
-};  
+};
 
 /* Thread specific state structures, i.e. parts of a thread state.
  * There are variables for the current state of each part,
@@ -590,7 +590,7 @@ struct _exec_stack {
   exec_state* entry[MAX_SIGHANDLERS];
 };
 
-/* Thread State 
+/* Thread State
  *
  * This structure stores thread specific info while a thread is *not*
  * running. See function switch_thread() for save/restore on thread switch.
@@ -676,7 +676,7 @@ struct cachesim_if
     void (*printstat)(Int,Int,Int);
     void (*add_icost)(SimCost, BBCC*, InstrInfo*, ULong);
     void (*finish)(void);
-    
+
     void (*log_1I0D)(InstrInfo*) VG_REGPARM(1);
     void (*log_2I0D)(InstrInfo*, InstrInfo*) VG_REGPARM(2);
     void (*log_3I0D)(InstrInfo*, InstrInfo*, InstrInfo*) VG_REGPARM(3);
@@ -837,6 +837,9 @@ void CLG_(run_post_signal_on_call_stack_bottom)(void);
 
 /* from dump.c */
 void CLG_(init_dumps)(void);
+/* Queue a "desc:" line for the header of the next dumped part. */
+void CLG_(add_part_desc)(const HChar* desc);
+void CLG_(forget_part_descs)(void);
 
 /* from subprocess.c */
 void CLG_(init_subprocess)(void);
