@@ -1,0 +1,4 @@
+
+Warning: Can't execute setuid/setgid/setcap executable: ./capped_true
+Possible workaround: remove --trace-children=yes, if in effect
+

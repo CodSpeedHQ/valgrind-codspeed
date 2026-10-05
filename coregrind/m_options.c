@@ -123,6 +123,7 @@ const HChar* VG_(clo_soname_synonyms)    = NULL;
 Bool   VG_(clo_trace_children) = False;
 const HChar* VG_(clo_trace_children_skip) = NULL;
 const HChar* VG_(clo_trace_children_skip_by_arg) = NULL;
+const HChar* VG_(clo_allow_file_caps) = NULL;
 Bool   VG_(clo_child_silent_after_fork) = False;
 const HChar *VG_(clo_log_fname_unexpanded) = NULL;
 const HChar *VG_(clo_xml_fname_unexpanded) = NULL;
@@ -422,6 +423,30 @@ static HChar const* consume_field ( HChar const* c ) {
       ++c;
    }
    return c;
+}
+
+Bool VG_(should_we_allow_file_caps) ( const HChar* exe_name )
+{
+   HChar const* last = VG_(clo_allow_file_caps);
+
+   if (last == NULL || exe_name == NULL)
+      return False;
+
+   while (*last) {
+      Bool   matches;
+      HChar* patt;
+      HChar const* first = consume_commas(last);
+      last = consume_field(first);
+      if (first == last)
+         break;
+      patt = VG_(calloc)("m_options.swafc.1", last - first + 1, 1);
+      VG_(memcpy)(patt, first, last - first);
+      matches = VG_(string_match)(patt, exe_name);
+      VG_(free)(patt);
+      if (matches)
+         return True;
+   }
+   return False;
 }
 
 /* Should we trace into this child executable (across execve, spawn etc) ?

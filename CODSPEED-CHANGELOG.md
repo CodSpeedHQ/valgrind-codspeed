@@ -95,6 +95,23 @@ cfni=???                ← Leaving inlined function
 cfn=printf
 ```
 
+### Run executables with file capabilities: `--allow-file-caps`
+
+**Feature**: Added `--allow-file-caps=patt1,patt2,...` to run executables that carry file capabilities, which Valgrind otherwise refuses.
+
+**Motivation**: Valgrind loads the client executable itself, so the kernel never grants it its file capabilities, and Valgrind refuses to run such executables (`Permission denied`, exit code 126) rather than run them without the capabilities they expect. Some executables carry capabilities that only part of their code needs, and run fine without them.
+
+**How it works**:
+- An executable whose name matches one of the patterns is run although it carries file capabilities. It runs without them.
+- Patterns use the same syntax as `--trace-children-skip`: comma-separated, with `?` and `*` wildcards.
+- The option applies to the client executable and to traced children.
+- Setuid and setgid executables are still refused.
+
+**Usage**:
+```bash
+valgrind --tool=callgrind --trace-children=yes --allow-file-caps=/usr/local/bin/my-tool ./your_program
+```
+
 ### Callgrind: Object-Level Function Skipping
 
 **Feature**: Added `--obj-skip=<object>` command-line option to exclude entire objects (shared libraries or executables) from profiling.

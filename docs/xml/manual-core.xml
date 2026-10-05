@@ -774,6 +774,25 @@ in most cases.  We group the available options by rough categories.</para>
     </listitem>
   </varlistentry>
 
+  <varlistentry id="opt.allow-file-caps" xreflabel="--allow-file-caps">
+    <term>
+      <option><![CDATA[--allow-file-caps=patt1,patt2,... ]]></option>
+    </term>
+    <listitem>
+      <para>Valgrind refuses to run an executable that carries file
+        capabilities (set with <computeroutput>setcap</computeroutput>),
+        as it does for setuid and setgid ones: Valgrind loads the
+        executable itself, so the kernel never grants it those
+        capabilities.  This option takes a comma separated list of
+        patterns for the names of executables that should be run
+        anyway, without their capabilities.  Patterns may include the
+        metacharacters <computeroutput>?</computeroutput>
+        and <computeroutput>*</computeroutput>, which have the usual
+        meaning.  Setuid and setgid executables are still
+        refused.</para>
+    </listitem>
+  </varlistentry>
+
   <varlistentry id="opt.child-silent-after-fork"
                 xreflabel="--child-silent-after-fork">
     <term>
