@@ -28,7 +28,10 @@
 
 #define N_INITIAL_FN_ARRAY_SIZE 10071
 
-static fn_array current_fn_active;
+/* The active function array. Defined here but declared in global.h so the
+ * hot-path accessor CLG_(get_fn_entry) can be inlined. */
+fn_array CLG_(current_fn_active);
+#define current_fn_active CLG_(current_fn_active)
 
 /* x86_64 defines 4 variants.  */
 #define MAX_RESOLVE_ADDRS 4
@@ -782,12 +785,6 @@ fn_node* CLG_(get_fn_node)(BB* bb)
  * in the current call stack, and is used when costs for recursion
  * levels should be separated.
  */
-
-UInt* CLG_(get_fn_entry)(Int n)
-{
-  CLG_ASSERT(n < current_fn_active.size);
-  return current_fn_active.array + n;
-}
 
 void CLG_(init_fn_array)(fn_array* a)
 {
