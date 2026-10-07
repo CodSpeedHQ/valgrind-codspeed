@@ -1,0 +1,14 @@
+#! /bin/sh
+
+# Creates capped_true, a copy of tests/true carrying a file capability.
+# Without root or passwordless sudo, an unprivileged user namespace can
+# set it on a file we own. Exits 1, so the test is skipped, when none of
+# them can.
+
+dir=`dirname $0`
+cp "$dir/../../tests/true" capped_true || exit 1
+
+setcap cap_net_raw+ep capped_true 2>/dev/null ||
+  sudo -n setcap cap_net_raw+ep capped_true 2>/dev/null ||
+  unshare -Ur setcap cap_net_raw+ep capped_true 2>/dev/null ||
+  { rm -f capped_true; exit 1; }

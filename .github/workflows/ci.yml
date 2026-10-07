@@ -48,6 +48,7 @@ jobs:
             automake \
             autoconf \
             libc6-dev \
+            libcap2-bin \
             gdb \
             docbook \
             docbook-xsl \

@@ -19,6 +19,9 @@ usage: valgrind [options] prog-and-args
     --trace-children-skip-by-arg=patt1,patt2,...   same as --trace-children-skip=
                               but check the argv[] entries for children, rather
                               than the exe name, to make a follow/no-follow decision
+    --allow-file-caps=patt1,patt2,...   specifies a list of executables
+                              to run despite their file capabilities, which
+                              they do not get under Valgrind
     --child-silent-after-fork=no|yes omit child output between fork & exec? [no]
     --vgdb=no|yes|full        activate gdbserver? [yes]
                               full is slower but provides precise watchpoint/step

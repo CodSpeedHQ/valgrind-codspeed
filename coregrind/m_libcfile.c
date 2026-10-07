@@ -38,6 +38,7 @@
 #include "pub_core_libcproc.h"      // VG_(getpid), VG_(getppid)
 #include "pub_core_clientstate.h"   // VG_(fd_hard_limit)
 #include "pub_core_mallocfree.h"    // VG_(realloc)
+#include "pub_core_options.h"       // VG_(should_we_allow_file_caps)
 #include "pub_core_syscall.h"
 
 /* IMPORTANT: on Darwin it is essential to use the _nocancel versions
@@ -1068,7 +1069,9 @@ Int VG_(access) ( const HChar* path, Bool irusr, Bool iwusr, Bool ixusr )
    thinks it does).  However, the caller may indicate that setuid
    executables are allowed, for example if we are going to exec them
    but not trace into them (iow, client sys_execve when
-   clo_trace_children == False).
+   clo_trace_children == False).  Executables carrying file
+   capabilities are also run when they match --allow-file-caps=; they
+   then run without those capabilities.
 
    If VKI_EACCES is returned (iow, permission was refused), then
    *is_setuid is set to True iff permission was refused because the
@@ -1099,7 +1102,8 @@ Int VG_(check_executable)(/*OUT*/Bool* is_setuid,
    }
 
    res = VG_(getxattr)(f, "security.capability", (Addr)0, 0);
-   if (!sr_isError(res) && !allow_setuid) {
+   if (!sr_isError(res) && !allow_setuid
+       && !VG_(should_we_allow_file_caps)(f)) {
       if (is_setuid)
          *is_setuid = True;
       return VKI_EACCES;

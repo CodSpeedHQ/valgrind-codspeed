@@ -1,0 +1,5 @@
+prereq: ./make_capped_true
+prog-asis: /bin/sh
+args: -c './capped_true 2>/dev/null; echo exit=$?'
+vgopts: -q --trace-children=yes --allow-file-caps=*/other --callgrind-out-file=callgrind.out.allow_file_caps_refused.%p
+cleanup: rm -f capped_true callgrind.out.allow_file_caps_refused.*

@@ -124,6 +124,10 @@ extern const HChar* VG_(clo_trace_children_skip);
    tested against the arguments for child processes, rather than the
    executable name. */
 extern const HChar* VG_(clo_trace_children_skip_by_arg);
+/* String containing comma-separated patterns for executable names
+   that may be run although they carry file capabilities.  They run
+   without those capabilities, since Valgrind loads them itself. */
+extern const HChar* VG_(clo_allow_file_caps);
 /* After a fork, the child's output can become confusingly
    intermingled with the parent's output.  This is especially
    problematic when VG_(clo_xml) is True.  Setting
@@ -392,6 +396,9 @@ extern Bool VG_(clo_dsymutil);
 
 /* Outputs the list of dynamically changeable options. */
 extern void VG_(list_dynamic_options) (void);
+
+/* Does the executable name match a pattern of --allow-file-caps= ? */
+extern Bool VG_(should_we_allow_file_caps) ( const HChar* exe_name );
 
 /* Should we trace into this child executable (across execve etc) ?
    This involves considering --trace-children=,

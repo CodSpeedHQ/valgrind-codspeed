@@ -4,7 +4,7 @@ include $(top_srcdir)/Makefile.tool-tests.am
 SUBDIRS = .
 DIST_SUBDIRS = .
 
-dist_noinst_SCRIPTS = filter_stderr filter_inline
+dist_noinst_SCRIPTS = filter_stderr filter_inline make_capped_true
 
 EXTRA_DIST = \
 	ann1.post.exp ann1.stderr.exp ann1.vgtest \
@@ -13,6 +13,10 @@ EXTRA_DIST = \
 	register_desc.vgtest register_desc.stderr.exp register_desc.post.exp \
 	register_desc_threads.vgtest register_desc_threads.stderr.exp \
 	register_desc_threads.post.exp \
+	allow_file_caps.vgtest allow_file_caps.stderr.exp \
+	allow_file_caps.stdout.exp \
+	allow_file_caps_refused.vgtest allow_file_caps_refused.stderr.exp \
+	allow_file_caps_refused.stdout.exp \
 	find_debuginfo.vgtest find_debuginfo.stderr.exp find_debuginfo.post.exp \
 	runtime_obj_skip_py.vgtest runtime_obj_skip_py.stderr.exp runtime_obj_skip_py.post.exp \
 	runtime_obj_skip_py.py runtime_obj_skip_py_shim.c \

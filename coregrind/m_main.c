@@ -104,6 +104,9 @@ static void usage_NORETURN ( int need_help )
 "    --trace-children-skip-by-arg=patt1,patt2,...   same as --trace-children-skip=\n"
 "                              but check the argv[] entries for children, rather\n"
 "                              than the exe name, to make a follow/no-follow decision\n"
+"    --allow-file-caps=patt1,patt2,...   specifies a list of executables\n"
+"                              to run despite their file capabilities, which\n"
+"                              they do not get under Valgrind\n"
 "    --child-silent-after-fork=no|yes omit child output between fork & exec? [no]\n"
 "    --vgdb=no|yes|full        activate gdbserver? [yes]\n"
 "                              full is slower but provides precise watchpoint/step\n"
@@ -504,6 +507,12 @@ static void process_option (Clo_Mode mode,
    // The tool has already been determined, but we need to know the name
    // here.
    else if VG_STR_CLOM(cloE, arg, "--tool", VG_(clo_toolname)) {}
+
+   // Set up VG_(clo_allow_file_caps). This is needed by
+   // VG_(ii_create_image), which checks the client executable
+   // before main_process_cmd_line_options().
+   else if VG_STR_CLOM(cloE, arg, "--allow-file-caps",
+                       VG_(clo_allow_file_caps)) {}
 
    // Set up VG_(clo_max_stackframe) and VG_(clo_main_stacksize).
    // These are needed by VG_(ii_create_image), which happens
