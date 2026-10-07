@@ -1,3 +1,14 @@
+valgrind (1:3.26.0-0codspeed8) UNRELEASED; urgency=medium
+
+  * feat: add --allow-file-caps to run executables with file capabilities (#46)
+  * feat(callgrind): add CALLGRIND_ADD_DESC client request (#43)
+  * build: default to a 64-bit only build for the Capstone decoder (#42)
+  * fix(callgrind): stop dump output depending on heap layout (#44)
+  * build: build the vendored Capstone from the autotools build (#40)
+  * fix(debuginfo): name size-0 asm labels instead of raw addresses (#37)
+
+ -- Adrien Cacciaguerra <adrien@codspeed.io>  Wed, 07 Oct 2026 16:19:15 +0000
+
 valgrind (1:3.26.0-0codspeed7) UNRELEASED; urgency=medium
 
   * feat(callgrind): track subprocesses across fork and exec (#25)
