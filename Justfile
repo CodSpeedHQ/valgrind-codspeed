@@ -46,3 +46,15 @@ install version:
     cd "/tmp/valgrind-build/valgrind-{{ version }}"
     sudo make install
 
+# Builds the .deb for an Ubuntu release in Docker with docker/deb.Dockerfile, like the release
+# workflow but unsigned, then installs it and runs Callgrind on it. The package lands in dist/
+# under its release asset name. Builds the tracked files of the working tree, local changes
+# included.
+# Usage: just docker-deb 26.04
+docker-deb ubuntu_version:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    git submodule update --init --recursive
+    git ls-files -z --recurse-submodules | tar --null -T - -cf - |
+        docker build -f docker/deb.Dockerfile --build-arg UBUNTU_VERSION="{{ ubuntu_version }}" \
+            --output type=local,dest=dist -
