@@ -130,7 +130,7 @@ static void run_a_thread_NORETURN ( Word tidW )
    Int               registered_vgstack_id;
 #endif
 
-   VG_(debugLog)(1, "syswrap-linux",
+   VG_(debugLog)(1, "syswrap-linux", 
                     "run_a_thread_NORETURN(tid=%u): pre-thread_wrapper\n",
                     tid);
 
@@ -146,14 +146,14 @@ static void run_a_thread_NORETURN ( Word tidW )
       is the stack to use by the outer to e.g. do stacktraces.
    */
    INNER_REQUEST
-      (registered_vgstack_id
+      (registered_vgstack_id 
        = VALGRIND_STACK_REGISTER (tst->os_state.valgrind_stack_base,
                                   tst->os_state.valgrind_stack_init_SP));
-
+   
    /* Run the thread all the way through. */
-   src = thread_wrapper(tid);
+   src = thread_wrapper(tid);  
 
-   VG_(debugLog)(1, "syswrap-linux",
+   VG_(debugLog)(1, "syswrap-linux", 
                     "run_a_thread_NORETURN(tid=%u): post-thread_wrapper\n",
                     tid);
 
@@ -180,7 +180,7 @@ static void run_a_thread_NORETURN ( Word tidW )
          "WARNING: of the VALGRIND_DISABLE_ERROR_REPORTING macros.\n"
       );
       VG_(debugLog)(
-         1, "syswrap-linux",
+         1, "syswrap-linux", 
             "run_a_thread_NORETURN(tid=%u): "
             "WARNING: exiting thread has err_disablement_level = %u\n",
             tid, tst->err_disablement_level
@@ -190,18 +190,18 @@ static void run_a_thread_NORETURN ( Word tidW )
 
    if (c == 1) {
 
-      VG_(debugLog)(1, "syswrap-linux",
+      VG_(debugLog)(1, "syswrap-linux", 
                        "run_a_thread_NORETURN(tid=%u): "
                           "last one standing\n",
                           tid);
 
       /* We are the last one standing.  Keep hold of the lock and
-         carry on to show final tool results, then exit the entire system.
+         carry on to show final tool results, then exit the entire system. 
          Use the continuation pointer set at startup in m_main. */
       ( * VG_(address_of_m_main_shutdown_actions_NORETURN) ) (tid, src);
    } else {
 
-      VG_(debugLog)(1, "syswrap-linux",
+      VG_(debugLog)(1, "syswrap-linux", 
                        "run_a_thread_NORETURN(tid=%u): "
                           "not last one standing\n",
                           tid);
@@ -371,10 +371,10 @@ Addr ML_(allocstack)(ThreadId tid)
 
    if (0)
       VG_(printf)( "stack for tid %u at %p; init_SP=%p\n",
-                   tid,
-                   (void*)tst->os_state.valgrind_stack_base,
+                   tid, 
+                   (void*)tst->os_state.valgrind_stack_base, 
                    (void*)tst->os_state.valgrind_stack_init_SP );
-
+                  
    return tst->os_state.valgrind_stack_init_SP;
 }
 
@@ -386,7 +386,7 @@ Addr ML_(allocstack)(ThreadId tid)
 void VG_(main_thread_wrapper_NORETURN)(ThreadId tid)
 {
    Addr sp;
-   VG_(debugLog)(1, "syswrap-linux",
+   VG_(debugLog)(1, "syswrap-linux", 
                     "entering VG_(main_thread_wrapper_NORETURN)\n");
 
    sp = ML_(allocstack)(tid);
@@ -397,7 +397,7 @@ void VG_(main_thread_wrapper_NORETURN)(ThreadId tid)
       // reports 'write error' on the non registered stack.
       ThreadState* tst = VG_(get_ThreadState)(tid);
       INNER_REQUEST
-         ((void)
+         ((void) 
           VALGRIND_STACK_REGISTER (tst->os_state.valgrind_stack_base,
                                    tst->os_state.valgrind_stack_init_SP));
    }
@@ -427,7 +427,7 @@ void VG_(main_thread_wrapper_NORETURN)(ThreadId tid)
    /* shouldn't be any other threads around yet */
    vg_assert( VG_(count_living_threads)() == 1 );
 
-   ML_(call_on_new_stack_0_1)(
+   ML_(call_on_new_stack_0_1)( 
       (Addr)sp,               /* stack */
       0,                      /* bogus return address */
       run_a_thread_NORETURN,  /* fn to call */
@@ -441,11 +441,11 @@ void VG_(main_thread_wrapper_NORETURN)(ThreadId tid)
 /* Clone a new thread. Note that in the clone syscalls, we hard-code
    tlsaddr argument as NULL : the guest TLS is emulated via guest
    registers, and Valgrind itself has no thread local storage. */
-static SysRes clone_new_thread ( Word (*fn)(void *),
-                                 void* stack,
-                                 Word  flags,
+static SysRes clone_new_thread ( Word (*fn)(void *), 
+                                 void* stack, 
+                                 Word  flags, 
                                  ThreadState* ctst,
-                                 Int* child_tidptr,
+                                 Int* child_tidptr, 
                                  Int* parent_tidptr)
 {
    SysRes res;
@@ -479,7 +479,7 @@ static SysRes clone_new_thread ( Word (*fn)(void *),
    /* High half word64 is syscall return value.  Low half is
       the entire CR, from which we need to extract CR0.SO. */
    /* VG_(printf)("word64 = 0x%llx\n", word64); */
-   res = VG_(mk_SysRes_ppc32_linux)(/*val*/(UInt)(word64 >> 32),
+   res = VG_(mk_SysRes_ppc32_linux)(/*val*/(UInt)(word64 >> 32), 
                                     /*errflag*/ (((UInt)word64) >> 28) & 1);
 #elif defined(VGP_ppc64be_linux) || defined(VGP_ppc64le_linux)
    ULong        word64;
@@ -496,7 +496,7 @@ static SysRes clone_new_thread ( Word (*fn)(void *),
       the entire CR, from which we need to extract CR0.SO. */
    /* VG_(printf)("word64 = 0x%llx\n", word64); */
    res = VG_(mk_SysRes_ppc64_linux)
-      (/*val*/(UInt)(word64 & 0xFFFFFFFFULL),
+      (/*val*/(UInt)(word64 & 0xFFFFFFFFULL), 
        /*errflag*/ (UInt)((word64 >> (32+28)) & 1), flag);
 #elif defined(VGP_s390x_linux)
    ULong        r2;
@@ -535,7 +535,7 @@ static SysRes clone_new_thread ( Word (*fn)(void *),
       (ML_(start_thread_NORETURN), stack, flags, ctst,
        child_tidptr, parent_tidptr, NULL);
    /* High half word64 is syscall return value.  Low half is
-      the entire CR, from which we need to extract CR0.SO. */
+      the entire CR, from which we need to extract CR0.SO. */ 
    res = VG_ (mk_SysRes_mips32_linux) (/*val */ ret, 0, /*errflag */ 0);
 #elif defined(VGP_nanomips_linux)
    UInt ret = 0;
@@ -557,16 +557,16 @@ static SysRes clone_new_thread ( Word (*fn)(void *),
    return res;
 }
 
-static void setup_child ( /*OUT*/ ThreadArchState *child,
+static void setup_child ( /*OUT*/ ThreadArchState *child, 
                           /*IN*/  ThreadArchState *parent )
-{
+{  
    /* We inherit our parent's guest state. */
    child->vex = parent->vex;
    child->vex_shadow1 = parent->vex_shadow1;
    child->vex_shadow2 = parent->vex_shadow2;
 
 #if defined(VGP_x86_linux)
-   extern void ML_(x86_setup_LDT_GDT) ( /*OUT*/ ThreadArchState *child,
+   extern void ML_(x86_setup_LDT_GDT) ( /*OUT*/ ThreadArchState *child, 
                                         /*IN*/  ThreadArchState *parent );
    ML_(x86_setup_LDT_GDT)(child, parent);
 #endif
@@ -587,7 +587,7 @@ static SysRes setup_child_tls (ThreadId ctid, Addr tlsaddr)
    if (debug)
       VG_(printf)("clone child has SETTLS: tls info at %p: idx=%u "
                   "base=%#lx limit=%x; esp=%#x fs=%x gs=%x\n",
-                  tlsinfo, tlsinfo->entry_number,
+                  tlsinfo, tlsinfo->entry_number, 
                   tlsinfo->base_addr, tlsinfo->limit,
                   ctst->arch.vex.guest_ESP,
                   ctst->arch.vex.guest_FS, ctst->arch.vex.guest_GS);
@@ -619,9 +619,9 @@ static SysRes setup_child_tls (ThreadId ctid, Addr tlsaddr)
 # error Unknown platform
 #endif
    return res;
-}
+} 
 
-/*
+/* 
    When a client clones, we need to keep track of the new thread.  This means:
    1. allocate a ThreadId+ThreadState+stack for the thread
 
@@ -631,10 +631,10 @@ static SysRes setup_child_tls (ThreadId ctid, Addr tlsaddr)
    but using the scheduler entrypoint for EIP, and a separate stack
    for ESP.
  */
-static SysRes do_clone ( ThreadId ptid,
-                         UWord flags, Addr sp,
-                         Int* parent_tidptr,
-                         Int* child_tidptr,
+static SysRes do_clone ( ThreadId ptid, 
+                         UWord flags, Addr sp, 
+                         Int* parent_tidptr, 
+                         Int* child_tidptr, 
                          Addr tlsaddr)
 {
    ThreadId     ctid = VG_(alloc_ThreadState)();
@@ -690,7 +690,7 @@ static SysRes do_clone ( ThreadId ptid,
    ctst->os_state.threadgroup = ptst->os_state.threadgroup;
 
    ML_(guess_and_register_stack) (sp, ctst);
-
+   
    /* Assume the clone will succeed, and tell any tool that wants to
       know that this thread has come into existence.  We cannot defer
       it beyond this point because setup_tls, just below,
@@ -755,7 +755,7 @@ static SysRes ML_(do_fork_clone) ( ThreadId tid, UInt flags,
    vki_sigset_t mask;
    SysRes       res;
 
-   if (flags & (VKI_CLONE_SETTLS | VKI_CLONE_FS | VKI_CLONE_VM
+   if (flags & (VKI_CLONE_SETTLS | VKI_CLONE_FS | VKI_CLONE_VM 
                 | VKI_CLONE_FILES))
       return VG_(mk_SysRes_Error)( VKI_EINVAL );
 
@@ -774,14 +774,14 @@ static SysRes ML_(do_fork_clone) ( ThreadId tid, UInt flags,
     || defined(VGP_arm_linux) || defined(VGP_mips32_linux) \
     || defined(VGP_mips64_linux) || defined(VGP_arm64_linux) \
     || defined(VGP_nanomips_linux) || defined(VGP_riscv64_linux)
-   res = VG_(do_syscall5)( __NR_clone, flags,
-                           (UWord)NULL, (UWord)parent_tidptr,
+   res = VG_(do_syscall5)( __NR_clone, flags, 
+                           (UWord)NULL, (UWord)parent_tidptr, 
                            (UWord)NULL, (UWord)child_tidptr );
 #elif defined(VGP_amd64_linux)
    /* note that the last two arguments are the opposite way round to x86 and
       ppc32 as the amd64 kernel expects the arguments in a different order */
-   res = VG_(do_syscall5)( __NR_clone, flags,
-                           (UWord)NULL, (UWord)parent_tidptr,
+   res = VG_(do_syscall5)( __NR_clone, flags, 
+                           (UWord)NULL, (UWord)parent_tidptr, 
                            (UWord)child_tidptr, (UWord)NULL );
 #elif defined(VGP_s390x_linux)
    /* Note that s390 has the stack first and then the flags */
@@ -799,8 +799,8 @@ static SysRes ML_(do_fork_clone) ( ThreadId tid, UInt flags,
 
       /* restore signal mask */
       VG_(sigprocmask)(VKI_SIG_SETMASK, &fork_saved_mask, NULL);
-   }
-   else
+   } 
+   else 
    if (!sr_isError(res) && sr_Res(res) > 0) {
       /* parent */
       VG_(do_atfork_parent)(tid);
@@ -877,7 +877,7 @@ PRE(sys_clone)
          PRA3("clone", int *, parent_tidptr);
       }
       PRE_MEM_WRITE("clone(parent_tidptr)", ARG3, sizeof(Int));
-      if (!VG_(am_is_valid_for_client)(ARG3, sizeof(Int),
+      if (!VG_(am_is_valid_for_client)(ARG3, sizeof(Int), 
                                              VKI_PROT_WRITE)) {
          badarg = True;
       }
@@ -891,7 +891,7 @@ PRE(sys_clone)
          ARG_TLS pointer if the type looks like a real type, i.e. sizeof > 1. */
       if (sizeof(vki_modify_ldt_t) > 1) {
          PRE_MEM_READ("clone(tlsinfo)", ARG_TLS, sizeof(vki_modify_ldt_t));
-         if (!VG_(am_is_valid_for_client)(ARG_TLS, sizeof(vki_modify_ldt_t),
+         if (!VG_(am_is_valid_for_client)(ARG_TLS, sizeof(vki_modify_ldt_t), 
                                           VKI_PROT_READ)) {
             badarg = True;
          }
@@ -902,7 +902,7 @@ PRE(sys_clone)
          PRA_CHILD_TIDPTR("clone", int *, child_tidptr);
       }
       PRE_MEM_WRITE("clone(child_tidptr)", ARG_CHILD_TIDPTR, sizeof(Int));
-      if (!VG_(am_is_valid_for_client)(ARG_CHILD_TIDPTR, sizeof(Int),
+      if (!VG_(am_is_valid_for_client)(ARG_CHILD_TIDPTR, sizeof(Int), 
                                              VKI_PROT_WRITE)) {
          badarg = True;
       }
@@ -921,7 +921,7 @@ PRE(sys_clone)
    }
 
    /* Only look at the flags we really care about */
-   switch (cloneflags & (VKI_CLONE_VM | VKI_CLONE_FS
+   switch (cloneflags & (VKI_CLONE_VM | VKI_CLONE_FS 
                          | VKI_CLONE_FILES | VKI_CLONE_VFORK)) {
    case VKI_CLONE_VM | VKI_CLONE_FS | VKI_CLONE_FILES:
       /* thread creation */
@@ -1132,7 +1132,7 @@ PRE(sys_getresuid)
 {
    PRINT("sys_getresuid ( %#" FMT_REGWORD "x, %#" FMT_REGWORD "x, %#"
          FMT_REGWORD "x )", ARG1,ARG2,ARG3);
-   PRE_REG_READ3(long, "getresuid",
+   PRE_REG_READ3(long, "getresuid", 
                  vki_uid_t *, ruid, vki_uid_t *, euid, vki_uid_t *, suid);
    PRE_MEM_WRITE( "getresuid(ruid)", ARG1, sizeof(vki_uid_t) );
    PRE_MEM_WRITE( "getresuid(euid)", ARG2, sizeof(vki_uid_t) );
@@ -1153,7 +1153,7 @@ PRE(sys_setresgid16)
    PRINT("sys_setresgid16 ( %" FMT_REGWORD "u, %" FMT_REGWORD "u, %"
          FMT_REGWORD "u )", ARG1, ARG2, ARG3);
    PRE_REG_READ3(long, "setresgid16",
-                 vki_old_gid_t, rgid,
+                 vki_old_gid_t, rgid, 
                  vki_old_gid_t, egid, vki_old_gid_t, sgid);
 }
 
@@ -1190,7 +1190,7 @@ PRE(sys_getresgid)
 {
    PRINT("sys_getresgid ( %#" FMT_REGWORD "x, %#" FMT_REGWORD "x, %#"
          FMT_REGWORD "x )", ARG1,ARG2,ARG3);
-   PRE_REG_READ3(long, "getresgid",
+   PRE_REG_READ3(long, "getresgid", 
                  vki_gid_t *, rgid, vki_gid_t *, egid, vki_gid_t *, sgid);
    PRE_MEM_WRITE( "getresgid(rgid)", ARG1, sizeof(vki_gid_t) );
    PRE_MEM_WRITE( "getresgid(egid)", ARG2, sizeof(vki_gid_t) );
@@ -1235,7 +1235,7 @@ PRE(sys_exit_group)
       syscall. */
    for (t = 1; t < VG_N_THREADS; t++) {
       if ( /* not alive */
-           VG_(threads)[t].status == VgTs_Empty
+           VG_(threads)[t].status == VgTs_Empty 
            ||
 	   /* not our group */
            VG_(threads)[t].os_state.threadgroup != tst->os_state.threadgroup
@@ -1248,12 +1248,12 @@ PRE(sys_exit_group)
 
    /* Indicate in all other threads that the process is exiting.
       Then wait using VG_(reap_threads) for these threads to disappear.
-
+      
       Can this give a deadlock if another thread is calling exit in parallel
       and would then wait for this thread to disappear ?
       The answer is no:
       Other threads are either blocked in a syscall or have yielded the CPU.
-
+      
       A thread that has yielded the CPU is trying to get the big lock in
       VG_(scheduler). This thread will get the CPU thanks to the call
       to VG_(reap_threads). The scheduler will then check for signals,
@@ -1262,7 +1262,7 @@ PRE(sys_exit_group)
       the thread status is VG_(is_exiting), the scheduler exits the thread.
       So, a thread that has yielded the CPU does not have a chance to
       call exit => no deadlock for this thread.
-
+      
       VG_(nuke_all_threads_except) will send the VG_SIGVGKILL signal
       to all threads blocked in a syscall.
       The syscall will be interrupted, and the control will go to the
@@ -1395,7 +1395,7 @@ PRE(sys_syslog)
    case 2: case 3: case 4:
       PRE_MEM_WRITE( "syslog(bufp)", ARG2, ARG3);
       break;
-   default:
+   default: 
       break;
    }
 }
@@ -1440,7 +1440,7 @@ PRE(sys_sysctl)
    args = (struct __vki_sysctl_args *)(Addr)ARG1;
    PRE_REG_READ1(long, "sysctl", struct __sysctl_args *, args);
    PRE_MEM_WRITE( "sysctl(args)", ARG1, sizeof(struct __vki_sysctl_args) );
-   if (!VG_(am_is_valid_for_client)(ARG1, sizeof(struct __vki_sysctl_args),
+   if (!VG_(am_is_valid_for_client)(ARG1, sizeof(struct __vki_sysctl_args), 
                                           VKI_PROT_READ)) {
       SET_STATUS_Failure( VKI_EFAULT );
       return;
@@ -1690,7 +1690,7 @@ static void futex_pre_helper ( ThreadId tid, SyscallArgLayout* layout,
                                SyscallArgs* arrghs, SyscallStatus* status,
                                UWord* flags, Bool is_time64 )
 {
-   /*
+   /* 
       arg    param                              used by ops
 
       ARG1 - u32 *futex				all
@@ -1706,11 +1706,11 @@ static void futex_pre_helper ( ThreadId tid, SyscallArgLayout* layout,
    case VKI_FUTEX_WAKE_OP:
    case VKI_FUTEX_CMP_REQUEUE_PI:
       if (is_time64) {
-         PRE_REG_READ6(long, "futex_time64",
+         PRE_REG_READ6(long, "futex_time64", 
                        vki_u32 *, futex, int, op, int, val,
                        struct timespec64 *, utime, vki_u32 *, uaddr2, int, val3);
       } else {
-         PRE_REG_READ6(long, "futex",
+         PRE_REG_READ6(long, "futex", 
                        vki_u32 *, futex, int, op, int, val,
                        struct timespec *, utime, vki_u32 *, uaddr2, int, val3);
       }
@@ -1718,11 +1718,11 @@ static void futex_pre_helper ( ThreadId tid, SyscallArgLayout* layout,
    case VKI_FUTEX_REQUEUE:
    case VKI_FUTEX_WAIT_REQUEUE_PI:
       if (is_time64) {
-         PRE_REG_READ5(long, "futex_time64",
+         PRE_REG_READ5(long, "futex_time64", 
                        vki_u32 *, futex, int, op, int, val,
                        struct timespec64 *, utime, vki_u32 *, uaddr2);
       } else {
-         PRE_REG_READ5(long, "futex",
+         PRE_REG_READ5(long, "futex", 
                        vki_u32 *, futex, int, op, int, val,
                        struct timespec *, utime, vki_u32 *, uaddr2);
       }
@@ -1769,18 +1769,18 @@ static void futex_pre_helper ( ThreadId tid, SyscallArgLayout* layout,
    case VKI_FUTEX_WAIT:
    case VKI_FUTEX_LOCK_PI:
       if (is_time64) {
-         PRE_REG_READ4(long, "futex_time64",
+         PRE_REG_READ4(long, "futex_time64", 
                        vki_u32 *, futex, int, op, int, val,
                        struct timespec64 *, utime);
       } else {
-         PRE_REG_READ4(long, "futex",
+         PRE_REG_READ4(long, "futex", 
                        vki_u32 *, futex, int, op, int, val,
                        struct timespec *, utime);
       }
       break;
    case VKI_FUTEX_WAKE:
    case VKI_FUTEX_FD:
-      PRE_REG_READ3(long, "futex",
+      PRE_REG_READ3(long, "futex", 
                     vki_u32 *, futex, int, op, int, val);
       break;
    case VKI_FUTEX_TRYLOCK_PI:
@@ -1889,7 +1889,7 @@ PRE(sys_set_robust_list)
 {
    PRINT("sys_set_robust_list ( %#" FMT_REGWORD "x, %"
          FMT_REGWORD "u )", ARG1, ARG2);
-   PRE_REG_READ2(long, "set_robust_list",
+   PRE_REG_READ2(long, "set_robust_list", 
                  struct vki_robust_list_head *, head, vki_size_t, len);
 
    /* Just check the robust_list_head structure is readable - don't
@@ -1945,13 +1945,13 @@ static void pselect6_pre_helper ( ThreadId tid, SyscallArgLayout* layout,
    }
    // XXX: this possibly understates how much memory is read.
    if (ARG2 != 0)
-      PRE_MEM_READ( "pselect6(readfds)",
+      PRE_MEM_READ( "pselect6(readfds)",   
 		     ARG2, ARG1/8 /* __FD_SETSIZE/8 */ );
    if (ARG3 != 0)
-      PRE_MEM_READ( "pselect6(writefds)",
+      PRE_MEM_READ( "pselect6(writefds)",  
 		     ARG3, ARG1/8 /* __FD_SETSIZE/8 */ );
    if (ARG4 != 0)
-      PRE_MEM_READ( "pselect6(exceptfds)",
+      PRE_MEM_READ( "pselect6(exceptfds)", 
 		     ARG4, ARG1/8 /* __FD_SETSIZE/8 */ );
    if (ARG5 != 0) {
       if (is_time64) {
@@ -2485,7 +2485,7 @@ PRE(sys_tkill)
       SET_STATUS_Failure( VKI_EINVAL );
       return;
    }
-
+   
    /* Check to see if this kill gave us a pending signal */
    *flags |= SfPollAfter;
 
@@ -2526,7 +2526,7 @@ PRE(sys_tgkill)
       SET_STATUS_Failure( VKI_EINVAL );
       return;
    }
-
+   
    /* Check to see if this kill gave us a pending signal */
    *flags |= SfPollAfter;
 
@@ -2607,7 +2607,7 @@ POST(sys_io_setup)
 {
    SizeT size;
    struct vki_aio_ring *r;
-
+           
    size = VG_PGROUNDUP(sizeof(struct vki_aio_ring) +
                        ARG1*sizeof(struct vki_io_event));
    r = *(struct vki_aio_ring **)(Addr)ARG2;
@@ -2631,7 +2631,7 @@ POST(sys_io_setup)
 PRE(sys_io_destroy)
 {
    SizeT size = 0;
-
+      
    PRINT("sys_io_destroy ( %llu )", (ULong)ARG1);
    PRE_REG_READ1(long, "io_destroy", vki_aio_context_t, ctx);
 
@@ -2639,20 +2639,20 @@ PRE(sys_io_destroy)
    // possible...
    if (ML_(safe_to_deref)( (void*)(Addr)ARG1, sizeof(struct vki_aio_ring))) {
       struct vki_aio_ring *r = (struct vki_aio_ring *)(Addr)ARG1;
-      size = VG_PGROUNDUP(sizeof(struct vki_aio_ring) +
+      size = VG_PGROUNDUP(sizeof(struct vki_aio_ring) + 
                           r->nr*sizeof(struct vki_io_event));
    }
 
    SET_STATUS_from_SysRes( VG_(do_syscall1)(SYSNO, ARG1) );
 
-   if (SUCCESS && RES == 0) {
+   if (SUCCESS && RES == 0) { 
       Bool d = VG_(am_notify_munmap)( ARG1, size );
       VG_TRACK( die_mem_munmap, ARG1, size );
       if (d)
-        VG_(discard_translations)( (Addr)ARG1, (ULong)size,
+        VG_(discard_translations)( (Addr)ARG1, (ULong)size, 
                                     "PRE(sys_io_destroy)" );
-   }
-}
+   }  
+}  
 
 static
 void common_pre_io_getevents(ThreadId tid, UWord a1, UWord a2, UWord a3, UWord a4, UWord a5, UWord a6, UWord* flags, const HChar* function_name)
@@ -2904,16 +2904,16 @@ PRE(sys_fanotify_mark)
    PRINT( "sys_fanotify_mark ( %ld, %" FMT_REGWORD "u, %llu, %ld, %#"
           FMT_REGWORD "x(%s))", SARG1, ARG2, MERGE64(ARG3,ARG4), SARG5, ARG6,
           (HChar *)(Addr)ARG6);
-   PRE_REG_READ6(long, "sys_fanotify_mark",
+   PRE_REG_READ6(long, "sys_fanotify_mark", 
                  int, fanotify_fd, unsigned int, flags,
                  __vki_u32, mask0, __vki_u32, mask1,
                  int, dfd, const char *, pathname);
    if (ARG6)
       PRE_MEM_RASCIIZ( "fanotify_mark(path)", ARG6);
 #elif VG_WORDSIZE == 8
-   PRINT( "sys_fanotify_mark ( %ld, %lu, %lu, %ld, %#lx(%s))",
+   PRINT( "sys_fanotify_mark ( %ld, %lu, %lu, %ld, %#lx(%s))", 
           SARG1, ARG2, ARG3, SARG4, ARG5, (HChar *)(Addr)ARG5);
-   PRE_REG_READ5(long, "sys_fanotify_mark",
+   PRE_REG_READ5(long, "sys_fanotify_mark", 
                  int, fanotify_fd, unsigned int, flags,
                  __vki_u64, mask,
                  int, dfd, const char *, pathname);
@@ -3148,7 +3148,7 @@ PRE(sys_mq_getsetattr)
       if (ARG3 != 0)
          PRE_MEM_WRITE( "mq_getsetattr(omqstat)", ARG3,
                         sizeof(struct vki_mq_attr) );
-   }
+   }   
 }
 POST(sys_mq_getsetattr)
 {
@@ -3163,7 +3163,7 @@ POST(sys_mq_getsetattr)
 PRE(sys_clock_settime)
 {
    PRINT("sys_clock_settime( %ld, %#" FMT_REGWORD "x )", SARG1, ARG2);
-   PRE_REG_READ2(long, "clock_settime",
+   PRE_REG_READ2(long, "clock_settime", 
                  vki_clockid_t, clk_id, const struct timespec *, tp);
    PRE_MEM_READ( "clock_settime(tp)", ARG2, sizeof(struct vki_timespec) );
 }
@@ -3179,7 +3179,7 @@ PRE(sys_clock_settime64)
 PRE(sys_clock_gettime)
 {
    PRINT("sys_clock_gettime( %ld, %#" FMT_REGWORD "x )" , SARG1, ARG2);
-   PRE_REG_READ2(long, "clock_gettime",
+   PRE_REG_READ2(long, "clock_gettime", 
                  vki_clockid_t, clk_id, struct timespec *, tp);
    PRE_MEM_WRITE( "clock_gettime(tp)", ARG2, sizeof(struct vki_timespec) );
 }
@@ -3206,7 +3206,7 @@ PRE(sys_clock_getres)
    PRINT("sys_clock_getres( %ld, %#" FMT_REGWORD "x )" , SARG1, ARG2);
    // Nb: we can't use "RES" as the param name because that's a macro
    // defined above!
-   PRE_REG_READ2(long, "clock_getres",
+   PRE_REG_READ2(long, "clock_getres", 
                  vki_clockid_t, clk_id, struct timespec *, res);
    if (ARG2 != 0)
       PRE_MEM_WRITE( "clock_getres(res)", ARG2, sizeof(struct vki_timespec) );
@@ -3309,7 +3309,7 @@ PRE(sys_timer_settime)
 {
    PRINT("sys_timer_settime( %ld, %ld, %#" FMT_REGWORD "x, %#"
           FMT_REGWORD "x )", SARG1,SARG2,ARG3,ARG4);
-   PRE_REG_READ4(long, "timer_settime",
+   PRE_REG_READ4(long, "timer_settime", 
                  vki_timer_t, timerid, int, flags,
                  const struct itimerspec *, value,
                  struct itimerspec *, ovalue);
@@ -3329,7 +3329,7 @@ PRE(sys_timer_settime64)
 {
    PRINT("sys_timer_settime64( %ld, %ld, %#" FMT_REGWORD "x, %#"
           FMT_REGWORD "x )", SARG1,SARG2,ARG3,ARG4);
-   PRE_REG_READ4(long, "timer_settime64",
+   PRE_REG_READ4(long, "timer_settime64", 
                  vki_timer_t, timerid, int, flags,
                  const struct vki_itimerspec64 *, value,
                  struct vki_itimerspec64 *, ovalue);
@@ -3348,7 +3348,7 @@ POST(sys_timer_settime64)
 PRE(sys_timer_gettime)
 {
    PRINT("sys_timer_gettime( %ld, %#" FMT_REGWORD "x )", SARG1, ARG2);
-   PRE_REG_READ2(long, "timer_gettime",
+   PRE_REG_READ2(long, "timer_gettime", 
                  vki_timer_t, timerid, struct itimerspec *, value);
    PRE_MEM_WRITE( "timer_gettime(value)", ARG2,
                   sizeof(struct vki_itimerspec));
@@ -3361,7 +3361,7 @@ POST(sys_timer_gettime)
 PRE(sys_timer_gettime64)
 {
    PRINT("sys_timer_gettime64( %ld, %#" FMT_REGWORD "x )", SARG1, ARG2);
-   PRE_REG_READ2(long, "timer_gettime64",
+   PRE_REG_READ2(long, "timer_gettime64", 
                  vki_timer_t, timerid, struct vki_itimerspec64 *, value);
    PRE_MEM_WRITE( "timer_gettime64(value)", ARG2,
                   sizeof(struct vki_itimerspec64));
@@ -3559,12 +3559,12 @@ POST(sys_timerfd_settime64)
 PRE(sys_capget)
 {
    PRINT("sys_capget ( %#" FMT_REGWORD "x, %#" FMT_REGWORD "x )", ARG1, ARG2 );
-   PRE_REG_READ2(long, "capget",
+   PRE_REG_READ2(long, "capget", 
                  vki_cap_user_header_t, header, vki_cap_user_data_t, data);
-   PRE_MEM_READ( "capget(header)", ARG1,
+   PRE_MEM_READ( "capget(header)", ARG1, 
                   sizeof(struct __vki_user_cap_header_struct) );
    if (ARG2 != (Addr)NULL)
-      PRE_MEM_WRITE( "capget(data)", ARG2,
+      PRE_MEM_WRITE( "capget(data)", ARG2, 
                      sizeof(struct __vki_user_cap_data_struct) );
 }
 POST(sys_capget)
@@ -3576,12 +3576,12 @@ POST(sys_capget)
 PRE(sys_capset)
 {
    PRINT("sys_capset ( %#" FMT_REGWORD "x, %#" FMT_REGWORD "x )", ARG1, ARG2 );
-   PRE_REG_READ2(long, "capset",
+   PRE_REG_READ2(long, "capset", 
                  vki_cap_user_header_t, header,
                  const vki_cap_user_data_t, data);
-   PRE_MEM_READ( "capset(header)",
+   PRE_MEM_READ( "capset(header)", 
                   ARG1, sizeof(struct __vki_user_cap_header_struct) );
-   PRE_MEM_READ( "capset(data)",
+   PRE_MEM_READ( "capset(data)", 
                   ARG2, sizeof(struct __vki_user_cap_data_struct) );
 }
 
@@ -3874,7 +3874,7 @@ PRE(sys_fremovexattr)
 PRE(sys_sched_setparam)
 {
    PRINT("sched_setparam ( %ld, %#" FMT_REGWORD "x )", SARG1, ARG2 );
-   PRE_REG_READ2(long, "sched_setparam",
+   PRE_REG_READ2(long, "sched_setparam", 
                  vki_pid_t, pid, struct sched_param *, p);
    PRE_MEM_READ( "sched_setparam(p)", ARG2, sizeof(struct vki_sched_param) );
 }
@@ -3886,7 +3886,7 @@ POST(sys_sched_setparam)
 PRE(sys_sched_getparam)
 {
    PRINT("sched_getparam ( %ld, %#" FMT_REGWORD "x )", SARG1, ARG2 );
-   PRE_REG_READ2(long, "sched_getparam",
+   PRE_REG_READ2(long, "sched_getparam", 
                  vki_pid_t, pid, struct sched_param *, p);
    PRE_MEM_WRITE( "sched_getparam(p)", ARG2, sizeof(struct vki_sched_param) );
 }
@@ -3940,10 +3940,10 @@ PRE(sys_sched_setscheduler)
 {
    PRINT("sys_sched_setscheduler ( %ld, %ld, %#" FMT_REGWORD "x )",
          SARG1, SARG2, ARG3);
-   PRE_REG_READ3(long, "sched_setscheduler",
+   PRE_REG_READ3(long, "sched_setscheduler", 
                  vki_pid_t, pid, int, policy, struct sched_param *, p);
    if (ARG3 != 0)
-      PRE_MEM_READ( "sched_setscheduler(p)",
+      PRE_MEM_READ( "sched_setscheduler(p)", 
 		    ARG3, sizeof(struct vki_sched_param));
 }
 
@@ -4001,7 +4001,7 @@ PRE(sys_sched_setaffinity)
 {
    PRINT("sched_setaffinity ( %ld, %" FMT_REGWORD "u, %#" FMT_REGWORD "x )",
          SARG1, ARG2, ARG3);
-   PRE_REG_READ3(long, "sched_setaffinity",
+   PRE_REG_READ3(long, "sched_setaffinity", 
                  vki_pid_t, pid, unsigned int, len, unsigned long *, mask);
    PRE_MEM_READ( "sched_setaffinity(mask)", ARG3, ARG2);
 }
@@ -4010,7 +4010,7 @@ PRE(sys_sched_getaffinity)
 {
    PRINT("sched_getaffinity ( %ld, %" FMT_REGWORD "u, %#" FMT_REGWORD "x )",
          SARG1, ARG2, ARG3);
-   PRE_REG_READ3(long, "sched_getaffinity",
+   PRE_REG_READ3(long, "sched_getaffinity", 
                  vki_pid_t, pid, unsigned int, len, unsigned long *, mask);
    PRE_MEM_WRITE( "sched_getaffinity(mask)", ARG3, ARG2);
 }
@@ -4385,7 +4385,7 @@ PRE(sys_getcpu)
 {
    PRINT("sys_getcpu ( %#" FMT_REGWORD "x, %#" FMT_REGWORD "x, %#"
          FMT_REGWORD "x )" , ARG1, ARG2, ARG3);
-   PRE_REG_READ3(int, "getcpu",
+   PRE_REG_READ3(int, "getcpu", 
                  unsigned *, cpu, unsigned *, node, struct vki_getcpu_cache *, tcache);
    if (ARG1 != 0)
       PRE_MEM_WRITE( "getcpu(cpu)", ARG1, sizeof(unsigned) );
@@ -4851,7 +4851,7 @@ PRE(sys_sigprocmask)
    vki_sigset_t bigger_oldset;
 
    PRINT("sys_sigprocmask ( %ld, %#lx, %#lx )", SARG1, ARG2, ARG3);
-   PRE_REG_READ3(long, "sigprocmask",
+   PRE_REG_READ3(long, "sigprocmask", 
                  int, how, vki_old_sigset_t *, set, vki_old_sigset_t *, oldset);
    if (ARG2 != 0)
       PRE_MEM_READ( "sigprocmask(set)", ARG2, sizeof(vki_old_sigset_t));
@@ -4869,7 +4869,7 @@ PRE(sys_sigprocmask)
       bigger_set.sig[0] = *(vki_old_sigset_t*)set;
 
    SET_STATUS_from_SysRes(
-      VG_(do_sys_sigprocmask) ( tid, ARG1 /*how*/,
+      VG_(do_sys_sigprocmask) ( tid, ARG1 /*how*/, 
                                 set ? &bigger_set    : NULL,
                              oldset ? &bigger_oldset : NULL)
    );
@@ -4888,7 +4888,7 @@ POST(sys_sigprocmask)
 }
 
 /* Convert from non-RT to RT sigset_t's */
-static
+static 
 void convert_sigset_to_rt(const vki_old_sigset_t *oldset, vki_sigset_t *set)
 {
    VG_(sigemptyset)(set);
@@ -5086,7 +5086,7 @@ PRE(sys_rt_sigprocmask)
 {
    PRINT("sys_rt_sigprocmask ( %ld, %#" FMT_REGWORD "x, %#" FMT_REGWORD "x, %"
          FMT_REGWORD "u )", SARG1, ARG2, ARG3, ARG4);
-   PRE_REG_READ4(long, "rt_sigprocmask",
+   PRE_REG_READ4(long, "rt_sigprocmask", 
                  int, how, vki_sigset_t *, set, vki_sigset_t *, oldset,
                  vki_size_t, sigsetsize);
    if (ARG2 != 0)
@@ -5117,8 +5117,8 @@ PRE(sys_rt_sigprocmask)
          }
 
    else {
-      SET_STATUS_from_SysRes(
-                  VG_(do_sys_sigprocmask) ( tid, ARG1 /*how*/,
+      SET_STATUS_from_SysRes( 
+                  VG_(do_sys_sigprocmask) ( tid, ARG1 /*how*/, 
                                             (vki_sigset_t*) (Addr)ARG2,
                                             (vki_sigset_t*) (Addr)ARG3 )
       );
@@ -5137,7 +5137,7 @@ POST(sys_rt_sigprocmask)
 PRE(sys_rt_sigpending)
 {
    PRINT( "sys_rt_sigpending ( %#" FMT_REGWORD "x )", ARG1 );
-   PRE_REG_READ2(long, "rt_sigpending",
+   PRE_REG_READ2(long, "rt_sigpending", 
                  vki_sigset_t *, set, vki_size_t, sigsetsize);
    PRE_MEM_WRITE( "rt_sigpending(set)", ARG1, sizeof(vki_sigset_t));
 }
@@ -5152,10 +5152,10 @@ PRE(sys_rt_sigtimedwait)
    PRINT("sys_rt_sigtimedwait ( %#" FMT_REGWORD "x, %#" FMT_REGWORD "x, %#"
          FMT_REGWORD "x, %" FMT_REGWORD "u )",
          ARG1, ARG2, ARG3, ARG4);
-   PRE_REG_READ4(long, "rt_sigtimedwait",
+   PRE_REG_READ4(long, "rt_sigtimedwait", 
                  const vki_sigset_t *, set, vki_siginfo_t *, info,
                  const struct timespec *, timeout, vki_size_t, sigsetsize);
-   if (ARG1 != 0)
+   if (ARG1 != 0) 
       PRE_MEM_READ(  "rt_sigtimedwait(set)",  ARG1, sizeof(vki_sigset_t));
    if (ARG2 != 0)
       PRE_MEM_WRITE( "rt_sigtimedwait(info)", ARG2, sizeof(vki_siginfo_t) );
@@ -5175,11 +5175,11 @@ PRE(sys_rt_sigtimedwait_time64)
    PRINT("sys_rt_sigtimedwait_time64 ( %#" FMT_REGWORD "x, %#"
          FMT_REGWORD "x, %#" FMT_REGWORD "x, %" FMT_REGWORD "u )",
          ARG1, ARG2, ARG3, ARG4);
-   PRE_REG_READ4(long, "rt_sigtimedwait_time64",
+   PRE_REG_READ4(long, "rt_sigtimedwait_time64", 
                  const vki_sigset_t *, set, vki_siginfo_t *, info,
                  const struct vki_timespec64 *, timeout,
                  vki_size_t, sigsetsize);
-   if (ARG1 != 0)
+   if (ARG1 != 0) 
       PRE_MEM_READ( "rt_sigtimedwait_time64(set)", ARG1, sizeof(vki_sigset_t) );
    if (ARG2 != 0)
       PRE_MEM_WRITE( "rt_sigtimedwait_time64(info)", ARG2,
@@ -5197,7 +5197,7 @@ PRE(sys_rt_sigqueueinfo)
 {
    PRINT("sys_rt_sigqueueinfo(%ld, %ld, %#" FMT_REGWORD "x)",
          SARG1, SARG2, ARG3);
-   PRE_REG_READ3(long, "rt_sigqueueinfo",
+   PRE_REG_READ3(long, "rt_sigqueueinfo", 
                  int, pid, int, sig, vki_siginfo_t *, uinfo);
    if (ARG2 != 0)
       PRE_MEM_READ( "rt_sigqueueinfo(uinfo)", ARG3, VKI_SI_MAX_SIZE );
@@ -5437,10 +5437,10 @@ PRE(sys_ipc)
                     void *, ptr);
       Addr msgp;
       Word msgtyp;
-
+ 
       msgp = deref_Addr( tid, (Addr) (&((struct vki_ipc_kludge *)(Addr)ARG5)->msgp),
                          "msgrcv(msgp)" );
-      msgtyp = deref_Addr( tid,
+      msgtyp = deref_Addr( tid, 
                            (Addr) (&((struct vki_ipc_kludge *)(Addr)ARG5)->msgtyp),
                            "msgrcv(msgp)" );
 
@@ -5831,12 +5831,12 @@ PRE(sys_socketcall)
       break;
 
    case VKI_SYS_BIND:
-      /* int bind(int sockfd, struct sockaddr *my_addr,
+      /* int bind(int sockfd, struct sockaddr *my_addr, 
                   int addrlen); */
       PRE_MEM_READ_ef( "socketcall.bind(args)", ARG2, 3*sizeof(Addr) );
       ML_(generic_PRE_sys_bind)( tid, ARG2_0, ARG2_1, ARG2_2 );
       break;
-
+               
    case VKI_SYS_LISTEN:
       /* int listen(int s, int backlog); */
       PRE_MEM_READ_ef( "socketcall.listen(args)", ARG2, 2*sizeof(Addr) );
@@ -5855,11 +5855,11 @@ PRE(sys_socketcall)
       break;
 
    case VKI_SYS_SENDTO:
-      /* int sendto(int s, const void *msg, int len,
-                    unsigned int flags,
+      /* int sendto(int s, const void *msg, int len, 
+                    unsigned int flags, 
                     const struct sockaddr *to, int tolen); */
       PRE_MEM_READ_ef( "socketcall.sendto(args)", ARG2, 6*sizeof(Addr) );
-      ML_(generic_PRE_sys_sendto)( tid, ARG2_0, ARG2_1, ARG2_2,
+      ML_(generic_PRE_sys_sendto)( tid, ARG2_0, ARG2_1, ARG2_2, 
                                    ARG2_3, ARG2_4, ARG2_5 );
       break;
 
@@ -5873,10 +5873,10 @@ PRE(sys_socketcall)
       /* int recvfrom(int s, void *buf, int len, unsigned int flags,
          struct sockaddr *from, int *fromlen); */
       PRE_MEM_READ_ef( "socketcall.recvfrom(args)", ARG2, 6*sizeof(Addr) );
-      ML_(generic_PRE_sys_recvfrom)( tid, ARG2_0, ARG2_1, ARG2_2,
+      ML_(generic_PRE_sys_recvfrom)( tid, ARG2_0, ARG2_1, ARG2_2, 
                                      ARG2_3, ARG2_4, ARG2_5 );
       break;
-
+   
    case VKI_SYS_RECV:
       /* int recv(int s, void *buf, int len, unsigned int flags); */
       /* man 2 recv says:
@@ -5889,25 +5889,25 @@ PRE(sys_socketcall)
       break;
 
    case VKI_SYS_CONNECT:
-      /* int connect(int sockfd,
+      /* int connect(int sockfd, 
                      struct sockaddr *serv_addr, int addrlen ); */
       PRE_MEM_READ_ef( "socketcall.connect(args)", ARG2, 3*sizeof(Addr) );
       ML_(generic_PRE_sys_connect)( tid, ARG2_0, ARG2_1, ARG2_2 );
       break;
 
    case VKI_SYS_SETSOCKOPT:
-      /* int setsockopt(int s, int level, int optname,
+      /* int setsockopt(int s, int level, int optname, 
                         const void *optval, int optlen); */
       PRE_MEM_READ_ef( "socketcall.setsockopt(args)", ARG2, 5*sizeof(Addr) );
-      ML_(linux_PRE_sys_setsockopt)( tid, ARG2_0, ARG2_1, ARG2_2,
+      ML_(linux_PRE_sys_setsockopt)( tid, ARG2_0, ARG2_1, ARG2_2, 
                                      ARG2_3, ARG2_4 );
       break;
 
    case VKI_SYS_GETSOCKOPT:
-      /* int getsockopt(int s, int level, int optname,
+      /* int getsockopt(int s, int level, int optname, 
                         void *optval, socklen_t *optlen); */
       PRE_MEM_READ_ef( "socketcall.getsockopt(args)", ARG2, 5*sizeof(Addr) );
-      ML_(linux_PRE_sys_getsockopt)( tid, ARG2_0, ARG2_1, ARG2_2,
+      ML_(linux_PRE_sys_getsockopt)( tid, ARG2_0, ARG2_1, ARG2_2, 
                                      ARG2_3, ARG2_4 );
       break;
 
@@ -5934,7 +5934,7 @@ PRE(sys_socketcall)
       ML_(generic_PRE_sys_sendmsg)( tid, "msg",
                                     (struct vki_msghdr *)(Addr)ARG2_1 );
       break;
-
+      
    case VKI_SYS_RECVMSG:
       /* int recvmsg(int s, struct msghdr *msg, int flags); */
       PRE_MEM_READ_ef("socketcall.recvmsg(args)", ARG2, 3*sizeof(Addr) );
@@ -5983,9 +5983,9 @@ POST(sys_socketcall)
    switch (ARG1 /* request */) {
 
    case VKI_SYS_SOCKETPAIR:
-      r = ML_(generic_POST_sys_socketpair)(
-             tid, VG_(mk_SysRes_Success)(RES),
-             ARG2_0, ARG2_1, ARG2_2, ARG2_3
+      r = ML_(generic_POST_sys_socketpair)( 
+             tid, VG_(mk_SysRes_Success)(RES), 
+             ARG2_0, ARG2_1, ARG2_2, ARG2_3 
           );
       SET_STATUS_from_SysRes(r);
       break;
@@ -5996,10 +5996,10 @@ POST(sys_socketcall)
       break;
 
    case VKI_SYS_BIND:
-      /* int bind(int sockfd, struct sockaddr *my_addr,
+      /* int bind(int sockfd, struct sockaddr *my_addr, 
 			int addrlen); */
       break;
-
+               
    case VKI_SYS_LISTEN:
       /* int listen(int s, int backlog); */
       break;
@@ -6008,7 +6008,7 @@ POST(sys_socketcall)
    case VKI_SYS_ACCEPT4:
       /* int accept(int s, struct sockaddr *addr, int *addrlen); */
       /* int accept4(int s, struct sockaddr *addr, int *addrlen, int flags); */
-     r = ML_(generic_POST_sys_accept)( tid, VG_(mk_SysRes_Success)(RES),
+     r = ML_(generic_POST_sys_accept)( tid, VG_(mk_SysRes_Success)(RES), 
                                             ARG2_0, ARG2_1, ARG2_2 );
      SET_STATUS_from_SysRes(r);
      break;
@@ -6037,7 +6037,7 @@ POST(sys_socketcall)
 
    case VKI_SYS_GETSOCKOPT:
       ML_(linux_POST_sys_getsockopt)( tid, VG_(mk_SysRes_Success)(RES),
-                                      ARG2_0, ARG2_1,
+                                      ARG2_0, ARG2_1, 
                                       ARG2_2, ARG2_3, ARG2_4 );
       break;
 
@@ -6047,7 +6047,7 @@ POST(sys_socketcall)
       break;
 
    case VKI_SYS_GETPEERNAME:
-      ML_(generic_POST_sys_getpeername)( tid, VG_(mk_SysRes_Success)(RES),
+      ML_(generic_POST_sys_getpeername)( tid, VG_(mk_SysRes_Success)(RES), 
                                               ARG2_0, ARG2_1, ARG2_2 );
       break;
 
@@ -6175,7 +6175,7 @@ PRE(sys_send)
    PRINT("sys_send ( %ld, %#" FMT_REGWORD "x, %" FMT_REGWORD "u, %#"
          FMT_REGWORD "x )", SARG1, ARG2, ARG3, ARG4);
    PRE_REG_READ4(long, "send",
-                 int, s, const void *, msg, vki_size_t, len,
+                 int, s, const void *, msg, vki_size_t, len, 
                  int, flags);
 
    ML_(generic_PRE_sys_send)( tid, ARG1, ARG2, ARG3 );
@@ -6188,13 +6188,13 @@ PRE(sys_sendto)
          FMT_REGWORD "u, %#" FMT_REGWORD "x, %ld )",
          SARG1, ARG2, ARG3, ARG4, ARG5, SARG6);
    PRE_REG_READ6(long, "sendto",
-                 int, s, const void *, msg, vki_size_t, len,
-                 unsigned int, flags,
+                 int, s, const void *, msg, vki_size_t, len, 
+                 unsigned int, flags, 
                  const struct sockaddr *, to, int, tolen);
    ML_(generic_PRE_sys_sendto)(tid, ARG1,ARG2,ARG3,ARG4,ARG5,ARG6);
 }
 
-PRE (sys_recv)
+PRE (sys_recv) 
 {
   *flags |= SfMayBlock;
   PRINT ("sys_recv ( %ld, %#" FMT_REGWORD "x, %" FMT_REGWORD "u, %"
@@ -6202,12 +6202,12 @@ PRE (sys_recv)
   PRE_REG_READ4 (long, "recv", int, s, void *, buf, vki_size_t, len,
                  unsigned int, flags);
   ML_ (generic_PRE_sys_recv) (tid, ARG1, ARG2, ARG3);
-}
+} 
 
-POST (sys_recv)
+POST (sys_recv) 
 {
   ML_ (generic_POST_sys_recv) (tid, RES, ARG1, ARG2, ARG3);
-}
+} 
 
 PRE(sys_recvfrom)
 {
@@ -6420,7 +6420,7 @@ no_client_write:
 
    VG_(sprintf)(name, "/proc/%d/cmdline", VG_(getpid)());
    if (ML_(safe_to_deref)( (void*)(Addr)ARG2, 1 )
-       && (VG_(strcmp)((HChar *)(Addr)ARG2, name) == 0
+       && (VG_(strcmp)((HChar *)(Addr)ARG2, name) == 0 
            || VG_(strcmp)((HChar *)(Addr)ARG2, "/proc/self/cmdline") == 0)) {
       sres = VG_(dup)( VG_(cl_cmdline_fd) );
       SET_STATUS_from_SysRes( sres );
@@ -6436,7 +6436,7 @@ no_client_write:
 
    VG_(sprintf)(name, "/proc/%d/auxv", VG_(getpid)());
    if (ML_(safe_to_deref)( (void*)(Addr)ARG2, 1 )
-       && (VG_(strcmp)((HChar *)(Addr)ARG2, name) == 0
+       && (VG_(strcmp)((HChar *)(Addr)ARG2, name) == 0 
            || VG_(strcmp)((HChar *)(Addr)ARG2, "/proc/self/auxv") == 0)) {
       sres = VG_(dup)( VG_(cl_auxv_fd) );
       SET_STATUS_from_SysRes( sres );
@@ -7186,7 +7186,7 @@ PRE(sys_request_key)
          FMT_REGWORD "x(%s), %ld )", ARG1, (HChar*)(Addr)ARG1, ARG2,
          (HChar*)(Addr)ARG2, ARG3, (HChar*)(Addr)ARG3, SARG4);
    PRE_REG_READ4(long, "request_key",
-                 const char *, type, const char *, description,
+                 const char *, type, const char *, description, 
                  const char *, callout_info, vki_key_serial_t, keyring);
    PRE_MEM_RASCIIZ( "request_key(type)", ARG1);
    PRE_MEM_RASCIIZ( "request_key(description)", ARG2);
@@ -7201,7 +7201,7 @@ PRE(sys_add_key)
           ARG2, (HChar*)(Addr)ARG2, ARG3, ARG4, SARG5);
    PRE_REG_READ5(long, "add_key",
                  const char *, type, const char *, description,
-                 const void *, payload, vki_size_t, plen,
+                 const void *, payload, vki_size_t, plen, 
                  vki_key_serial_t, keyring);
    PRE_MEM_RASCIIZ( "add_key(type)", ARG1);
    PRE_MEM_RASCIIZ( "add_key(description)", ARG2);
@@ -7281,7 +7281,7 @@ PRE(sys_keyctl)
             FMT_REGWORD "x(%s), %ld )", SARG2, ARG3, (HChar*)(Addr)ARG3,
             ARG4, (HChar*)(Addr)ARG4, SARG5);
       PRE_REG_READ5(long, "keyctl(KEYCTL_SEARCH)",
-                    int, option, vki_key_serial_t, keyring,
+                    int, option, vki_key_serial_t, keyring, 
                     const char *, type, const char *, description,
                     vki_key_serial_t, destring);
       PRE_MEM_RASCIIZ("sys_keyctl(KEYCTL_SEARCH, type)", ARG3);
@@ -7291,7 +7291,7 @@ PRE(sys_keyctl)
       PRINT("sys_keyctl ( KEYCTL_READ, %ld, %#" FMT_REGWORD "x, %" FMT_REGWORD
             "u )", SARG2, ARG3, ARG4);
       PRE_REG_READ4(long, "keyctl(KEYCTL_READ)",
-                    int, option, vki_key_serial_t, keyring,
+                    int, option, vki_key_serial_t, keyring, 
                     char *, buffer, vki_size_t, buflen);
       if (ARG3 != (UWord)NULL)
          PRE_MEM_WRITE("keyctl(KEYCTL_READ, buffer)", ARG3, ARG4);
@@ -7300,7 +7300,7 @@ PRE(sys_keyctl)
       PRINT("sys_keyctl ( KEYCTL_INSTANTIATE, %ld, %#" FMT_REGWORD "x, %"
             FMT_REGWORD "u, %ld )", SARG2, ARG3, ARG4, SARG5);
       PRE_REG_READ5(long, "keyctl(KEYCTL_INSTANTIATE)",
-                    int, option, vki_key_serial_t, key,
+                    int, option, vki_key_serial_t, key, 
                     char *, payload, vki_size_t, plen,
                     vki_key_serial_t, keyring);
       if (ARG3 != (UWord)NULL)
@@ -7310,7 +7310,7 @@ PRE(sys_keyctl)
       PRINT("sys_keyctl ( KEYCTL_NEGATE, %ld, %" FMT_REGWORD "u, %ld )",
             SARG2, ARG3, SARG4);
       PRE_REG_READ4(long, "keyctl(KEYCTL_NEGATE)",
-                    int, option, vki_key_serial_t, key,
+                    int, option, vki_key_serial_t, key, 
                     unsigned, timeout, vki_key_serial_t, keyring);
       break;
    case VKI_KEYCTL_SET_REQKEY_KEYRING:
@@ -7772,7 +7772,7 @@ PRE(sys_fcntl64)
       PRE_MEM_WRITE("fcntl(F_GETOWN_EX)", ARG3, sizeof(struct vki_f_owner_ex));
       break;
    }
-
+   
 #  if defined(VGP_x86_linux)
    if (ARG2 == VKI_F_SETLKW || ARG2 == VKI_F_SETLKW64)
 #  else
@@ -7868,7 +7868,7 @@ PRE(sys_ioctl)
       /* SCSI no operand */
    case VKI_SCSI_IOCTL_DOORLOCK:
    case VKI_SCSI_IOCTL_DOORUNLOCK:
-
+   
    /* CDROM stuff. */
    case VKI_CDROM_DISC_STATUS:
    case VKI_CDROMSTOP:
@@ -7982,7 +7982,7 @@ PRE(sys_ioctl)
    case VKI_TCSETSW:
    case VKI_TCSETSF:
       PRE_MEM_READ( "ioctl(TCSET{S,SW,SF})", ARG3, sizeof(struct vki_termios) );
-      break;
+      break; 
    case VKI_TCGETS:
       PRE_MEM_WRITE( "ioctl(TCGETS)", ARG3, sizeof(struct vki_termios) );
       break;
@@ -8334,7 +8334,7 @@ PRE(sys_ioctl)
       PRE_MEM_READ( "ioctl(SIOCGIFMIIREG)",
                      (Addr)&((struct vki_mii_ioctl_data *)&((struct vki_ifreq *)(Addr)ARG3)->vki_ifr_data)->reg_num,
                      sizeof(((struct vki_mii_ioctl_data *)&((struct vki_ifreq *)(Addr)ARG3)->vki_ifr_data)->reg_num));
-      PRE_MEM_WRITE( "ioctl(SIOCGIFMIIREG)", ARG3,
+      PRE_MEM_WRITE( "ioctl(SIOCGIFMIIREG)", ARG3, 
 		     sizeof(struct vki_ifreq));
       break;
    case VKI_SIOCGIFCONF:         /* get iface list               */
@@ -8375,7 +8375,7 @@ PRE(sys_ioctl)
    case VKI_SIOCGARP:            /* get ARP table entry          */
       PRE_MEM_WRITE( "ioctl(SIOCGARP)", ARG3, sizeof(struct vki_arpreq));
       break;
-
+                    
    case VKI_SIOCSIFFLAGS:        /* set flags                    */
       PRE_MEM_RASCIIZ( "ioctl(SIOCSIFFLAGS)",
                      (Addr)((struct vki_ifreq *)(Addr)ARG3)->vki_ifr_name );
@@ -8451,7 +8451,7 @@ PRE(sys_ioctl)
       /* Routing table calls.  */
    case VKI_SIOCADDRT:           /* add routing table entry      */
    case VKI_SIOCDELRT:           /* delete routing table entry   */
-      PRE_MEM_READ( "ioctl(SIOCADDRT/DELRT)", ARG3,
+      PRE_MEM_READ( "ioctl(SIOCADDRT/DELRT)", ARG3, 
 		    sizeof(struct vki_rtentry));
       break;
 
@@ -8541,7 +8541,7 @@ PRE(sys_ioctl)
    case VKI_SOUND_PCM_READ_CHANNELS:
    case VKI_SOUND_PCM_READ_BITS:
    case VKI_SOUND_PCM_READ_FILTER:
-      PRE_MEM_WRITE( "ioctl(SNDCTL_XXX|SOUND_XXX (SIOR, int))",
+      PRE_MEM_WRITE( "ioctl(SNDCTL_XXX|SOUND_XXX (SIOR, int))", 
 		     ARG3, sizeof(int));
       break;
    case VKI_SNDCTL_SEQ_CTRLRATE:
@@ -8559,9 +8559,9 @@ PRE(sys_ioctl)
    case VKI_SNDCTL_TMR_SOURCE:
    case VKI_SNDCTL_MIDI_PRETIME:
    case VKI_SNDCTL_MIDI_MPUMODE:
-      PRE_MEM_READ( "ioctl(SNDCTL_XXX|SOUND_XXX (SIOWR, int))",
+      PRE_MEM_READ( "ioctl(SNDCTL_XXX|SOUND_XXX (SIOWR, int))", 
 		     ARG3, sizeof(int));
-      PRE_MEM_WRITE( "ioctl(SNDCTL_XXX|SOUND_XXX (SIOWR, int))",
+      PRE_MEM_WRITE( "ioctl(SNDCTL_XXX|SOUND_XXX (SIOWR, int))", 
 		     ARG3, sizeof(int));
       break;
    case VKI_SNDCTL_DSP_GETOSPACE:
@@ -8572,7 +8572,7 @@ PRE(sys_ioctl)
    case VKI_SNDCTL_DSP_NONBLOCK:
       break;
    case VKI_SNDCTL_DSP_SETTRIGGER:
-      PRE_MEM_READ( "ioctl(SNDCTL_XXX|SOUND_XXX (SIOW, int))",
+      PRE_MEM_READ( "ioctl(SNDCTL_XXX|SOUND_XXX (SIOW, int))", 
 		     ARG3, sizeof(int));
       break;
 
@@ -8634,7 +8634,7 @@ PRE(sys_ioctl)
       break;
    case VKI_RTC_RD_TIME:
    case VKI_RTC_ALM_READ:
-      PRE_MEM_WRITE( "ioctl(RTC_RD_TIME/ALM_READ)",
+      PRE_MEM_WRITE( "ioctl(RTC_RD_TIME/ALM_READ)", 
 		     ARG3, sizeof(struct vki_rtc_time));
       break;
    case VKI_RTC_ALM_SET:
@@ -8764,7 +8764,7 @@ PRE(sys_ioctl)
       PRE_MEM_READ( "ioctl(CDROMSUBCHNL (cdsc_format, char))",
 		    (Addr) &(((struct vki_cdrom_subchnl*) (Addr)ARG3)->cdsc_format),
 		    sizeof(((struct vki_cdrom_subchnl*) (Addr)ARG3)->cdsc_format));
-      PRE_MEM_WRITE( "ioctl(CDROMSUBCHNL)", ARG3,
+      PRE_MEM_WRITE( "ioctl(CDROMSUBCHNL)", ARG3, 
 		     sizeof(struct vki_cdrom_subchnl));
       break;
    case VKI_CDROMREADMODE1: /*0x530d*/
@@ -8776,7 +8776,7 @@ PRE(sys_ioctl)
       PRE_MEM_WRITE("ioctl(CDROMREADMODE2)", ARG3, VKI_CD_FRAMESIZE_RAW0);
       break;
    case VKI_CDROMREADTOCHDR:
-      PRE_MEM_WRITE( "ioctl(CDROMREADTOCHDR)", ARG3,
+      PRE_MEM_WRITE( "ioctl(CDROMREADTOCHDR)", ARG3, 
 		     sizeof(struct vki_cdrom_tochdr));
       break;
    case VKI_CDROMREADTOCENTRY:
@@ -8786,7 +8786,7 @@ PRE(sys_ioctl)
       PRE_MEM_READ( "ioctl(CDROMREADTOCENTRY (cdte_track, char))",
 		    (Addr) &(((struct vki_cdrom_tocentry*) (Addr)ARG3)->cdte_track),
 		    sizeof(((struct vki_cdrom_tocentry*) (Addr)ARG3)->cdte_track));
-      PRE_MEM_WRITE( "ioctl(CDROMREADTOCENTRY)", ARG3,
+      PRE_MEM_WRITE( "ioctl(CDROMREADTOCENTRY)", ARG3, 
 		     sizeof(struct vki_cdrom_tocentry));
       break;
    case VKI_CDROMMULTISESSION: /* 0x5310 */
@@ -8811,7 +8811,7 @@ PRE(sys_ioctl)
 	 PRE_MEM_WRITE( "ioctl(CDROMREADAUDIO).buf",
 	                (Addr)(cra->buf), cra->nframes * VKI_CD_FRAMESIZE_RAW);
       }
-      break;
+      break;      
    case VKI_CDROMPLAYMSF:
       PRE_MEM_READ( "ioctl(CDROMPLAYMSF)", ARG3, sizeof(struct vki_cdrom_msf));
       break;
@@ -9029,19 +9029,19 @@ PRE(sys_ioctl)
       break;
    case VKI_KDSKBMODE:
       break;
-
+      
    case VKI_KDGKBMETA:
       PRE_MEM_WRITE( "ioctl(KDGKBMETA)", ARG3, sizeof(int) );
       break;
    case VKI_KDSKBMETA:
       break;
-
+      
    case VKI_KDGKBLED:
       PRE_MEM_WRITE( "ioctl(KDGKBLED)", ARG3, sizeof(char) );
       break;
    case VKI_KDSKBLED:
       break;
-
+      
    case VKI_KDGKBENT:
       PRE_MEM_READ( "ioctl(KDGKBENT).kb_table",
                     (Addr)&((struct vki_kbentry *)(Addr)ARG3)->kb_table,
@@ -9064,7 +9064,7 @@ PRE(sys_ioctl)
                     (Addr)&((struct vki_kbentry *)(Addr)ARG3)->kb_value,
                     sizeof(((struct vki_kbentry *)(Addr)ARG3)->kb_value) );
       break;
-
+      
    case VKI_KDGKBSENT:
       PRE_MEM_READ( "ioctl(KDGKBSENT).kb_func",
                     (Addr)&((struct vki_kbsentry *)(Addr)ARG3)->kb_func,
@@ -9080,14 +9080,14 @@ PRE(sys_ioctl)
       PRE_MEM_RASCIIZ( "ioctl(KDSKBSENT).kb_string",
                        (Addr)((struct vki_kbsentry *)(Addr)ARG3)->kb_string );
       break;
-
+      
    case VKI_KDGKBDIACR:
       PRE_MEM_WRITE( "ioctl(KDGKBDIACR)", ARG3, sizeof(struct vki_kbdiacrs) );
       break;
    case VKI_KDSKBDIACR:
       PRE_MEM_READ( "ioctl(KDSKBDIACR)", ARG3, sizeof(struct vki_kbdiacrs) );
       break;
-
+      
    case VKI_KDGETKEYCODE:
       PRE_MEM_READ( "ioctl(KDGETKEYCODE).scancode",
                     (Addr)&((struct vki_kbkeycode *)(Addr)ARG3)->scancode,
@@ -9104,7 +9104,7 @@ PRE(sys_ioctl)
                     (Addr)((struct vki_kbkeycode *)(Addr)ARG3)->keycode,
                     sizeof(((struct vki_kbkeycode *)(Addr)ARG3)->keycode) );
       break;
-
+      
    case VKI_KDSIGACCEPT:
       break;
 
@@ -9304,7 +9304,7 @@ PRE(sys_ioctl)
           for (i=0; i < vkui->nmsgs; i++) {
               struct vki_i2c_msg *msg = vkui->msgs + i;
               PRE_MEM_READ("ioctl(I2C_RDWR).msgs", (Addr)msg, sizeof(struct vki_i2c_msg));
-              if (msg->flags & VKI_I2C_M_RD)
+              if (msg->flags & VKI_I2C_M_RD) 
                   PRE_MEM_WRITE("ioctl(I2C_RDWR).msgs.buf", (Addr)msg->buf, msg->len);
               else
                   PRE_MEM_READ("ioctl(I2C_RDWR).msgs.buf", (Addr)msg->buf, msg->len);
@@ -9552,7 +9552,7 @@ PRE(sys_ioctl)
                        dlr->dev_num * sizeof(struct vki_hci_dev_req));
       }
       break;
-
+      
    case VKI_HCIINQUIRY:
       if (ARG3) {
          struct vki_hci_inquiry_req* ir =
@@ -11084,7 +11084,7 @@ PRE(sys_ioctl)
          break;
       }
       break;
-   }
+   }   
 }
 
 POST(sys_ioctl)
@@ -11122,7 +11122,7 @@ POST(sys_ioctl)
             at, it's possible to guess that the 7 word structure has
             this form
 
-              0            1    2    3        4    5        6
+              0            1    2    3        4    5        6           
               ioctl-number 0x1C ptr1 ptr1size ptr2 ptr2size aBitMask
 
             Unfortunately that doesn't seem to work for some reason,
@@ -11214,7 +11214,7 @@ POST(sys_ioctl)
    case VKI_TCSETSW:
    case VKI_TCSETSF:
    case VKI_IB_USER_MAD_ENABLE_PKEY:
-      break;
+      break; 
    case VKI_TCGETS:
       POST_MEM_WRITE( ARG3, sizeof(struct vki_termios) );
       break;
@@ -11319,7 +11319,7 @@ POST(sys_ioctl)
       break;
    case VKI_SG_GET_SG_TABLESIZE:
       POST_MEM_WRITE(ARG3, sizeof(int));
-      break;
+      break;      
 
    case VKI_IIOCGETCPS:
       POST_MEM_WRITE( ARG3, VKI_ISDN_MAX_CHANNELS * 2 * sizeof(unsigned long) );
@@ -11516,7 +11516,7 @@ POST(sys_ioctl)
    case VKI_SIOCGARP:            /* get ARP table entry          */
       POST_MEM_WRITE(ARG3, sizeof(struct vki_arpreq));
       break;
-
+                    
    case VKI_SIOCSIFFLAGS:        /* set flags                    */
    case VKI_SIOCSIFMAP:          /* Set device parameters        */
    case VKI_SIOCSHWTSTAMP:       /* Set hardware time stamping   */
@@ -11813,7 +11813,7 @@ POST(sys_ioctl)
       POST_MEM_WRITE( (Addr)(cra->buf), cra->nframes * VKI_CD_FRAMESIZE_RAW);
       break;
    }
-
+      
    case VKI_CDROMPLAYMSF:
       break;
       /* The following two are probably bogus (should check args
@@ -11968,46 +11968,46 @@ POST(sys_ioctl)
       break;
    case VKI_KDSKBMODE:
       break;
-
+      
    case VKI_KDGKBMETA:
       POST_MEM_WRITE( ARG3, sizeof(int) );
       break;
    case VKI_KDSKBMETA:
       break;
-
+      
    case VKI_KDGKBLED:
       POST_MEM_WRITE( ARG3, sizeof(char) );
       break;
    case VKI_KDSKBLED:
       break;
-
+      
    case VKI_KDGKBENT:
       POST_MEM_WRITE( (Addr)&((struct vki_kbentry *)(Addr)ARG3)->kb_value,
                       sizeof(((struct vki_kbentry *)(Addr)ARG3)->kb_value) );
       break;
    case VKI_KDSKBENT:
       break;
-
+      
    case VKI_KDGKBSENT:
       POST_MEM_WRITE( (Addr)((struct vki_kbsentry *)(Addr)ARG3)->kb_string,
                       sizeof(((struct vki_kbsentry *)(Addr)ARG3)->kb_string) );
       break;
    case VKI_KDSKBSENT:
       break;
-
+      
    case VKI_KDGKBDIACR:
       POST_MEM_WRITE( ARG3, sizeof(struct vki_kbdiacrs) );
       break;
    case VKI_KDSKBDIACR:
       break;
-
+      
    case VKI_KDGETKEYCODE:
       POST_MEM_WRITE( (Addr)((struct vki_kbkeycode *)(Addr)ARG3)->keycode,
                       sizeof(((struct vki_kbkeycode *)(Addr)ARG3)->keycode) );
       break;
    case VKI_KDSETKEYCODE:
       break;
-
+      
    case VKI_KDSIGACCEPT:
       break;
 
@@ -12127,7 +12127,7 @@ POST(sys_ioctl)
          dir2  = _VKI_IOC_DIR(vkui->ioctl_code);
          size2 = _VKI_IOC_SIZE(vkui->ioctl_code);
          if (size2 > 0) {
-            if (dir2 & _VKI_IOC_READ)
+            if (dir2 & _VKI_IOC_READ) 
                POST_MEM_WRITE((Addr)vkui->data, size2);
          }
       }
@@ -12149,7 +12149,7 @@ POST(sys_ioctl)
           UInt i;
           for (i=0; i < vkui->nmsgs; i++) {
               struct vki_i2c_msg *msg = vkui->msgs + i;
-              if (msg->flags & VKI_I2C_M_RD)
+              if (msg->flags & VKI_I2C_M_RD) 
                   POST_MEM_WRITE((Addr)msg->buf, msg->len);
           }
       }
@@ -13267,12 +13267,12 @@ POST(sys_ioctl)
    socketcall wrapper helpers
    ------------------------------------------------------------------ */
 
-void
-ML_(linux_PRE_sys_getsockopt) ( ThreadId tid,
+void 
+ML_(linux_PRE_sys_getsockopt) ( ThreadId tid, 
                                 UWord arg0, UWord arg1, UWord arg2,
                                 UWord arg3, UWord arg4 )
 {
-   /* int getsockopt(int s, int level, int optname,
+   /* int getsockopt(int s, int level, int optname, 
                      void *optval, socklen_t *optlen); */
    Addr optval_p = arg3;
    Addr optlen_p = arg4;
@@ -13282,7 +13282,7 @@ ML_(linux_PRE_sys_getsockopt) ( ThreadId tid,
                                    "socketcall.getsockopt(optval)",
                                    "socketcall.getsockopt(optlen)" );
       if (arg1 == VKI_SOL_SCTP &&
-          (arg2 == VKI_SCTP_GET_PEER_ADDRS ||
+          (arg2 == VKI_SCTP_GET_PEER_ADDRS || 
            arg2 == VKI_SCTP_GET_LOCAL_ADDRS))
       {
          struct vki_sctp_getaddrs *ga = (struct vki_sctp_getaddrs*)arg3;
@@ -13293,7 +13293,7 @@ ML_(linux_PRE_sys_getsockopt) ( ThreadId tid,
    }
 }
 
-void
+void 
 ML_(linux_POST_sys_getsockopt) ( ThreadId tid,
                                  SysRes res,
                                  UWord arg0, UWord arg1, UWord arg2,
@@ -13309,7 +13309,7 @@ ML_(linux_POST_sys_getsockopt) ( ThreadId tid,
           (arg2 == VKI_SCTP_GET_PEER_ADDRS ||
            arg2 == VKI_SCTP_GET_LOCAL_ADDRS))
       {
-         struct vki_sctp_getaddrs *ga = (struct vki_sctp_getaddrs*)arg3;
+         struct vki_sctp_getaddrs *ga = (struct vki_sctp_getaddrs*)arg3;    
          struct vki_sockaddr *a = ga->addrs;
          int i;
          for (i = 0; i < ga->addr_num; i++) {
@@ -13324,17 +13324,17 @@ ML_(linux_POST_sys_getsockopt) ( ThreadId tid,
             }
             a = (struct vki_sockaddr*)((char*)a + sl);
          }
-         POST_MEM_WRITE( (Addr)ga->addrs, (char*)a - (char*)ga->addrs );
+         POST_MEM_WRITE( (Addr)ga->addrs, (char*)a - (char*)ga->addrs );    
       }
    }
 }
 
-void
-ML_(linux_PRE_sys_setsockopt) ( ThreadId tid,
+void 
+ML_(linux_PRE_sys_setsockopt) ( ThreadId tid, 
                                 UWord arg0, UWord arg1, UWord arg2,
                                 UWord arg3, UWord arg4 )
 {
-   /* int setsockopt(int s, int level, int optname,
+   /* int setsockopt(int s, int level, int optname, 
                      const void *optval, socklen_t optlen); */
    Addr optval_p = arg3;
    if (optval_p != (Addr)NULL) {

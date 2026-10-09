@@ -363,7 +363,7 @@ asm(
 
 void VG_(cleanup_thread) ( ThreadArchState* arch )
 {
-}
+}  
 
 /* ---------------------------------------------------------------------
    PRE/POST wrappers for ppc64/Linux-specific syscalls
@@ -399,7 +399,7 @@ PRE(sys_mmap)
                  unsigned long, prot,  unsigned long, flags,
                  unsigned long, fd,    unsigned long, offset);
 
-   r = ML_(generic_PRE_sys_mmap)( tid, ARG1, ARG2, ARG3, ARG4, ARG5,
+   r = ML_(generic_PRE_sys_mmap)( tid, ARG1, ARG2, ARG3, ARG4, ARG5, 
                                        (Off64T)ARG6 );
    SET_STATUS_from_SysRes(r);
 }
@@ -407,7 +407,7 @@ PRE(sys_mmap)
 //zz PRE(sys_mmap2)
 //zz {
 //zz    SysRes r;
-//zz
+//zz 
 //zz    // Exactly like old_mmap() except:
 //zz    //  - the file offset is specified in 4K units rather than bytes,
 //zz    //    so that it can be used for files bigger than 2^32 bytes.
@@ -417,12 +417,12 @@ PRE(sys_mmap)
 //zz                  unsigned long, start, unsigned long, length,
 //zz                  unsigned long, prot,  unsigned long, flags,
 //zz                  unsigned long, fd,    unsigned long, offset);
-//zz
-//zz    r = ML_(generic_PRE_sys_mmap)( tid, ARG1, ARG2, ARG3, ARG4, ARG5,
+//zz 
+//zz    r = ML_(generic_PRE_sys_mmap)( tid, ARG1, ARG2, ARG3, ARG4, ARG5, 
 //zz                                        4096 * (Off64T)ARG6 );
 //zz    SET_STATUS_from_SysRes(r);
 //zz }
-//zz
+//zz 
 //zz // XXX: lstat64/fstat64/stat64 are generic, but not necessarily
 //zz // applicable to every architecture -- I think only to 32-bit archs.
 //zz // We're going to need something like linux/core_os32.h for such
@@ -434,12 +434,12 @@ PRE(sys_mmap)
 //zz    PRE_MEM_RASCIIZ( "stat64(file_name)", ARG1 );
 //zz    PRE_MEM_WRITE( "stat64(buf)", ARG2, sizeof(struct vki_stat64) );
 //zz }
-//zz
+//zz 
 //zz POST(sys_stat64)
 //zz {
 //zz    POST_MEM_WRITE( ARG2, sizeof(struct vki_stat64) );
 //zz }
-//zz
+//zz 
 //zz PRE(sys_lstat64)
 //zz {
 //zz    PRINT("sys_lstat64 ( %p(%s), %p )",ARG1,ARG1,ARG2);
@@ -447,7 +447,7 @@ PRE(sys_mmap)
 //zz    PRE_MEM_RASCIIZ( "lstat64(file_name)", ARG1 );
 //zz    PRE_MEM_WRITE( "lstat64(buf)", ARG2, sizeof(struct vki_stat64) );
 //zz }
-//zz
+//zz 
 //zz POST(sys_lstat64)
 //zz {
 //zz    vg_assert(SUCCESS);
@@ -455,14 +455,14 @@ PRE(sys_mmap)
 //zz       POST_MEM_WRITE( ARG2, sizeof(struct vki_stat64) );
 //zz    }
 //zz }
-//zz
+//zz 
 //zz PRE(sys_fstat64)
 //zz {
 //zz   PRINT("sys_fstat64 ( %d, %p )",ARG1,ARG2);
 //zz   PRE_REG_READ2(long, "fstat64", unsigned long, fd, struct stat64 *, buf);
 //zz   PRE_MEM_WRITE( "fstat64(buf)", ARG2, sizeof(struct vki_stat64) );
 //zz }
-//zz
+//zz 
 //zz POST(sys_fstat64)
 //zz {
 //zz   POST_MEM_WRITE( ARG2, sizeof(struct vki_stat64) );
@@ -588,7 +588,7 @@ POST(sys_ptrace)
    ------------------------------------------------------------------ */
 
 /* Add an ppc64-linux specific wrapper to a syscall table. */
-#define PLAX_(sysno, name)    WRAPPER_ENTRY_X_(ppc64_linux, sysno, name)
+#define PLAX_(sysno, name)    WRAPPER_ENTRY_X_(ppc64_linux, sysno, name) 
 #define PLAXY(sysno, name)    WRAPPER_ENTRY_XY(ppc64_linux, sysno, name)
 
 // This table maps from __NR_xxx syscall numbers (from
@@ -713,7 +713,7 @@ static SyscallTableEntry syscall_table[] = {
    GENX_(__NR_truncate,          sys_truncate),           //  92
    GENX_(__NR_ftruncate,         sys_ftruncate),          //  93
    GENX_(__NR_fchmod,            sys_fchmod),             //  94
-
+   
    GENX_(__NR_fchown,            sys_fchown),             //  95
    GENX_(__NR_getpriority,       sys_getpriority),        //  96
    GENX_(__NR_setpriority,       sys_setpriority),        //  97

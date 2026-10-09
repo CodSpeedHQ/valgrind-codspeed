@@ -7247,7 +7247,7 @@ POST(sys_getrlimitusage)
       break;
    case VKI_RLIMIT_STACK:
       /*
-       * The main client stack is quite different when running under Valgrind.
+       * The main client stack is quite different when running under Valgrind. 
        * See aspacemg-linux.c for details, but in short on 64bit systems
        * the main stack starts with 128k reserved and a 512M limit.
        * Valgrind just has one value, 16M by default (can be changed with

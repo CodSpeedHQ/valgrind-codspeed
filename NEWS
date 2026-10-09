@@ -870,7 +870,7 @@ are not entered into bugzilla tend to get forgotten about or ignored.
 471311  gdb --multi mode stdout redirecting to stderr
 471807  Add support for lazy reading and downloading of DWARF debuginfo
 472219  Syscall param ppoll(ufds.events) points to uninitialised byte(s)
-472875  none/tests/s390x/dfp-1 failure
+472875  none/tests/s390x/dfp-1 failure 
 472963  Broken regular expression in configure.ac
 473604  Fix bug472219.c compile failure with Clang 16
 473677  make check compile failure with Clang 16 based on GCC 13.x
@@ -1060,7 +1060,7 @@ are not entered into bugzilla tend to get forgotten about or ignored.
 444568  drd/tests/pth_barrier_thr_cr fails on Fedora 38
 445743  "The impossible happened: mutex is locked simultaneously by two threads"
         while using mutexes with priority inheritance and signals
-449309  Missing loopback device ioctl(s)
+449309  Missing loopback device ioctl(s) 
 459476  vgdb: allow address reuse to avoid "address already in use" errorsuse" errors
 460356  s390: Sqrt32Fx4 -- cannot reduce tree
 462830  WARNING: unhandled amd64-freebsd syscall: 474
@@ -1137,7 +1137,7 @@ are not entered into bugzilla tend to get forgotten about or ignored.
 453055  shared_timed_mutex drd test fails with "Lock shared failed" message
 453602  Missing command line option to enable/disable debuginfod
 452802  Handle lld 9+ split RW PT_LOAD segments correctly
-454040  s390x: False-positive memcheck:cond in memmem on arch13 systems
+454040  s390x: False-positive memcheck:cond in memmem on arch13 systems 
 456171  [PATCH] FreeBSD: Don't record address errors when accessing the 'kern.ps_strings' sysctl struct
 n-i-bz  Implement vgdb invoker on FreeBSD
 458845  PowerPC: The L field for the dcbf and sync instruction should be
