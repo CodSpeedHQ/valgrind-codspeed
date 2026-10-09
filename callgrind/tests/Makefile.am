@@ -17,6 +17,8 @@ EXTRA_DIST = \
 	allow_file_caps.stdout.exp \
 	allow_file_caps_refused.vgtest allow_file_caps_refused.stderr.exp \
 	allow_file_caps_refused.stdout.exp \
+	prctl_get_auxv.vgtest prctl_get_auxv.stderr.exp \
+	prctl_get_auxv.stdout.exp \
 	find_debuginfo.vgtest find_debuginfo.stderr.exp find_debuginfo.post.exp \
 	runtime_obj_skip_py.vgtest runtime_obj_skip_py.stderr.exp runtime_obj_skip_py.post.exp \
 	runtime_obj_skip_py.py runtime_obj_skip_py_shim.c \
@@ -43,6 +45,9 @@ EXTRA_DIST = \
 	inline-crossfile-helper1.h inline-crossfile-helper2.h filter_inline
 
 check_PROGRAMS = clreq register_desc register_desc_threads find_debuginfo simwork threads inline-samefile inline-crossfile runtime_obj_skip_c runtime_obj_skip_underflow
+if VGCONF_OS_IS_LINUX
+check_PROGRAMS += prctl_get_auxv
+endif
 
 AM_CFLAGS   += $(AM_FLAG_M3264_PRI)
 AM_CXXFLAGS += $(AM_FLAG_M3264_PRI)

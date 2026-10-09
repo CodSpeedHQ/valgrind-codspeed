@@ -1,0 +1,9 @@
+AT_EXECFN: prctl_get_auxv
+size: same as the kernel's
+matches the auxv on the stack: yes
+zero padding up to the returned size: yes
+short buffer: full size returned, rest untouched
+nonzero arg4: EINVAL
+nonzero arg5: EINVAL
+unmapped buffer: EFAULT
+read-only buffer: EFAULT

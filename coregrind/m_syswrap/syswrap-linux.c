@@ -1584,6 +1584,46 @@ PRE(sys_prctl)
    case VKI_PR_CAPBSET_DROP:
       PRE_REG_READ2(int, "prctl", int, option, int, capability);
       break;
+   case VKI_PR_GET_AUXV: {
+      PRE_REG_READ5(long, "prctl", int, option, void *, addr,
+                    unsigned long, size, unsigned long, arg4,
+                    unsigned long, arg5);
+      /* The kernel would return the auxv it saved when it exec'd the
+         Valgrind tool.  Return the client's auxv instead: the one on the
+         client stack, which getauxval() and /proc/self/auxv report.
+         A call completed in the pre-handler must not set SfMayBlock. */
+      *flags &= ~SfMayBlock;
+      if (ARG4 != 0 || ARG5 != 0) {
+         SET_STATUS_Failure(VKI_EINVAL);
+         break;
+      }
+      /* With a zero size the kernel copies nothing and returns the size
+         of its saved auxv, or fails if it does not know PR_GET_AUXV. */
+      SysRes kres = VG_(do_syscall5)(__NR_prctl, VKI_PR_GET_AUXV, 0, 0, 0, 0);
+      if (sr_isError(kres)) {
+         SET_STATUS_from_SysRes(kres);
+         break;
+      }
+      SizeT auxv_size = 2 * sizeof(UWord);   /* the terminating AT_NULL */
+      for (const UWord *p = VG_(client_auxv); p[0] != 0; p += 2)
+         auxv_size += 2 * sizeof(UWord);
+      /* Like the kernel, report the size of a zero-padded buffer at least
+         as large as the auxv, and copy as much of it as fits. */
+      SizeT total = VG_MAX(sr_Res(kres), auxv_size);
+      SizeT len = VG_MIN(total, ARG3);
+      if (len > 0) {
+         PRE_MEM_WRITE("prctl(get-auxv)", ARG2, len);
+         if (!VG_(am_is_valid_for_client)((Addr)ARG2, len, VKI_PROT_WRITE)) {
+            SET_STATUS_Failure(VKI_EFAULT);
+            break;
+         }
+         SizeT copied = VG_MIN(len, auxv_size);
+         VG_(memcpy)((void *)(Addr)ARG2, VG_(client_auxv), copied);
+         VG_(memset)((HChar *)(Addr)ARG2 + copied, 0, len - copied);
+      }
+      SET_STATUS_Success(total);
+      break;
+   }
    default:
       PRE_REG_READ5(long, "prctl",
                     int, option, unsigned long, arg2, unsigned long, arg3,
@@ -1611,6 +1651,9 @@ POST(sys_prctl)
       break;
    case VKI_PR_GET_ENDIAN:
       POST_MEM_WRITE(ARG2, sizeof(Int));
+      break;
+   case VKI_PR_GET_AUXV:
+      POST_MEM_WRITE(ARG2, VG_MIN(RES, ARG3));
       break;
    case VKI_PR_SET_NAME:
       {
