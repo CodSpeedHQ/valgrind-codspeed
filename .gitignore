@@ -2583,3 +2583,6 @@ test-suite.log
 
 # python bytecode cache left behind when something imports generate_config.py as a module
 /bench/__pycache__/
+
+# Packages built by `just docker-deb`
+/dist/
