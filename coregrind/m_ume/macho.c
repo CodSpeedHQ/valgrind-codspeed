@@ -42,6 +42,7 @@
 #include "pub_core_mallocfree.h"    // VG_(malloc), VG_(free)
 #include "pub_core_syscall.h"       // VG_(strerror)
 #include "pub_core_clientstate.h"
+#include "pub_core_options.h"
 #include "pub_core_ume.h"           // self
 
 #include "priv_ume.h"
@@ -74,6 +75,7 @@ typedef struct load_info_t {
   vki_uint8_t *linker_entry; // dylinker entry point
   Addr linker_offset; // dylinker text offset
   vki_size_t max_addr; // biggest address reached while loading segments
+  Addr text_slide; // slide of the text segment because of "ASLR" (arm64-only)
 } load_info_t;
 
 static void print(const HChar *str)
@@ -180,7 +182,7 @@ load_segment(int fd, vki_off_t offset, vki_off_t size,
    vki_size_t vmsize;   // page-aligned
    vki_size_t vmend;    // page-aligned
    unsigned int prot;
-   Addr slided_addr = segcmd->vmaddr + out_info->linker_offset;
+   Addr slided_addr = segcmd->vmaddr + out_info->linker_offset + out_info->text_slide;
 
    // GrP fixme mark __UNIXSTACK as SF_STACK
     
@@ -243,7 +245,7 @@ load_segment(int fd, vki_off_t offset, vki_off_t size,
    vmsize = VG_PGROUNDUP(segcmd->vmsize);
    if (filesize > 0) {
       addr = slided_addr;
-      VG_(debugLog)(2, "ume", "mmap fixed (file) (%#lx, %lu)\n", addr, filesize);
+      VG_(debugLog)(2, "ume", "mmap fixed (file) (%#lx, %lu, %x)\n", addr, filesize, prot);
       res = VG_(am_mmap_named_file_fixed_client)(addr, filesize, prot, fd, 
                                                  offset + segcmd->fileoff, 
                                                  filename);
@@ -260,7 +262,7 @@ load_segment(int fd, vki_off_t offset, vki_off_t size,
       // page-aligned part
       SizeT length = vmsize - filesize;
       addr = (Addr)(filesize + slided_addr);
-      VG_(debugLog)(2, "ume", "mmap fixed (anon) (%#lx, %lu)\n", addr, length);
+      VG_(debugLog)(2, "ume", "mmap fixed (anon) (%#lx, %lu, %u)\n", addr, length, prot);
       res = VG_(am_mmap_anon_fixed_client)(addr, length, prot);
       check_mmap(res, addr, length, "load_segment2");
    }
@@ -348,10 +350,22 @@ load_genericthread(struct thread_command *threadcmd, int type,
    GrP fixme 64-bit? */
 static vki_size_t default_stack_size(void)
 {
-   struct vki_rlimit lim;
-   int err = VG_(getrlimit)(VKI_RLIMIT_STACK, &lim);
-   if (err) return 8*1024*1024; // 8 MB
-   else return lim.rlim_cur;
+   SizeT m1  = 1024 * 1024;
+   SizeT m16 = 16 * m1;
+   SizeT szB = (SizeT)VG_(client_rlimit_stack).rlim_cur;
+   if (szB < m1) {
+      szB = m1;
+   }
+   if (szB > m16) {
+      szB = m16;
+   }
+   if (VG_(clo_main_stacksize) > 0) {
+      szB = VG_(clo_main_stacksize);
+   }
+   if (szB < m1) {
+      szB = m1;
+   }
+   return szB;
 }
 
 
@@ -449,6 +463,7 @@ load_dylinker(struct dylinker_command *dycmd, load_info_t *out_info)
    linker_info.entry = NULL;
    linker_info.linker_entry = NULL;
    linker_info.linker_offset = 0;
+   linker_info.text_slide = 0;
    linker_info.max_addr = out_info->max_addr;
 
    if (dycmd->name.offset >= dycmd->cmdsize) {
@@ -816,7 +831,7 @@ Bool VG_(match_macho)(const void *hdr, SizeT len)
 
    // GrP fixme check more carefully for matching fat arch?
 
-   return (len >= VKI_PAGE_SIZE  &&  
+   return (len >= sizeof(*magic)  &&
            (*magic == MAGIC  ||  *magic == VG_(ntohl)(FAT_MAGIC))) 
       ? True : False;
 }
@@ -834,6 +849,7 @@ Int VG_(load_macho)(Int fd, const HChar *name, ExeInfo *info)
    load_info.linker_entry = NULL;
    load_info.linker_offset = 0;
    load_info.max_addr = 0;
+   load_info.text_slide = 0;
 
    err = VG_(fstat)(fd, &sb);
    if (err) {
@@ -856,7 +872,12 @@ Int VG_(load_macho)(Int fd, const HChar *name, ExeInfo *info)
    info->text = (Addr) load_info.text;
    info->dynamic = load_info.linker_entry ? True : False;
 
-   info->executable_path = VG_(strdup)("ume.macho.executable_path", name);
+   if (!info->dynamic && load_info.text_slide) {
+      print("cannot slide static executables\n");
+      return VKI_ENOEXEC;
+   }
+
+   info->executable_path = VG_(strdup)("ume.macho.load_macho", name);
 
    SysRes res = VG_(dup)(fd);
    if (!sr_isError(res))

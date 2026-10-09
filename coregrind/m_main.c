@@ -255,8 +255,12 @@ static void usage_NORETURN ( int need_help )
 "                  recovered by stack scanning [5]\n"
 "    --resync-filter=no|yes|verbose [yes on MacOS, no on other OSes]\n"
 "              attempt to avoid expensive address-space-resync operations\n"
-"    --max-threads=<number>    maximum number of threads that valgrind can\n"
-"                              handle [%d]\n"
+"    --max-threads=<number>     maximum number of threads that valgrind can\n"
+"                               handle [%d]\n"
+#if defined(VGO_linux)
+"    --max-guard-pages=<number> maximum number of madvise guard pages that\n"
+"                               valgrind can handle [%d]\n"
+#endif
 "\n";
 
    const HChar usage2[] =
@@ -340,8 +344,8 @@ static void usage_NORETURN ( int need_help )
 "  Extra options read from ~/.valgrindrc, $VALGRIND_OPTS, ./.valgrindrc\n"
 "\n"
 "  %s is %s\n"
-"  Valgrind is Copyright (C) 2000-2024, and GNU GPL'd, by Julian Seward et al.\n"
-"  LibVEX is Copyright (C) 2004-2024, and GNU GPL'd, by OpenWorks LLP et al.\n"
+"  Valgrind is Copyright (C) 2000-2026, and GNU GPL'd, by Julian Seward et al.\n"
+"  LibVEX is Copyright (C) 2004-2026, and GNU GPL'd, by OpenWorks LLP et al.\n"
 "\n"
 "  Bug reports, feedback, admiration, abuse, etc, to: %s.\n"
 "\n";
@@ -383,6 +387,9 @@ static void usage_NORETURN ( int need_help )
                   VG_(vgdb_prefix_default)() /* char* */,
                   N_SECTORS_DEFAULT          /* int */,
                   MAX_THREADS_DEFAULT        /* int */
+#if defined(VGO_linux)
+                , MAX_GUARDS_DEFAULT         /* int */
+#endif
                );
    if (need_help > 1 && VG_(details).name) {
       VG_(printf)("  user options for %s:\n", VG_(details).name);
@@ -461,9 +468,9 @@ static void process_option (Clo_Mode mode,
    // in case someone has combined a prefix with a core-specific option,
    // eg.  "--memcheck:verbose".
    if (*colon == ':') {
-      if (VG_STREQN(2,            arg,                "--") &&
-          VG_STREQN(toolname_len, arg+2,              VG_(clo_toolname)) &&
-          VG_STREQN(1,            arg+2+toolname_len, ":")) {
+      if (VG_STREQN(2, arg, "--") &&
+          VG_(strncmp)(arg+2, VG_(clo_toolname), toolname_len)==0 &&
+          VG_(strncmp)(arg+2+toolname_len, ":", 1)==0) {
          // Prefix matches, convert "--toolname:foo" to "--foo".
          // Two things to note:
          // - We cannot modify the option in-place.  If we did, and then
@@ -521,7 +528,19 @@ static void process_option (Clo_Mode mode,
    else if VG_INT_CLOM(cloE, arg, "--main-stacksize", VG_(clo_main_stacksize)) {}
 
    // Set up VG_(clo_max_threads); needed for VG_(tl_pre_clo_init)
-   else if VG_INT_CLOM(cloE, arg, "--max-threads", VG_(clo_max_threads)) {}
+   else if VG_INT_CLOM(cloE, arg, "--max-threads", VG_(clo_max_threads)) {
+#if defined(VGO_linux)
+      // VG_(clo_max_guard_pages) defaults to VG_(clo_max_threads)
+      // unless explititly set otherwise - below.  With glibc upstream
+      // commit a6fbe36b7f31 and others, a guard page is installed for
+      // each new thread.
+      VG_(clo_max_guard_pages) = VG_(clo_max_threads);
+#endif
+   }
+#if defined(VGO_linux)
+   // Set up VG_(clo_max_guard_pages); needed for aspacemgr init
+   else if VG_INT_CLOM(cloE, arg, "--max-guard-pages", VG_(clo_max_guard_pages)) {}
+#endif
 
    // Set up VG_(clo_sim_hints). This is needed a.o. for an inner
    // running in an outer, to have "no-inner-prefix" enabled
@@ -730,7 +749,7 @@ static void process_option (Clo_Mode mode,
    else if VG_INT_CLO (arg, "--dump-error",       VG_(clo_dump_error))   {}
    else if VG_INT_CLO (arg, "--input-fd",         VG_(clo_input_fd))     {}
    else if VG_INT_CLO (arg, "--sanity-level",     VG_(clo_sanity_level)) {}
-   else if VG_BINT_CLO(arg, "--num-callers",      VG_(clo_backtrace_size), 1,
+   else if VG_BINT_CLO(arg, "--num-callers",      VG_(clo_backtrace_size), 2,
                        VG_DEEPEST_BACKTRACE) {}
    else if VG_BINT_CLO(arg, "--num-transtab-sectors",
                        VG_(clo_num_transtab_sectors),
@@ -1342,8 +1361,8 @@ Int valgrind_main ( Int argc, HChar **argv, HChar **envp )
    /* Start the debugging-log system ASAP.  First find out how many
       "-d"s were specified.  This is a pre-scan of the command line.  Also
       get --profile-heap=yes, --core-redzone-size, --redzone-size
-      --aspace-minaddr which are needed by the time we start up dynamic
-      memory management.  */
+      --aspace-minaddr, --max-guard-pages  which are needed by the time
+      we start up dynamic memory management.  */
    loglevel = 0;
    for (i = 1; i < argc; i++) {
       const HChar* tmp_str;
@@ -1364,6 +1383,18 @@ Int valgrind_main ( Int argc, HChar **argv, HChar **envp )
                                                    &errmsg))
             VG_(fmsg_bad_option)(argv[i], "%s\n", errmsg);
       }
+      if VG_INT_CLOM(cloE, argv[i], "--max-threads", VG_(clo_max_threads)) {
+#if defined(VGO_linux)
+         // VG_(clo_max_guard_pages) defaults to VG_(clo_max_threads)
+         // unless explititly set otherwise - below.  With glibc upstream
+         // commit a6fbe36b7f31 and others, a guard page is installed for
+         // each new thread.
+         VG_(clo_max_guard_pages) = VG_(clo_max_threads);
+#endif
+      }
+#if defined(VGO_linux)
+      if VG_INT_CLOM(cloE, argv[i], "--max-guard-pages", VG_(clo_max_guard_pages)) {}
+#endif
    }
 
    /* ... and start the debug logger.  Now we can safely emit logging
@@ -1539,7 +1570,7 @@ Int valgrind_main ( Int argc, HChar **argv, HChar **envp )
         VG_(printf)("   * ARM (armv7)\n");
         VG_(printf)("   * MIPS (mips32 and above; mips64 and above)\n");
         VG_(printf)("   * PowerPC (most; ppc405 and above)\n");
-        VG_(printf)("   * System z (64bit only - s390x; z990 and above)\n");
+        VG_(printf)("   * System z (64bit only - s390x; z196 and above)\n");
         VG_(printf)("\n");
         VG_(exit)(1);
      }
@@ -1687,13 +1718,13 @@ Int valgrind_main ( Int argc, HChar **argv, HChar **envp )
    VG_(cl_psinfo_fd) = -1;
 #endif
 
-#if defined(VGO_linux) || defined(VGO_solaris)
+#if defined(VGO_linux) || defined(VGO_solaris) || defined(VGO_freebsd)
    if (!need_help) {
       HChar  buf[50];   // large enough
       HChar  buf2[VG_(mkstemp_fullname_bufsz)(sizeof buf - 1)];
       Int    fd, r;
 
-#if defined(VGO_linux) || defined(SOLARIS_PROC_CMDLINE)
+#if defined(VGO_linux) || defined(SOLARIS_PROC_CMDLINE) || defined(VGO_freebsd)
       /* Fake /proc/<pid>/cmdline only on Linux and Solaris if supported. */
       HChar  nul[1];
       const HChar* exename;
@@ -1726,7 +1757,9 @@ Int valgrind_main ( Int argc, HChar **argv, HChar **envp )
          VG_(err_config_error)("Can't delete client cmdline file in %s\n", buf2);
 
       VG_(cl_cmdline_fd) = fd;
-#endif // defined(VGO_linux) || defined(SOLARIS_PROC_CMDLINE)
+#endif // defined(VGO_linux) || defined(SOLARIS_PROC_CMDLINE) || defined(VGO_freebsd)
+
+#if !defined(VGO_freebsd)
 
       /* Fake /proc/<pid>/auxv on both Linux and Solaris. */
       VG_(debugLog)(1, "main", "Create fake /proc/<pid>/auxv\n");
@@ -1757,6 +1790,8 @@ Int valgrind_main ( Int argc, HChar **argv, HChar **envp )
          VG_(err_config_error)("Can't delete client auxv file in %s\n", buf2);
 
       VG_(cl_auxv_fd) = fd;
+
+#endif
 
 #if defined(VGO_solaris)
       /* Fake /proc/<pid>/psinfo on Solaris.
@@ -1919,7 +1954,7 @@ Int valgrind_main ( Int argc, HChar **argv, HChar **envp )
    addr2dihandle = VG_(newXA)( VG_(malloc), "main.vm.2",
                                VG_(free), sizeof(Addr_n_ULong) );
 
-#  if defined(VGO_linux) || defined(VGO_solaris) || defined(VGO_freebsd)
+#  if defined(VGO_linux) || defined(VGO_solaris) || defined(VGO_darwin) || defined(VGO_freebsd)
    { Addr* seg_starts;
      Int   n_seg_starts;
      Addr_n_ULong anu;
@@ -1939,22 +1974,6 @@ Int valgrind_main ( Int argc, HChar **argv, HChar **envp )
            anu.a = seg_starts[i];
            VG_(addToXA)( addr2dihandle, &anu );
         }
-     }
-
-     VG_(free)( seg_starts );
-   }
-#  elif defined(VGO_darwin)
-   { Addr* seg_starts;
-     Int   n_seg_starts;
-     seg_starts = VG_(get_segment_starts)( SkFileC, &n_seg_starts );
-     vg_assert(seg_starts && n_seg_starts >= 0);
-
-     /* show them all to the debug info reader.
-        Don't read from V segments (unlike Linux) */
-     // GrP fixme really?
-     for (i = 0; i < n_seg_starts; i++) {
-        VG_(di_notify_mmap)( seg_starts[i], False/*don't allow_SkFileV*/,
-                             -1/*don't use_fd*/);
      }
 
      VG_(free)( seg_starts );
@@ -1994,6 +2013,18 @@ Int valgrind_main ( Int argc, HChar **argv, HChar **envp )
    }
 
    VG_(init_Threads)();
+
+   //--------------------------------------------------------------
+   // Initialize the dyld cache, which is required with macOS 11 (Big Sur) and onwards
+   // as some system libraries aren't provided on the disk anymore
+   //   p: none
+   // Note: some tools don't like to start mapping memory right way, so we do it lazily in those cases.
+   //--------------------------------------------------------------
+#  if defined(VGO_darwin) && DARWIN_VERS >= DARWIN_11_00
+   if (the_iifii.dynamic) {
+     VG_(dyld_cache_init)(VG_(clo_toolname));
+   }
+#  endif
 
    //--------------------------------------------------------------
    // Initialise the scheduler (phase 1) [generates tid_main]
@@ -2110,22 +2141,8 @@ Int valgrind_main ( Int argc, HChar **argv, HChar **envp )
                True   /* executable? */,
                0 /* di_handle: no associated debug info */ );
 
-     /* Darwin only: tell the tools where the client's kernel commpage
-        is.  It would be better to do this by telling aspacemgr about
-        it -- see the now disused record_system_memory() in
-        initimg-darwin.c -- but that causes the sync checker to fail,
-        since the mapping doesn't appear in the kernel-supplied
-        process map.  So do it here instead. */
-#    if defined(VGP_amd64_darwin)
-     VG_TRACK( new_mem_startup,
-               0x7fffffe00000, 0x7ffffffff000-0x7fffffe00000,
-               True, False, True, /* r-x */
-               0 /* di_handle: no associated debug info */ );
-#    elif defined(VGP_x86_darwin)
-     VG_TRACK( new_mem_startup,
-               0xfffec000, 0xfffff000-0xfffec000,
-               True, False, True, /* r-x */
-               0 /* di_handle: no associated debug info */ );
+#if defined(VGO_darwin)
+     VG_(mach_record_system_memory)();
 #    endif
 
      /* Clear the running thread indicator */

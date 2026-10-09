@@ -306,7 +306,7 @@ extern int * __error(void) __attribute__((weak));
       \
       DO_INIT; \
       TRIGGER_MEMCHECK_ERROR_IF_UNDEFINED(n); \
-      MALLOC_TRACE(#fnname "(%llu)", (ULong)n ); \
+      MALLOC_TRACE(#fnname "(%lu)", n ); \
       \
       v = (void*)VALGRIND_NON_SIMD_CALL1( info.tl_##vg_replacement, n ); \
       MALLOC_TRACE(" = %p\n", v ); \
@@ -329,7 +329,7 @@ extern int * __error(void) __attribute__((weak));
       TRIGGER_MEMCHECK_ERROR_IF_UNDEFINED(n); \
       struct AlignedAllocInfo aligned_alloc_info = { .orig_alignment=alignment, .size=n, .alloc_kind=AllocKind##tag}; \
       VERIFY_ALIGNMENT(&aligned_alloc_info); \
-      MALLOC_TRACE(#fnname "(size %llu, al %llu)", (ULong)n, (ULong)alignment ); \
+      MALLOC_TRACE(#fnname "(%lu, %lu)", n, alignment ); \
       \
       if ((alignment == 0) \
        || ((alignment & (alignment - 1)) != 0)) { \
@@ -356,7 +356,7 @@ extern int * __error(void) __attribute__((weak));
       DO_INIT; \
       TRIGGER_MEMCHECK_ERROR_IF_UNDEFINED((UWord) zone);	\
       TRIGGER_MEMCHECK_ERROR_IF_UNDEFINED(n);                   \
-      MALLOC_TRACE(#fnname "(%p, %llu)", zone, (ULong)n ); \
+      MALLOC_TRACE(#fnname "(%p, %lu)", zone, n ); \
       \
       v = (void*)VALGRIND_NON_SIMD_CALL1( info.tl_##vg_replacement, n ); \
       MALLOC_TRACE(" = %p\n", v ); \
@@ -376,8 +376,8 @@ extern int * __error(void) __attribute__((weak));
       void* v; \
       \
       DO_INIT; \
-      TRIGGER_MEMCHECK_ERROR_IF_UNDEFINED(n);           \
-      MALLOC_TRACE(#fnname "(%llu)", (ULong)n );        \
+      TRIGGER_MEMCHECK_ERROR_IF_UNDEFINED(n); \
+      MALLOC_TRACE(#fnname "(%lu)", n ); \
       \
       v = (void*)VALGRIND_NON_SIMD_CALL1( info.tl_##vg_replacement, n ); \
       MALLOC_TRACE(" = %p\n", v ); \
@@ -407,7 +407,7 @@ extern int * __error(void) __attribute__((weak));
       TRIGGER_MEMCHECK_ERROR_IF_UNDEFINED(n);           \
       struct AlignedAllocInfo aligned_alloc_info = { .orig_alignment=alignment, .size=n, .alloc_kind=AllocKind##tag }; \
       VERIFY_ALIGNMENT(&aligned_alloc_info); \
-      MALLOC_TRACE(#fnname "(size %llu, al %llu)", (ULong)n, (ULong)alignment ); \
+      MALLOC_TRACE(#fnname "(%lu, %lu)", n, alignment ); \
       \
       if ((alignment == 0) \
        || ((alignment & (alignment - 1)) != 0)) { \
@@ -455,6 +455,19 @@ extern int * __error(void) __attribute__((weak));
  ALLOC_or_NULL(SO_SYN_MALLOC,         malloc,      malloc);
  ZONEALLOC_or_NULL(VG_Z_LIBC_SONAME,  malloc_zone_malloc, malloc);
  ZONEALLOC_or_NULL(SO_SYN_MALLOC,     malloc_zone_malloc, malloc);
+#if DARWIN_VERS >= DARWIN_15_00
+#if defined(VGA_arm64)
+ // on arm64, malloc_type_malloc is used for malloc, new and new[]
+ // __typed_operator_new_impl[abi:ne180100]@libc++abi.dylib calls it for new and new[]
+ // all other usages (Swift, ObjC, C) it calls it for malloc
+ // this matters as we need to put the right tag in the allocation
+ // otherwise the tool might report a mismatch between allocation func and free func
+ TYPE_ALLOC_or_NULL(VG_Z_LIBC_SONAME, malloc_type_malloc);
+#else
+ ALLOC_or_NULL(VG_Z_LIBC_SONAME,      malloc_type_malloc,      malloc);
+#endif
+ ZONEALLOC_or_NULL(VG_Z_LIBC_SONAME,  malloc_type_zone_malloc, malloc);
+#endif
 
 #elif defined(VGO_solaris)
  ALLOC_or_NULL(VG_Z_LIBSTDCXX_SONAME, malloc,      malloc);
@@ -503,18 +516,11 @@ extern int * __error(void) __attribute__((weak));
  #endif
 
 #elif defined(VGO_darwin)
- // operator new(unsigned int)
- #if VG_WORDSIZE == 4
-  ALLOC_or_BOMB(VG_Z_LIBSTDCXX_SONAME, _Znwj,          __builtin_new);
-  ALLOC_or_BOMB(VG_Z_LIBCXX_SONAME,    _Znwj,          __builtin_new);
-  ALLOC_or_BOMB(SO_SYN_MALLOC,         _Znwj,          __builtin_new);
- #endif
+ // both 32bit and 64bit
  // operator new(unsigned long)
- #if VG_WORDSIZE == 8
   ALLOC_or_BOMB(VG_Z_LIBSTDCXX_SONAME, _Znwm,          __builtin_new);
   ALLOC_or_BOMB(VG_Z_LIBCXX_SONAME,    _Znwm,          __builtin_new);
   ALLOC_or_BOMB(SO_SYN_MALLOC,         _Znwm,          __builtin_new);
- #endif
 
 #elif defined(VGO_solaris)
  // operator new(unsigned int)
@@ -563,16 +569,10 @@ extern int * __error(void) __attribute__((weak));
  #endif
 
 #elif defined(VGO_darwin)
- #if VG_WORDSIZE == 4
-  ALLOC_or_BOMB_ALIGNED(VG_Z_LIBSTDCXX_SONAME, _ZnwjSt11align_val_t, __builtin_new_aligned, NewAligned);
-  ALLOC_or_BOMB_ALIGNED(VG_Z_LIBCXX_SONAME,    _ZnwjSt11align_val_t, __builtin_new_aligned, NewAligned);
-  ALLOC_or_BOMB_ALIGNED(SO_SYN_MALLOC,         _ZnwjSt11align_val_t, __builtin_new_aligned, NewAligned);
- #endif
- #if VG_WORDSIZE == 8
+  // both 32bit and 64bit
   ALLOC_or_BOMB_ALIGNED(VG_Z_LIBSTDCXX_SONAME, _ZnwmSt11align_val_t, __builtin_new_aligned, NewAligned);
   ALLOC_or_BOMB_ALIGNED(VG_Z_LIBCXX_SONAME,    _ZnwmSt11align_val_t, __builtin_new_aligned, NewAligned);
   ALLOC_or_BOMB_ALIGNED(SO_SYN_MALLOC,         _ZnwmSt11align_val_t, __builtin_new_aligned, NewAligned);
- #endif
 
 #elif defined(VGO_solaris)
  // operator new(unsigned int, std::align_val_t)
@@ -623,18 +623,11 @@ extern int * __error(void) __attribute__((weak));
  #endif
 
 #elif defined(VGO_darwin)
- // operator new(unsigned, std::nothrow_t const&)
- #if VG_WORDSIZE == 4
-  ALLOC_or_NULL(VG_Z_LIBSTDCXX_SONAME, _ZnwjRKSt9nothrow_t,  __builtin_new);
-  ALLOC_or_NULL(VG_Z_LIBCXX_SONAME,    _ZnwjRKSt9nothrow_t,  __builtin_new);
-  ALLOC_or_NULL(SO_SYN_MALLOC,         _ZnwjRKSt9nothrow_t,  __builtin_new);
- #endif
+ // both 32bit and 64bit
  // operator new(unsigned long, std::nothrow_t const&)
- #if VG_WORDSIZE == 8
   ALLOC_or_NULL(VG_Z_LIBSTDCXX_SONAME, _ZnwmRKSt9nothrow_t,  __builtin_new);
   ALLOC_or_NULL(VG_Z_LIBCXX_SONAME,    _ZnwmRKSt9nothrow_t,  __builtin_new);
   ALLOC_or_NULL(SO_SYN_MALLOC,         _ZnwmRKSt9nothrow_t,  __builtin_new);
- #endif
 
 #elif defined(VGO_solaris)
  // operator new(unsigned, std::nothrow_t const&)
@@ -683,16 +676,10 @@ extern int * __error(void) __attribute__((weak));
  #endif
 
 #elif defined(VGO_darwin)
- #if VG_WORDSIZE == 4
-  ALLOC_or_NULL_ALIGNED(VG_Z_LIBSTDCXX_SONAME, _ZnwjSt11align_val_tRKSt9nothrow_t,  __builtin_new_aligned, NewAligned);
-  ALLOC_or_NULL_ALIGNED(VG_Z_LIBCXX_SONAME,    _ZnwjSt11align_val_tRKSt9nothrow_t,  __builtin_new_aligned, NewAligned);
-  ALLOC_or_NULL_ALIGNED(SO_SYN_MALLOC,         _ZnwjSt11align_val_tRKSt9nothrow_t,  __builtin_new_aligned, NewAligned);
- #endif
- #if VG_WORDSIZE == 8
+  // both 32bit and 64bit
   ALLOC_or_NULL_ALIGNED(VG_Z_LIBSTDCXX_SONAME, _ZnwmSt11align_val_tRKSt9nothrow_t,  __builtin_new_aligned, NewAligned);
   ALLOC_or_NULL_ALIGNED(VG_Z_LIBCXX_SONAME,    _ZnwmSt11align_val_tRKSt9nothrow_t,  __builtin_new_aligned, NewAligned);
   ALLOC_or_NULL_ALIGNED(SO_SYN_MALLOC,         _ZnwmSt11align_val_tRKSt9nothrow_t,  __builtin_new_aligned, NewAligned);
- #endif
 
 #elif defined(VGO_solaris)
  // operator new(unsigned, std::align_val_t, std::nothrow_t const&)
@@ -745,18 +732,11 @@ extern int * __error(void) __attribute__((weak));
  #endif
 
 #elif defined(VGO_darwin)
- // operator new[](unsigned int)
- #if VG_WORDSIZE == 4
-  ALLOC_or_BOMB(VG_Z_LIBSTDCXX_SONAME, _Znaj,             __builtin_vec_new );
-  ALLOC_or_BOMB(VG_Z_LIBCXX_SONAME,    _Znaj,             __builtin_vec_new );
-  ALLOC_or_BOMB(SO_SYN_MALLOC,         _Znaj,             __builtin_vec_new );
- #endif
+ // both 32bit and 64bit
  // operator new[](unsigned long)
- #if VG_WORDSIZE == 8
   ALLOC_or_BOMB(VG_Z_LIBSTDCXX_SONAME, _Znam,             __builtin_vec_new );
   ALLOC_or_BOMB(VG_Z_LIBCXX_SONAME,    _Znam,             __builtin_vec_new );
   ALLOC_or_BOMB(SO_SYN_MALLOC,         _Znam,             __builtin_vec_new );
- #endif
 
 #elif defined(VGO_solaris)
  // operator new[](unsigned int)
@@ -806,17 +786,11 @@ extern int * __error(void) __attribute__((weak));
 
 #elif defined(VGO_darwin)
 
- #if VG_WORDSIZE == 4
-  ALLOC_or_BOMB_ALIGNED(VG_Z_LIBSTDCXX_SONAME, _ZnajSt11align_val_t, __builtin_vec_new_aligned, VecNewAligned );
-  ALLOC_or_BOMB_ALIGNED(VG_Z_LIBCXX_SONAME,    _ZnajSt11align_val_t, __builtin_vec_new_aligned, VecNewAligned );
-  ALLOC_or_BOMB_ALIGNED(SO_SYN_MALLOC,         _ZnajSt11align_val_t, __builtin_vec_new_aligned, VecNewAligned );
- #endif
+ // both 32bit and 64bit
  // operator new[](unsigned long, std::align_val_t)
- #if VG_WORDSIZE == 8
   ALLOC_or_BOMB_ALIGNED(VG_Z_LIBSTDCXX_SONAME, _ZnamSt11align_val_t, __builtin_vec_new_aligned, VecNewAligned );
   ALLOC_or_BOMB_ALIGNED(VG_Z_LIBCXX_SONAME,    _ZnamSt11align_val_t, __builtin_vec_new_aligned, VecNewAligned );
   ALLOC_or_BOMB_ALIGNED(SO_SYN_MALLOC,         _ZnamSt11align_val_t, __builtin_vec_new_aligned, VecNewAligned );
- #endif
 
 #elif defined(VGO_solaris)
  // operator new[](unsigned int, std::align_val_t)
@@ -866,18 +840,11 @@ extern int * __error(void) __attribute__((weak));
  #endif
 
 #elif defined(VGO_darwin)
- // operator new[](unsigned, std::nothrow_t const&)
- #if VG_WORDSIZE == 4
-  ALLOC_or_NULL(VG_Z_LIBSTDCXX_SONAME, _ZnajRKSt9nothrow_t, __builtin_vec_new );
-  ALLOC_or_NULL(VG_Z_LIBCXX_SONAME,    _ZnajRKSt9nothrow_t, __builtin_vec_new );
-  ALLOC_or_NULL(SO_SYN_MALLOC,         _ZnajRKSt9nothrow_t, __builtin_vec_new );
- #endif
+ // both 32bit and 64bit
  // operator new[](unsigned long, std::nothrow_t const&)
- #if VG_WORDSIZE == 8
   ALLOC_or_NULL(VG_Z_LIBSTDCXX_SONAME, _ZnamRKSt9nothrow_t, __builtin_vec_new );
   ALLOC_or_NULL(VG_Z_LIBCXX_SONAME,    _ZnamRKSt9nothrow_t, __builtin_vec_new );
   ALLOC_or_NULL(SO_SYN_MALLOC,         _ZnamRKSt9nothrow_t, __builtin_vec_new );
- #endif
 
 #elif defined(VGO_solaris)
  // operator new[](unsigned, std::nothrow_t const&)
@@ -927,17 +894,10 @@ extern int * __error(void) __attribute__((weak));
 
 #elif defined(VGO_darwin)
 
- #if VG_WORDSIZE == 4
-  ALLOC_or_NULL_ALIGNED(VG_Z_LIBSTDCXX_SONAME, _ZnajSt11align_val_tRKSt9nothrow_t, __builtin_vec_new_aligned, VecNewAligned );
-  ALLOC_or_NULL_ALIGNED(VG_Z_LIBCXX_SONAME,    _ZnajSt11align_val_tRKSt9nothrow_t, __builtin_vec_new_aligned, VecNewAligned );
-  ALLOC_or_NULL_ALIGNED(SO_SYN_MALLOC,         _ZnajSt11align_val_tRKSt9nothrow_t, __builtin_vec_new_aligned, VecNewAligned );
- #endif
- // operator new[](unsigned long, std::align_val_t, std::nothrow_t const&)
- #if VG_WORDSIZE == 8
+  // both 32bit and 64bit
   ALLOC_or_NULL_ALIGNED(VG_Z_LIBSTDCXX_SONAME, _ZnamSt11align_val_tRKSt9nothrow_t, __builtin_vec_new_aligned, VecNewAligned );
   ALLOC_or_NULL_ALIGNED(VG_Z_LIBCXX_SONAME,    _ZnamSt11align_val_tRKSt9nothrow_t, __builtin_vec_new_aligned, VecNewAligned );
   ALLOC_or_NULL_ALIGNED(SO_SYN_MALLOC,         _ZnamSt11align_val_tRKSt9nothrow_t, __builtin_vec_new_aligned, VecNewAligned );
- #endif
 
 #elif defined(VGO_solaris)
  // operator new[](unsigned int, std::align_val_t, std::nothrow_t const&)
@@ -996,6 +956,8 @@ extern int * __error(void) __attribute__((weak));
 #elif defined(VGO_darwin)
  FREE(VG_Z_LIBC_SONAME,       free,                 free );
  FREE(SO_SYN_MALLOC,          free,                 free );
+ FREE(VG_Z_LIBC_SONAME,       vfree,                free );
+ FREE(SO_SYN_MALLOC,          vfree,                free );
  ZONEFREE(VG_Z_LIBC_SONAME,   malloc_zone_free,     free );
  ZONEFREE(SO_SYN_MALLOC,      malloc_zone_free,     free );
 
@@ -1022,7 +984,7 @@ extern int * __error(void) __attribute__((weak));
        DO_INIT; \
        TRIGGER_MEMCHECK_ERROR_IF_UNDEFINED((UWord)size); \
        VERIFY_ALIGNMENT(&aligned_alloc_info); \
-       MALLOC_TRACE(#fnname "(%p)\n", p ); \
+       MALLOC_TRACE(#fnname "(%p, %lu)\n", p, size ); \
        if (p == NULL)  \
        return; \
        (void)VALGRIND_NON_SIMD_CALL1( info.tl_##vg_replacement, p ); \
@@ -1065,7 +1027,7 @@ extern int * __error(void) __attribute__((weak));
        TRIGGER_MEMCHECK_ERROR_IF_UNDEFINED((UWord)alignment); \
        TRIGGER_MEMCHECK_ERROR_IF_UNDEFINED((UWord)size); \
        VERIFY_ALIGNMENT(&aligned_alloc_info); \
-       MALLOC_TRACE(#fnname "(%p)\n", p ); \
+       MALLOC_TRACE(#fnname "(%p, %lu, %lu)\n", p, size, alignment ); \
        if (p == NULL)  \
        return; \
        (void)VALGRIND_NON_SIMD_CALL1( info.tl_##vg_replacement, p ); \
@@ -1163,7 +1125,7 @@ extern int * __error(void) __attribute__((weak));
       DO_INIT; \
       TRIGGER_MEMCHECK_ERROR_IF_UNDEFINED((UWord)size); \
       VERIFY_ALIGNMENT(&aligned_alloc_info); \
-      MALLOC_TRACE(#fnname "(%p)\n", p ); \
+      MALLOC_TRACE(#fnname "(%p, %lu)\n", p, size ); \
       if (p == NULL)  \
          return; \
       (void)VALGRIND_NON_SIMD_CALL1( info.tl_##vg_replacement, p ); \
@@ -1198,17 +1160,11 @@ extern int * __error(void) __attribute__((weak));
 #endif
 
 #elif defined(VGO_darwin)
- // operator delete(void*, unsigned int)
-#if __SIZEOF_SIZE_T__ == 4
- DELETE_SIZED(VG_Z_LIBSTDCXX_SONAME,  _ZdlPvj,               __builtin_delete, DeleteSized );
- DELETE_SIZED(VG_Z_LIBCXX_SONAME,     _ZdlPvj,               __builtin_delete, DeleteSized );
- DELETE_SIZED(SO_SYN_MALLOC,          _ZdlPvj,               __builtin_delete, DeleteSized );
-#elif __SIZEOF_SIZE_T__ == 8
+ // both 32bit and 64bit
  // operator delete(void*, unsigned long)
  DELETE_SIZED(VG_Z_LIBSTDCXX_SONAME,  _ZdlPvm,               __builtin_delete, DeleteSized );
  DELETE_SIZED(VG_Z_LIBCXX_SONAME,     _ZdlPvm,               __builtin_delete, DeleteSized );
  DELETE_SIZED(SO_SYN_MALLOC,          _ZdlPvm,               __builtin_delete, DeleteSized );
-#endif
 
 #elif defined(VGO_solaris)
  // operator delete(void*, unsigned long)
@@ -1238,7 +1194,7 @@ extern int * __error(void) __attribute__((weak));
       DO_INIT; \
       TRIGGER_MEMCHECK_ERROR_IF_UNDEFINED((UWord)alignment); \
       VERIFY_ALIGNMENT(&aligned_alloc_info); \
-      MALLOC_TRACE(#fnname "(%p)\n", p ); \
+      MALLOC_TRACE(#fnname "(%p, %lu)\n", p, alignment ); \
       if (p == NULL)  \
          return; \
       (void)VALGRIND_NON_SIMD_CALL1( info.tl_##vg_replacement, p ); \
@@ -1255,7 +1211,7 @@ extern int * __error(void) __attribute__((weak));
       TRIGGER_MEMCHECK_ERROR_IF_UNDEFINED((UWord)size); \
       TRIGGER_MEMCHECK_ERROR_IF_UNDEFINED((UWord)alignment); \
       VERIFY_ALIGNMENT(&aligned_alloc_info); \
-      MALLOC_TRACE(#fnname "(%p)\n", p ); \
+      MALLOC_TRACE(#fnname "(%p, %lu, %lu)\n", p, size, alignment ); \
       if (p == NULL)  \
          return; \
       (void)VALGRIND_NON_SIMD_CALL1( info.tl_##vg_replacement, p ); \
@@ -1307,17 +1263,10 @@ extern int * __error(void) __attribute__((weak));
  DELETE_ALIGNED(VG_Z_LIBCXX_SONAME,     _ZdlPvSt11align_val_t,               __builtin_delete_aligned, DeleteAligned );
  DELETE_ALIGNED(SO_SYN_MALLOC,          _ZdlPvSt11align_val_t,               __builtin_delete_aligned, DeleteAligned );
 
- // operator delete(void*, unsigned int, std::align_val_t)
-#if __SIZEOF_SIZE_T__ == 4
- DELETE_SIZED_ALIGNED(VG_Z_LIBSTDCXX_SONAME,  _ZdlPvjSt11align_val_t,               __builtin_delete_aligned, DeleteSizedAligned );
- DELETE_SIZED_ALIGNED(VG_Z_LIBCXX_SONAME,     _ZdlPvjSt11align_val_t,               __builtin_delete_aligned, DeleteSizedAligned );
- DELETE_SIZED_ALIGNED(SO_SYN_MALLOC,          _ZdlPvjSt11align_val_t,               __builtin_delete_aligned, DeleteSizedAligned );
- // operator delete(void*, unsigned long, std::align_val_t)
-#elif __SIZEOF_SIZE_T__ == 8
+ // both 32bit and 64bit
  DELETE_SIZED_ALIGNED(VG_Z_LIBSTDCXX_SONAME,  _ZdlPvmSt11align_val_t,               __builtin_delete_aligned, DeleteSizedAligned );
  DELETE_SIZED_ALIGNED(VG_Z_LIBCXX_SONAME,     _ZdlPvmSt11align_val_t,               __builtin_delete_aligned, DeleteSizedAligned );
  DELETE_SIZED_ALIGNED(SO_SYN_MALLOC,          _ZdlPvmSt11align_val_t,               __builtin_delete_aligned, DeleteSizedAligned );
-#endif
 
 #elif defined(VGO_solaris)
 
@@ -1461,15 +1410,10 @@ extern int * __error(void) __attribute__((weak));
 
 #elif defined(VGO_darwin)
 
-  #if __SIZEOF_SIZE_T__ == 4
-  DELETE_SIZED(VG_Z_LIBSTDCXX_SONAME,  _ZdaPvj,              __builtin_vec_delete, VecDeleteSized );
-  DELETE_SIZED(VG_Z_LIBCXX_SONAME,     _ZdaPvj,              __builtin_vec_delete, VecDeleteSized );
-  DELETE_SIZED(SO_SYN_MALLOC,          _ZdaPvj,              __builtin_vec_delete, VecDeleteSized );
- #elif __SIZEOF_SIZE_T__ == 8
+  // both 32bit and 64bit
   DELETE_SIZED(VG_Z_LIBSTDCXX_SONAME,  _ZdaPvm,              __builtin_vec_delete, VecDeleteSized );
   DELETE_SIZED(VG_Z_LIBCXX_SONAME,     _ZdaPvm,              __builtin_vec_delete, VecDeleteSized );
   DELETE_SIZED(SO_SYN_MALLOC,          _ZdaPvm,              __builtin_vec_delete, VecDeleteSized );
- #endif
 
 #elif defined(VGO_solaris)
  // operator delete[](void*, unsigned int)
@@ -1532,17 +1476,11 @@ extern int * __error(void) __attribute__((weak));
  DELETE_ALIGNED(VG_Z_LIBCXX_SONAME,     _ZdaPvSt11align_val_t, __builtin_vec_delete_aligned, VecDeleteAligned );
  DELETE_ALIGNED(SO_SYN_MALLOC,          _ZdaPvSt11align_val_t, __builtin_vec_delete_aligned, VecDeleteAligned );
 
- // operator delete[](void*, unsigned int, std::align_val_t)
- #if __SIZEOF_SIZE_T__ == 4
- DELETE_SIZED_ALIGNED(VG_Z_LIBSTDCXX_SONAME,  _ZdaPvjSt11align_val_t, __builtin_vec_delete_aligned, VecDeleteSizedAligned );
- DELETE_SIZED_ALIGNED(VG_Z_LIBCXX_SONAME,     _ZdaPvjSt11align_val_t, __builtin_vec_delete_aligned, VecDeleteSizedAligned );
- DELETE_SIZED_ALIGNED(SO_SYN_MALLOC,          _ZdaPvjSt11align_val_t, __builtin_vec_delete_aligned, VecDeleteSizedAligned );
+ // both 32bit and 64bit
  // operator delete[](void*, unsigned long, std::align_val_t)
- #elif __SIZEOF_SIZE_T__ == 8
  DELETE_SIZED_ALIGNED(VG_Z_LIBSTDCXX_SONAME,  _ZdaPvmSt11align_val_t, __builtin_vec_delete_aligned, VecDeleteSizedAligned );
  DELETE_SIZED_ALIGNED(VG_Z_LIBCXX_SONAME,     _ZdaPvmSt11align_val_t, __builtin_vec_delete_aligned, VecDeleteSizedAligned );
  DELETE_SIZED_ALIGNED(SO_SYN_MALLOC,          _ZdaPvmSt11align_val_t, __builtin_vec_delete_aligned, VecDeleteSizedAligned );
-#endif
 
 
 #elif defined(VGO_solaris)
@@ -1709,7 +1647,7 @@ extern int * __error(void) __attribute__((weak));
       DO_INIT; \
       TRIGGER_MEMCHECK_ERROR_IF_UNDEFINED(ptrV); \
       TRIGGER_MEMCHECK_ERROR_IF_UNDEFINED(new_size); \
-      MALLOC_TRACE("zone_realloc(%p,%p,%llu)", zone, ptrV, (ULong)new_size ); \
+      MALLOC_TRACE("zone_realloc(%p,%p,%lu)", zone, ptrV, new_size ); \
       v = (void*)VALGRIND_NON_SIMD_CALL2( info.tl_realloc, ptrV, new_size ); \
       MALLOC_TRACE(" = %p\n", v ); \
       if (v == NULL) { \
@@ -1732,7 +1670,7 @@ extern int * __error(void) __attribute__((weak));
       DO_INIT; \
       TRIGGER_MEMCHECK_ERROR_IF_UNDEFINED(ptrV); \
       TRIGGER_MEMCHECK_ERROR_IF_UNDEFINED(new_size); \
-      MALLOC_TRACE("realloc(%p,%llu)", ptrV, (ULong)new_size ); \
+      MALLOC_TRACE("realloc(%p,%lu)", ptrV, new_size ); \
       v = (void*)VALGRIND_NON_SIMD_CALL2( info.tl_realloc, ptrV, new_size ); \
       MALLOC_TRACE(" = %p\n", v ); \
       if (v == NULL) { \
@@ -1755,7 +1693,7 @@ extern int * __error(void) __attribute__((weak));
       DO_INIT; \
       TRIGGER_MEMCHECK_ERROR_IF_UNDEFINED(ptrV); \
       TRIGGER_MEMCHECK_ERROR_IF_UNDEFINED(new_size); \
-      MALLOC_TRACE("reallocf(%p,%llu)", ptrV, (ULong)new_size ); \
+      MALLOC_TRACE("reallocf(%p,%lu)", ptrV, new_size ); \
       v = (void*)VALGRIND_NON_SIMD_CALL2( info.tl_realloc, ptrV, new_size ); \
       MALLOC_TRACE(" = %p\n", v ); \
       if (v == NULL) { \
@@ -1781,7 +1719,7 @@ extern int * __error(void) __attribute__((weak));
       TRIGGER_MEMCHECK_ERROR_IF_UNDEFINED(ptrV); \
       TRIGGER_MEMCHECK_ERROR_IF_UNDEFINED(nmemb); \
       TRIGGER_MEMCHECK_ERROR_IF_UNDEFINED(size); \
-      MALLOC_TRACE("reallocarray(%p,%llu,%llu)", ptrV, (ULong)nmemb, (ULong)size ); \
+      MALLOC_TRACE("reallocarray(%p,%lu,%lu)", ptrV, nmemb, size ); \
       if (nmemb > 0 && (SizeT)-1 / nmemb < size) { \
          SET_ERRNO_ENOMEM; \
          MALLOC_TRACE(" = 0\n"); \
@@ -1791,7 +1729,6 @@ extern int * __error(void) __attribute__((weak));
       MALLOC_TRACE(" = %p\n", v ); \
       if (v == NULL) { \
          if (!(size*nmemb == 0U && info.clo_realloc_zero_bytes_frees == True)) {\
-            VG_REPLACE_FUNCTION_EZU(10050,VG_Z_LIBC_SONAME,free)(ptrV); \
             SET_ERRNO_ENOMEM; \
       } \
    } \
@@ -1883,8 +1820,8 @@ extern int * __error(void) __attribute__((weak));
       VERIFY_ALIGNMENT(&aligned_alloc_info);                                   \
       TRIGGER_MEMCHECK_ERROR_IF_UNDEFINED((UWord)zone);                        \
       TRIGGER_MEMCHECK_ERROR_IF_UNDEFINED(n);                                  \
-      MALLOC_TRACE("zone_memalign(%p, al %llu, size %llu)", zone,              \
-                   (ULong)alignment, (ULong)n);                                \
+      MALLOC_TRACE("zone_memalign(%p, %lu, %lu)", zone,                        \
+                   alignment, n);                                              \
                                                                                \
       if (alignment == 0 || alignment % sizeof(void*) != 0 ||                  \
           (alignment & (alignment - 1)) != 0) {                                \
@@ -1952,8 +1889,7 @@ extern int * __error(void) __attribute__((weak));
       DO_INIT; \
       TRIGGER_MEMCHECK_ERROR_IF_UNDEFINED(n); \
       VERIFY_ALIGNMENT(&aligned_alloc_info); \
-      MALLOC_TRACE("memalign(al %llu, size %llu)", \
-                   (ULong)alignment, (ULong)n ); \
+      MALLOC_TRACE("memalign(%lu, %lu)", alignment, n ); \
       \
       /* Round up to minimum alignment if necessary. */ \
       if (alignment < VG_MIN_MALLOC_SZB) \
@@ -1986,8 +1922,7 @@ extern int * __error(void) __attribute__((weak));
                                                                                \
       DO_INIT;                                                                 \
       VERIFY_ALIGNMENT(&aligned_alloc_info);                                   \
-      MALLOC_TRACE("memalign(alignment %llu, size %llu)", (ULong)alignment,    \
-                   (ULong)size);                                               \
+      MALLOC_TRACE("memalign(%lu, %lu)", alignment, size);                     \
       if ((VG_MEMALIGN_NO_SIZE_ZERO && (size == 0)) ||                         \
           (VG_MEMALIGN_NO_ALIGN_ZERO && (alignment == 0)) ||                   \
           (VG_MEMALIGN_ALIGN_POWER_TWO &&                                      \
@@ -2193,8 +2128,7 @@ extern int * __error(void) __attribute__((weak));
       DO_INIT; \
       TRIGGER_MEMCHECK_ERROR_IF_UNDEFINED(size); \
       VERIFY_ALIGNMENT(&aligned_alloc_info); \
-      MALLOC_TRACE("posix_memalign(al %llu, size %llu)", \
-            (ULong)alignment, (ULong)size ); \
+      MALLOC_TRACE("posix_memalign(%p, %lu, %lu)", memptr, alignment, size ); \
       /* Test whether the alignment argument is valid.  It must be \
          a power of two multiple of sizeof (void *).  */ \
       if (alignment == 0 \
@@ -2236,8 +2170,9 @@ extern int * __error(void) __attribute__((weak));
  POSIX_MEMALIGN(SO_SYN_MALLOC,    posix_memalign);
 
 #elif defined(VGO_darwin)
-#if (DARWIN_VERSIO >= DARWIN_10_6)
+#if (DARWIN_VERS >= DARWIN_10_6)
  POSIX_MEMALIGN(VG_Z_LIBC_SONAME, posix_memalign);
+ POSIX_MEMALIGN(SO_SYN_MALLOC,    posix_memalign);
 #endif
 
 #elif defined(VGO_solaris)
@@ -2337,8 +2272,7 @@ extern int * __error(void) __attribute__((weak));
        DO_INIT; \
        TRIGGER_MEMCHECK_ERROR_IF_UNDEFINED(size); \
        VERIFY_ALIGNMENT(&aligned_alloc_info); \
-       MALLOC_TRACE("aligned_alloc(al %llu, size %llu)", \
-                (ULong)alignment, (ULong)size ); \
+       MALLOC_TRACE("aligned_alloc(%lu, %lu)", alignment, size ); \
        \
        /* Round up to minimum alignment if necessary. */ \
        if (alignment < VG_MIN_MALLOC_SZB) \
@@ -2370,8 +2304,7 @@ extern int * __error(void) __attribute__((weak));
        \
        DO_INIT; \
        VERIFY_ALIGNMENT(&aligned_alloc_info); \
-       MALLOC_TRACE("aligned_alloc(al %llu, size %llu)", \
-                (ULong)alignment, (ULong)size ); \
+       MALLOC_TRACE("aligned_alloc(%lu, %lu)", alignment, size ); \
        if ((VG_ALIGNED_ALLOC_NO_SIZE_ZERO && (size == 0)) \
            || (VG_ALIGNED_ALLOC_NO_ALIGN_ZERO && (alignment == 0)) \
            || (VG_ALIGNED_ALLOC_SIZE_MULTIPLE_ALIGN && alignment && (size % alignment != 0)) \
@@ -2404,11 +2337,11 @@ extern int * __error(void) __attribute__((weak));
   ALIGNED_ALLOC(SO_SYN_MALLOC,    aligned_alloc);
 
 #elif defined(VGO_freebsd)
- ALIGNED_ALLOC(G_Z_LIBC_SONAME, aligned_alloc);
+ ALIGNED_ALLOC(VG_Z_LIBC_SONAME, aligned_alloc);
  ALIGNED_ALLOC(SO_SYN_MALLOC,   aligned_alloc);
 
  #elif defined(VGO_darwin)
-  //ALIGNED_ALLOC(VG_Z_LIBC_SONAME, aligned_alloc);
+ ALIGNED_ALLOC(VG_Z_LIBC_SONAME, aligned_alloc);
 
  #elif defined(VGO_solaris)
   ALIGNED_ALLOC(VG_Z_LIBC_SONAME, aligned_alloc);
@@ -2431,7 +2364,7 @@ extern int * __error(void) __attribute__((weak));
          return 0; \
       \
       pszB = (SizeT)VALGRIND_NON_SIMD_CALL1( info.tl_malloc_usable_size, p ); \
-      MALLOC_TRACE(" = %llu\n", (ULong)pszB ); \
+      MALLOC_TRACE(" = %lu\n", pszB ); \
       \
       return pszB; \
    }
@@ -2577,6 +2510,17 @@ static size_t my_malloc_size ( void* zone, void* ptr )
    return res;
 }
 
+#define ZONE_DESTROY(soname, fnname) \
+   \
+   void VG_REPLACE_FUNCTION_EZU(10291,soname,fnname)(void* zone); \
+   void VG_REPLACE_FUNCTION_EZU(10291,soname,fnname)(void* zone)  \
+   { \
+      TRIGGER_MEMCHECK_ERROR_IF_UNDEFINED(zone); \
+   }
+
+ZONE_DESTROY(VG_Z_LIBC_SONAME, malloc_zone_destroy);
+ZONE_DESTROY(SO_SYN_MALLOC,    malloc_zone_destroy);
+
 /* Note that the (void*) casts below are a kludge which stops
    compilers complaining about the fact that the replacement
    functions aren't really of the right type. */
@@ -2589,7 +2533,7 @@ static vki_malloc_zone_t vg_default_zone = {
     (void*)VG_REPLACE_FUNCTION_EZU(10130,VG_Z_LIBC_SONAME,malloc_zone_valloc),
     (void*)VG_REPLACE_FUNCTION_EZU(10040,VG_Z_LIBC_SONAME,malloc_zone_free),
     (void*)VG_REPLACE_FUNCTION_EZU(10080,VG_Z_LIBC_SONAME,malloc_zone_realloc),
-    NULL, // GrP fixme: destroy
+    (void*)VG_REPLACE_FUNCTION_EZU(10291,VG_Z_LIBC_SONAME,malloc_zone_destroy),
     "ValgrindMallocZone",
     NULL, // batch_malloc
     NULL, // batch_free

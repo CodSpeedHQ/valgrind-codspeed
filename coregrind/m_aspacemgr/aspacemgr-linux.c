@@ -297,6 +297,13 @@
 static NSegment nsegments[VG_N_SEGMENTS];
 static Int      nsegments_used = 0;
 
+/* bookkeeping for madvise() guard pages, bug 514297 */
+#if defined(VGO_linux)
+static UInt     VG_N_GUARDS;
+static Addr     *guardpages;
+static Int      nguardpages_used = 0;
+#endif
+
 #define Addr_MIN ((Addr)0)
 #define Addr_MAX ((Addr)(-1ULL))
 
@@ -467,27 +474,32 @@ static void show_nsegment ( Int logLevel, Int segNo, const NSegment* seg )
 {
    HChar len_buf[20];
    show_len_concisely(len_buf, seg->start, seg->end);
+   const char *tail = "";
+
+#if defined(VGO_linux)
+   tail = seg->hasGuardPages ? " (G)" : " (g)";
+#endif
 
    switch (seg->kind) {
 
       case SkFree:
          VG_(debugLog)(
             logLevel, "aspacem",
-            "%3d: %s %010lx-%010lx %s\n",
+            "%3d: %s %010lx-%010lx %s%s\n",
             segNo, show_SegKind(seg->kind),
-            seg->start, seg->end, len_buf
+            seg->start, seg->end, len_buf, tail
          );
          break;
 
       case SkAnonC: case SkAnonV: case SkShmC:
          VG_(debugLog)(
             logLevel, "aspacem",
-            "%3d: %s %010lx-%010lx %s %c%c%c%c%c\n",
+            "%3d: %s %010lx-%010lx %s %c%c%c%c%c%s\n",
             segNo, show_SegKind(seg->kind),
             seg->start, seg->end, len_buf,
             seg->hasR ? 'r' : '-', seg->hasW ? 'w' : '-', 
             seg->hasX ? 'x' : '-', seg->hasT ? 'T' : '-',
-            seg->isCH ? 'H' : '-'
+            seg->isCH ? 'H' : '-', tail
          );
          break;
 
@@ -495,27 +507,28 @@ static void show_nsegment ( Int logLevel, Int segNo, const NSegment* seg )
          VG_(debugLog)(
             logLevel, "aspacem",
             "%3d: %s %010lx-%010lx %s %c%c%c%c%c d=0x%03llx "
-            "i=%-7llu o=%-7lld (%d,%d)\n",
+            "i=%-7llu o=%-7lld (%d,%d)%s\n",
             segNo, show_SegKind(seg->kind),
             seg->start, seg->end, len_buf,
             seg->hasR ? 'r' : '-', seg->hasW ? 'w' : '-', 
             seg->hasX ? 'x' : '-', seg->hasT ? 'T' : '-', 
             seg->isCH ? 'H' : '-',
             seg->dev, seg->ino, seg->offset,
-            ML_(am_segname_get_seqnr)(seg->fnIdx), seg->fnIdx
+            ML_(am_segname_get_seqnr)(seg->fnIdx), seg->fnIdx,
+            tail
          );
          break;
 
       case SkResvn:
          VG_(debugLog)(
             logLevel, "aspacem",
-            "%3d: %s %010lx-%010lx %s %c%c%c%c%c %s\n",
+            "%3d: %s %010lx-%010lx %s %c%c%c%c%c %s%s\n",
             segNo, show_SegKind(seg->kind),
             seg->start, seg->end, len_buf,
             seg->hasR ? 'r' : '-', seg->hasW ? 'w' : '-', 
             seg->hasX ? 'x' : '-', seg->hasT ? 'T' : '-', 
             seg->isCH ? 'H' : '-',
-            show_ShrinkMode(seg->smode)
+            show_ShrinkMode(seg->smode), tail
          );
          break;
 
@@ -631,7 +644,10 @@ static Bool sane_NSegment ( const NSegment* s )
       case SkAnonC: case SkAnonV: case SkShmC:
          return 
             s->smode == SmFixed 
-            && s->dev == 0 && s->ino == 0 && s->offset == 0 && s->fnIdx == -1
+#if !defined(VGO_darwin) // on macOS we use ino as the vm_tag holder
+            && s->ino == 0
+#endif
+            && s->dev == 0 && s->offset == 0 && s->fnIdx == -1
             && (s->kind==SkAnonC ? True : !s->isCH);
 
       case SkFileC: case SkFileV:
@@ -672,6 +688,9 @@ static Bool maybe_merge_nsegments ( NSegment* s1, const NSegment* s2 )
 
       case SkFree:
          s1->end = s2->end;
+#if defined(VGO_linux)
+         s1->hasGuardPages |= s2->hasGuardPages;
+#endif
          return True;
 
       case SkAnonC: case SkAnonV:
@@ -679,6 +698,9 @@ static Bool maybe_merge_nsegments ( NSegment* s1, const NSegment* s2 )
              && s1->hasX == s2->hasX && s1->isCH == s2->isCH) {
             s1->end = s2->end;
             s1->hasT |= s2->hasT;
+#if defined(VGO_linux)
+            s1->hasGuardPages |= s2->hasGuardPages;
+#endif
             return True;
          }
          break;
@@ -691,6 +713,9 @@ static Bool maybe_merge_nsegments ( NSegment* s1, const NSegment* s2 )
                               + ((ULong)s2->start) - ((ULong)s1->start) ) {
             s1->end = s2->end;
             s1->hasT |= s2->hasT;
+#if defined(VGO_linux)
+            s1->hasGuardPages |= s2->hasGuardPages;
+#endif
             ML_(am_dec_refcount)(s1->fnIdx);
             return True;
          }
@@ -702,6 +727,9 @@ static Bool maybe_merge_nsegments ( NSegment* s1, const NSegment* s2 )
       case SkResvn:
          if (s1->smode == SmFixed && s2->smode == SmFixed) {
             s1->end = s2->end;
+#if defined(VGO_linux)
+            s1->hasGuardPages |= s2->hasGuardPages;
+#endif
             return True;
          }
 
@@ -861,6 +889,7 @@ static void sync_check_mapping_callback ( Addr addr, SizeT len, UInt prot,
 
 #if defined(VGO_darwin)
       // GrP fixme kernel info doesn't have dev/inode
+      // FIXME PJF but now ino is being used for vm tag
       cmp_devino = False;
 
       // GrP fixme V and kernel don't agree on offsets
@@ -1057,6 +1086,264 @@ void ML_(am_do_sanity_check)( void )
    AM_SANITY_CHECK;
 }
 
+/*-----------------------------------------------------------------*/
+/*---                                                           ---*/
+/*--- Low level access / modification of the guardpages array.  ---*/
+/*---                                                           ---*/
+/*-----------------------------------------------------------------*/
+
+/* This bug 514297 related section is linux specific.
+   Guard whole the section with defined(VGO_linux) */
+
+Bool is_guarded_segment( Int );
+Bool is_guarded_interval( Addr, Addr );
+
+#if defined(VGO_linux)
+static void guard_page_install ( Addr addr ) {
+   /* Note that this only installs guard pages into the
+      guardpages array.  But it doesn't flag hasGuardPages
+      for segments having guard pages.
+      That's handled in guard_pages_install() below. */
+   Addr addr_aligned = addr & ~(VKI_PAGE_SIZE - 1);
+   if (nguardpages_used >= VG_N_GUARDS) {
+      VG_(printf)("Use --max-guard-pages=INT to specify a larger number of\n"
+                  "guard pages and rerun valgrind\n");
+      VG_(core_panic)("Max number of guard pages is too low");
+   }
+   // bisect
+   Int mid = 0,
+       lo = 0,
+       hi = nguardpages_used - 1;
+   while (True) {
+      if (lo > hi) {
+         break;
+      } else {
+         mid = (lo + hi) / 2;
+         if (addr_aligned < guardpages[mid]) { hi = mid - 1; continue; }
+         if (addr_aligned > guardpages[mid]) { lo = mid + 1; continue; }
+         if (addr_aligned == guardpages[mid]) {
+            VG_(debugLog)(0,"aspacem",
+                          "Attempt to reinstall already existing guard page\n");
+            return;
+         }
+      }
+   }
+   // merge in
+   for (Int i=nguardpages_used; i > lo; i--)
+      guardpages[i] = guardpages[i-1];
+   guardpages[lo] = addr_aligned;
+   nguardpages_used++;
+}
+
+
+inline static void guard_pages_install ( Addr addr, SizeT len ) {
+   Int iLo = find_nsegment_idx(addr);
+   Int iHi = find_nsegment_idx(addr + len - 1);
+
+   // Record the new guard pages in the guardpages array
+   Int pages = (len - 1) / VKI_PAGE_SIZE + 1;
+   for (Int i=0; i < pages; i++)
+      guard_page_install(addr + i * VKI_PAGE_SIZE);
+
+   // These 5 should be guaranteed by find_nsegment_idx.
+   aspacem_assert(0 <= iLo && iLo < nsegments_used);
+   aspacem_assert(0 <= iHi && iHi < nsegments_used);
+   aspacem_assert(iLo <= iHi);
+   aspacem_assert(nsegments[iLo].start <= addr );
+   aspacem_assert(nsegments[iHi].end   >= addr + len - 1 );
+
+   // Flag the new guardpages in the nsegments array
+   for (Int i = iLo; i <= iHi; i++)
+      nsegments[i].hasGuardPages = True;
+}
+
+static void guard_page_remove ( Addr addr, Bool check ) {
+   /* Note that this only removes guard pages from the
+      guardpages array.  But it doesn't unflag hasGuardPages
+      for segments not having any guard pages any more.
+      That's handled in guard_pages_remove() below. */
+   Addr addr_aligned = addr & ~(VKI_PAGE_SIZE - 1);
+   // search
+   Int mid = 0,
+       lo = 0,
+       hi = nguardpages_used - 1;
+   while (True) {
+      if (lo > hi) {
+         if (check == False) {
+            // Here we just return.  The address wasn't found, and
+            // thus can't be removed from the evidence.  This may
+            // happen when munmap() is called.  Unmapping memory
+            // removes also guard pages.  In this case we remove
+            // guard page from V's evidence if there is one, but
+            // if there is none, we don't complain and go ahead.
+            return;
+         }
+      }
+      aspacem_assert(lo <= hi);
+      mid = (lo + hi) / 2;
+      if (addr_aligned < guardpages[mid]) { hi = mid - 1; continue; }
+      if (addr_aligned > guardpages[mid]) { lo = mid + 1; continue; }
+      if (addr_aligned == guardpages[mid]) break;
+   }
+   // remove
+   for(Int i=mid; i<nguardpages_used; i++)
+      guardpages[i] = guardpages[i+1];
+   nguardpages_used--;
+}
+
+inline static void guard_pages_remove ( Addr addr, SizeT len, Bool check ) {
+   Int iLo = find_nsegment_idx(addr);
+   Int iHi = find_nsegment_idx(addr + len - 1);
+   Bool guardPageSeen;
+
+   // Reflect the guard pages removal in the guardpages array
+   Int pages = (len - 1) / VKI_PAGE_SIZE + 1;
+   for (Int i=0; i < pages; i++)
+      guard_page_remove (addr + i * VKI_PAGE_SIZE, check);
+
+   // These 5 should be guaranteed by find_nsegment_idx.
+   aspacem_assert(0 <= iLo && iLo < nsegments_used);
+   aspacem_assert(0 <= iHi && iHi < nsegments_used);
+   aspacem_assert(iLo <= iHi);
+   aspacem_assert(nsegments[iLo].start <= addr );
+   aspacem_assert(nsegments[iHi].end   >= addr + len - 1 );
+
+   // Unflag segments not having any guard pages any more
+   for (Int i = iLo; i <= iHi; i++) { 
+      Addr aLo = nsegments[i].start;
+      Addr aHi = nsegments[i].end;
+      guardPageSeen = False;
+      for (Int j = 0; j < nguardpages_used; j++) {
+         if ((guardpages[j] >= aLo) && (guardpages[j] <= aHi))
+            guardPageSeen = True;
+      }
+      if (guardPageSeen == False)
+          nsegments[i].hasGuardPages = False;
+
+   }
+}
+
+static void is_guarded_sanity ( Addr addr, Bool expected )
+{
+   static Int VG_(cl_pagemap_fd) = -1;
+   static Bool pagemap_io_err = False;
+   // Don't repeatedly complain about io /proc/self/pagemap IO errors
+   if (pagemap_io_err == True)
+      return;
+   if (VG_(cl_pagemap_fd) == -1) {
+      VG_(cl_pagemap_fd) = sr_Res(ML_(am_open)("/proc/self/pagemap", VKI_O_RDONLY, 0 ));
+         if(VG_(cl_pagemap_fd) == -1) {
+            pagemap_io_err = True;
+            VG_(debugLog)(0, "aspacem", "I/O error on /proc/self/pagemap");
+         }
+      VG_(cl_pagemap_fd) = VG_(safe_fd)(VG_(cl_pagemap_fd));
+   }
+   Addr addr_page_aligned = addr & ~(VKI_PAGE_SIZE - 1);
+   vki_off_t offset = ((vki_uint64_t)addr_page_aligned / VKI_PAGE_SIZE) * sizeof(vki_uint64_t);
+   Int ret = ML_(am_lseek) (VG_(cl_pagemap_fd), offset, VKI_SEEK_SET);
+   if (ret == -1) {
+      VG_(debugLog)(0, "aspacem", "failed lseek in pagemap\n");
+      pagemap_io_err = True;
+   }
+   // https://docs.kernel.org/admin-guide/mm/pagemap.html
+   vki_uint64_t entry; // one 64-bit value for each virtual page
+   ret = ML_(am_read) (VG_(cl_pagemap_fd), &entry, sizeof(vki_uint64_t));
+   if (ret == -1) {
+      VG_(debugLog)(0, "aspacem", "failed reading pagemap\n");
+      pagemap_io_err = True;
+   }
+   if (((entry >> 58) & 1) == 1) {
+      VG_(debugLog)(1, "aspacem",
+                    "madvise guard page hit at addr 0x%lx\n", addr);
+      if (expected == True) {
+         return;
+      } else {
+         ML_(am_barf)("FATAL: failed guard page sanity check\n");
+         ML_(am_exit)(1);
+      }
+   }
+   if (expected == False) {
+      return;
+   } else {
+      VG_(debugLog)(0, "Valgrind:",
+                       "FATAL: failed guard page sanity check\n");
+      ML_(am_exit)(1);
+   }
+}
+
+Bool VG_(is_guarded) ( Addr addr ) {
+   Addr addr_aligned = addr & ~(VKI_PAGE_SIZE - 1);
+   Int mid, 
+       lo = 0,
+       hi = nguardpages_used - 1;
+   while (True) {
+      if (lo > hi) {
+         if (LIKELY(VG_(clo_sanity_level) < 3)) {
+            /* do nothing */
+         } else {
+            is_guarded_sanity ( addr, False );
+         }
+         return False;
+      }
+      mid = (lo + hi) / 2;
+      if (addr_aligned < guardpages[mid]) { hi = mid - 1; continue; }
+      if (addr_aligned > guardpages[mid]) { lo = mid + 1; continue; }
+      if (LIKELY(VG_(clo_sanity_level) < 3)) {
+         /* do nothing */
+      } else {
+         is_guarded_sanity ( addr, True );
+      }
+      return True;
+   }
+}
+
+/* Check if segment with given id has at least one guard page */
+Bool is_guarded_segment( Int seg ) {
+   return is_guarded_interval (nsegments[seg].start,
+                               nsegments[seg].end);
+}
+
+/* Check if there is a guard page in the guardpages array
+   evidence in given interval of addresses */
+Bool is_guarded_interval ( Addr aStart, Addr aEnd ) {
+   if (nguardpages_used < 1)
+      return False;
+   /* Quickly find the beginning of interesting interval
+      of the guardpages array by bisecting it */
+   Int mid = 0,
+       lo = 0,
+       hi = nguardpages_used - 1;
+   while (True) {
+      if (lo > hi) {
+         break;
+      } else {
+         mid = (lo + hi) / 2;
+         if (aStart < guardpages[mid]) { hi = mid - 1; continue; }
+         if (aStart > guardpages[mid]) { lo = mid + 1; continue; }
+         if (aStart == guardpages[mid]) {
+            /* Lucky enough to step on the guard page early */
+            return True;
+         }
+      }
+   }
+   if (lo >= nguardpages_used) {
+      /* Out of range, no guard page for this segment for sure */
+      return False;
+   }
+   /* Scan the interesting interval of guardpages array one by one */
+   for (Int i = lo; i<= nguardpages_used; i++) {
+      if (guardpages[i] > aEnd)
+         return False;
+      return True;
+   }
+   return False;
+}
+#else
+/* Provide stub VG_(is_guarded)() for non-linux targets */
+Bool VG_(is_guarded) ( Addr addr ) {
+   return False;
+}
+#endif
 
 /*-----------------------------------------------------------------*/
 /*---                                                           ---*/
@@ -1233,6 +1520,9 @@ Bool is_valid_for( UInt kinds, Addr start, SizeT len, UInt prot )
 {
    Int  i, iLo, iHi;
    Bool needR, needW, needX;
+#if defined(VGO_linux)
+   Bool needGuardPageCheck = False;
+#endif
 
    if (len == 0)
       return True; /* somewhat dubious case */
@@ -1263,10 +1553,22 @@ Bool is_valid_for( UInt kinds, Addr start, SizeT len, UInt prot )
            && (needW ? nsegments[i].hasW : True)
            && (needX ? nsegments[i].hasX : True) ) {
          /* ok */
+#if defined(VGO_linux)
+           if ( ( nsegments[i].hasGuardPages )
+                && (prot != VKI_PROT_NONE) ) {
+              needGuardPageCheck = True;
+           }
+#endif
       } else {
          return False;
       }
    }
+
+#if defined(VGO_linux)
+   if (needGuardPageCheck && VG_(is_guarded)(start)) {
+      return False;
+   }
+#endif
 
    return True;
 }
@@ -1417,6 +1719,11 @@ static void split_nsegment_at ( Addr a )
 
    ML_(am_inc_refcount)(nsegments[i].fnIdx);
 
+#if defined(VGO_linux)
+   nsegments[i].hasGuardPages = is_guarded_segment(i);
+   nsegments[i+1].hasGuardPages = is_guarded_segment(i+1);
+#endif
+
    aspacem_assert(sane_NSegment(&nsegments[i]));
    aspacem_assert(sane_NSegment(&nsegments[i+1]));
 }
@@ -1451,6 +1758,11 @@ void split_nsegments_lo_and_hi ( Addr sLo, Addr sHi,
    /* Not that I'm overly paranoid or anything, definitely not :-) */
 }
 
+#if defined(VGO_darwin)
+#include "pub_core_tooliface.h"
+
+static void fill_segment(NSegment* seg);
+#endif
 
 /* Add SEG to the collection, deleting/truncating any it overlaps.
    This deals with all the tricky cases of splitting up segments as
@@ -1463,6 +1775,12 @@ static void add_segment ( const NSegment* seg )
 
    Addr sStart = seg->start;
    Addr sEnd   = seg->end;
+
+#if defined(VGO_darwin)
+   // FIXME: adding for all segments causes some failures and alignment crashes in leak check
+   // need to debug more
+   //fill_segment((NSegment*) (Addr) seg);
+#endif
 
    aspacem_assert(sStart <= sEnd);
    aspacem_assert(VG_IS_PAGE_ALIGNED(sStart));
@@ -1524,6 +1842,9 @@ static void init_nsegment ( /*OUT*/NSegment* seg )
 #if defined(VGO_freebsd)
    seg->isFF     = False;
    seg->ignore_offset = False;
+#endif
+#if defined(VGO_linux)
+   seg->hasGuardPages = False;
 #endif
 
 }
@@ -1598,6 +1919,10 @@ static void read_maps_callback ( Addr addr, SizeT len, UInt prot,
       seg.fnIdx = ML_(am_allocate_segname)( filename );
 
    if (0) show_nsegment( 2,0, &seg );
+#if defined(VGO_darwin)
+   // FIXME this is the one that causes problems with leak checks
+   //fill_segment( &seg );
+#endif
    add_segment( &seg );
 }
 
@@ -1659,12 +1984,12 @@ Addr VG_(am_startup) ( Addr sp_at_startup )
    // --- Darwin -------------------------------------------
 #if defined(VGO_darwin)
 
-# if VG_WORDSIZE == 4
+#if defined(VGP_x86_darwin)
    aspacem_maxAddr = (Addr) 0xffffffff;
 
    aspacem_cStart = aspacem_minAddr;
    aspacem_vStart = 0xf0000000;  // 0xc0000000..0xf0000000 available
-# else
+#elif defined(VGP_amd64_darwin)
    aspacem_maxAddr = (Addr) 0x7fffffffffff;
 
    aspacem_cStart = aspacem_minAddr;
@@ -1920,10 +2245,16 @@ Addr VG_(am_startup) ( Addr sp_at_startup )
 
    if (aspacem_cStart > Addr_MIN) {
       init_resvn(&seg, Addr_MIN, aspacem_cStart-1);
+#if defined(VGO_darwin)
+      fill_segment( &seg );
+#endif
       add_segment(&seg);
    }
    if (aspacem_maxAddr < Addr_MAX) {
       init_resvn(&seg, aspacem_maxAddr+1, Addr_MAX);
+#if defined(VGO_darwin)
+      fill_segment( &seg );
+#endif
       add_segment(&seg);
    }
 
@@ -1933,6 +2264,9 @@ Addr VG_(am_startup) ( Addr sp_at_startup )
       valgrind allocations at the boundary, this is kind of necessary
       in order to get it to start allocating in the right place. */
    init_resvn(&seg, aspacem_vStart,  aspacem_vStart + VKI_PAGE_SIZE - 1);
+#if defined(VGO_darwin)
+   fill_segment( &seg );
+#endif
    add_segment(&seg);
 
    VG_(am_show_nsegments)(2, "Initial layout");
@@ -1950,6 +2284,18 @@ Addr VG_(am_startup) ( Addr sp_at_startup )
       segment all along.  Sigh. */
 
    VG_(am_show_nsegments)(2, "With contents of /proc/self/maps");
+
+#if defined(VGO_linux)
+   /* With glibc upstream commit a6fbe36b7f31 and others, on x86_64,
+      a new madvise(MADV_GUARD_INSTALL ... ) guard page is installed for
+      each new thread. In the future, MADV_GUARD_INSTALL is likely to
+      be used with DSOs supporting multiple kernel page sizes.  A rough
+      estimation of max madvise guard page count is Nthreads + 3 * DSOcnt.
+      Madvise guard pages are tracked in the guardpages array below. The
+      array size is set via --max-guard-pages or --max-threads: */
+   VG_N_GUARDS = VG_(clo_max_guard_pages);
+   guardpages = VG_(calloc)("aspacem.guardpages", VG_N_GUARDS, sizeof(Addr));
+#endif
 
    AM_SANITY_CHECK;
    return suggested_clstack_end;
@@ -2320,6 +2666,9 @@ VG_(am_notify_client_mmap)( Addr a, SizeT len, UInt prot, UInt flags,
       seg.isFF = (flags & VKI_MAP_FIXED);
 #endif
    }
+#if defined(VGO_darwin)
+   fill_segment( &seg );
+#endif
    add_segment( &seg );
    AM_SANITY_CHECK;
    return needDiscard;
@@ -2351,6 +2700,9 @@ VG_(am_notify_client_shmat)( Addr a, SizeT len, UInt prot )
    seg.hasR   = toBool(prot & VKI_PROT_READ);
    seg.hasW   = toBool(prot & VKI_PROT_WRITE);
    seg.hasX   = toBool(prot & VKI_PROT_EXEC);
+#if defined(VGO_darwin)
+   fill_segment( &seg );
+#endif
    add_segment( &seg );
    AM_SANITY_CHECK;
    return needDiscard;
@@ -2410,6 +2762,36 @@ Bool VG_(am_notify_mprotect)( Addr start, SizeT len, UInt prot )
    return needDiscard;
 }
 
+/* Notifiy aspacem about madvise(MADV_GUARD_INSTALL), bug 514297 */
+#if defined(VGO_linux)
+Bool VG_(am_notify_madv_guard)( Addr start, SizeT len, Bool install )
+{
+   aspacem_assert(VG_IS_PAGE_ALIGNED(start));
+   aspacem_assert(VG_IS_PAGE_ALIGNED(len));
+
+   if (len == 0)
+      return False;
+
+   if (install) {
+      VG_(debugLog)(1, "aspacem",
+                    "installing guard pages (addr=0x%lx, len=0x%lx)\n",
+                    start, len);
+      guard_pages_install(start, len);
+   } else {
+      VG_(debugLog)(1, "aspacem",
+                    "removing guard pages (addr=0x%lx, len=0x%lx)\n",
+                    start, len);
+      guard_pages_remove(start, len, True);
+   }
+
+   AM_SANITY_CHECK;
+
+   // The return val determines whether translations will be discarded.
+   // That is supposed to happen when guard page is installed, but not
+   // otherwise.
+   return install;
+}
+#endif
 
 /* Notifies aspacem that an munmap completed successfully.  The
    segment array is updated accordingly.  As with
@@ -2451,7 +2833,15 @@ Bool VG_(am_notify_munmap)( Addr start, SizeT len )
    else
       seg.kind = SkFree;
 
+#if defined(VGO_darwin)
+   fill_segment( &seg );
+#endif
    add_segment( &seg );
+
+   /* Unmapping drops guard pages (if present) */
+#if defined(VGO_linux)
+      guard_pages_remove( start, len, False );
+#endif
 
    /* Unmapping could create two adjacent free segments, so a preen is
       needed.  add_segment() will do that, so no need to here. */
@@ -2563,6 +2953,9 @@ SysRes VG_(am_mmap_named_file_fixed_client_flags)
 #if defined(VGO_freebsd)
    seg.isFF = (flags & VKI_MAP_FIXED);
 #endif
+#if defined(VGO_darwin)
+   fill_segment( &seg );
+#endif
    add_segment( &seg );
 
    AM_SANITY_CHECK;
@@ -2621,6 +3014,9 @@ SysRes VG_(am_mmap_anon_fixed_client) ( Addr start, SizeT length, UInt prot )
    seg.hasR  = toBool(prot & VKI_PROT_READ);
    seg.hasW  = toBool(prot & VKI_PROT_WRITE);
    seg.hasX  = toBool(prot & VKI_PROT_EXEC);
+#if defined(VGO_darwin)
+   fill_segment( &seg );
+#endif
    add_segment( &seg );
 
    AM_SANITY_CHECK;
@@ -2680,6 +3076,9 @@ static SysRes am_mmap_anon_float_client ( SizeT length, Int prot, Bool isCH )
    seg.hasW  = toBool(prot & VKI_PROT_WRITE);
    seg.hasX  = toBool(prot & VKI_PROT_EXEC);
    seg.isCH  = isCH;
+#if defined(VGO_darwin)
+   fill_segment( &seg );
+#endif
    add_segment( &seg );
 
    AM_SANITY_CHECK;
@@ -2782,6 +3181,9 @@ SysRes VG_(am_mmap_anon_float_valgrind)( SizeT length )
    seg.hasR  = True;
    seg.hasW  = True;
    seg.hasX  = True;
+#if defined(VGO_darwin)
+   fill_segment( &seg );
+#endif
    add_segment( &seg );
 
    AM_SANITY_CHECK;
@@ -2874,6 +3276,9 @@ static SysRes VG_(am_mmap_file_float_valgrind_flags) ( SizeT length, UInt prot,
    }
 #if defined(VGO_freebsd)
    seg.isFF = (flags & VKI_MAP_FIXED);
+#endif
+#if defined(VGO_darwin)
+   fill_segment( &seg );
 #endif
    add_segment( &seg );
 
@@ -3096,6 +3501,9 @@ Bool VG_(am_create_reservation) ( Addr start, SizeT length,
                            reservation. */
    seg.end   = end1;
    seg.smode = smode;
+#if defined(VGO_darwin)
+   fill_segment( &seg );
+#endif
    add_segment( &seg );
 
    AM_SANITY_CHECK;
@@ -3269,6 +3677,9 @@ const NSegment *VG_(am_extend_map_client)( Addr addr, SizeT delta )
 
    NSegment seg_copy = *seg;
    seg_copy.end += delta;
+#if defined(VGO_darwin)
+   fill_segment( &seg );
+#endif
    add_segment( &seg_copy );
 
    if (0)
@@ -3342,6 +3753,9 @@ Bool VG_(am_relocate_nooverlap_client)( /*OUT*/Bool* need_discard,
    }
    seg.start = new_addr;
    seg.end   = new_addr + new_len - 1;
+#if defined(VGO_darwin)
+   fill_segment( &seg );
+#endif
    add_segment( &seg );
 
    /* Create a free hole in the old location. */
@@ -3357,6 +3771,9 @@ Bool VG_(am_relocate_nooverlap_client)( /*OUT*/Bool* need_discard,
    else
       seg.kind = SkFree;
 
+#if defined(VGO_darwin)
+   fill_segment( &seg );
+#endif
    add_segment( &seg );
 
    AM_SANITY_CHECK;
@@ -3693,6 +4110,35 @@ static void parse_procselfmaps (
 
    if (record_gap && gapStart < Addr_MAX)
       (*record_gap) ( gapStart, Addr_MAX - gapStart + 1 );
+
+#if defined(VGO_linux)
+   // Iterate over guard pages
+   for (i = 0; i<nguardpages_used; i++) {
+      // Check if every guard page in V's evidence has respective
+      // record in kernel's evidence.
+      is_guarded_sanity(guardpages[i], True);
+      // Make sure that every guard page belongs to a segment
+      // flagged with hasGuardPages.
+      if(nsegments[find_nsegment_idx(guardpages[i])].hasGuardPages == False) {
+         VG_(debugLog)(0, "Valgrind:",
+                          "FATAL: failed guard page sanity check2 at address 0x%lx.\n", guardpages[i]);
+         ML_(am_exit)(1);
+      }
+   }
+   // Iterate over segments.  For each segment flagged with hasGuardPages
+   // make sure that it actually contains at least one guard page.
+   for (i = 0; i < nsegments_used; i++) {
+      if (is_guarded_segment(i) != nsegments[i].hasGuardPages) {
+            for (Int k=0; k<nguardpages_used; k++)
+               VG_(debugLog)(0,"aspacem","guard page: seg=%d id=%d addr=0x%lx\n",
+                             find_nsegment_idx(guardpages[k]), k, guardpages[k]);
+            VG_(am_show_nsegments)(0, "aspacem");
+            VG_(debugLog)(0, "Valgrind:",
+                          "FATAL: segment %d: inconsistent guard page evidence\n", i);
+            ML_(am_exit)(1);
+         }
+   }
+#endif
 }
 
 /*------END-procmaps-parser-for-Linux----------------------------*/
@@ -3702,6 +4148,7 @@ static void parse_procselfmaps (
 #elif defined(VGO_darwin)
 #include <mach/mach.h>
 #include <mach/mach_vm.h>
+#include <libproc.h>
 
 static unsigned int mach2vki(unsigned int vm_prot)
 {
@@ -3709,6 +4156,353 @@ static unsigned int mach2vki(unsigned int vm_prot)
       ((vm_prot & VM_PROT_READ)    ? VKI_PROT_READ    : 0) |
       ((vm_prot & VM_PROT_WRITE)   ? VKI_PROT_WRITE   : 0) |
       ((vm_prot & VM_PROT_EXECUTE) ? VKI_PROT_EXEC    : 0) ;
+}
+
+static Int get_filename_for_region(int pid, Addr addr, HChar* path, SizeT path_len, ULong* vm_tag) {
+  int ret;
+  SizeT len;
+  struct proc_regionwithpathinfo info;
+  VG_(memset)(&info, 0, sizeof(info));
+  ret = sr_Res(VG_(do_syscall6)(__NR_proc_info, 2, pid, PROC_PIDREGIONPATHINFO, addr, (Addr)&info, sizeof(info)));
+  if (ret == -1) {
+    return ret;
+  }
+  if (vm_tag) {
+    *vm_tag = info.prp_prinfo.pri_user_tag;
+  }
+  len = VG_(strlen)(&info.prp_vip.vip_path[0]);
+  if (len == 0) {
+    return 0;
+  }
+  len += 1; // include the null terminator
+  if (len > path_len) {
+    len = path_len;
+  }
+  VG_(strlcpy)(path, info.prp_vip.vip_path, len);
+  return len;
+}
+
+static Bool get_name_from_tag(int tag, HChar* path, SizeT path_len) {
+  switch (tag) {
+    case VKI_VM_MEMORY_DYLD:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[internal dyld memory]", path_len);
+      return True;
+    case VKI_VM_MEMORY_OS_ALLOC_ONCE:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[kernel alloc once]", path_len);
+      return True;
+    case VKI_VM_MEMORY_GENEALOGY:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[activity tracing]", path_len);
+      return True;
+    case VKI_VM_MEMORY_BRK:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[brk]", path_len);
+      return True;
+    case VKI_VM_MEMORY_MALLOC:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[malloc memory]", path_len);
+      return True;
+    case VKI_VM_MEMORY_MALLOC_HUGE:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[malloc (huge) memory]", path_len);
+      return True;
+    case VKI_VM_MEMORY_MALLOC_LARGE:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[malloc (large) memory]", path_len);
+      return True;
+    case VKI_VM_MEMORY_MALLOC_SMALL:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[malloc (small) memory]", path_len);
+      return True;
+    case VKI_VM_MEMORY_MALLOC_TINY:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[malloc (tiny) memory]", path_len);
+      return True;
+    case VKI_VM_MEMORY_MALLOC_NANO:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[malloc (nano) memory]", path_len);
+      return True;
+    case VM_MEMORY_MACH_MSG:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[mach message]", path_len);
+      return True;
+    case VKI_VM_MEMORY_ANALYSIS_TOOL:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[analysis tool]", path_len);
+      return True;
+    case VKI_VM_MEMORY_STACK:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[stack]", path_len);
+      return True;
+    case VKI_VM_MEMORY_SHARED_PMAP:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[shared pmap]", path_len);
+      return True;
+    case VKI_VM_MEMORY_UNSHARED_PMAP:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[unshared pmap]", path_len);
+      return True;
+    case VKI_VM_MEMORY_REALLOC:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[realloc]", path_len);
+      break;
+    case VKI_VM_MEMORY_MALLOC_LARGE_REUSABLE:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[malloc (large, reusable) memory]", path_len);
+      break;
+    case VKI_VM_MEMORY_MALLOC_LARGE_REUSED:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[malloc (large, reused) memory]", path_len);
+      break;
+    case VKI_VM_MEMORY_MALLOC_MEDIUM:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[malloc (medium) memory]", path_len);
+      break;
+    case VKI_VM_MEMORY_MALLOC_PROB_GUARD:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[malloc prob guard]", path_len);
+      break;
+    case VKI_VM_MEMORY_IOKIT:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[iokit]", path_len);
+      break;
+    case VKI_VM_MEMORY_GUARD:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[guard]", path_len);
+      break;
+    case VKI_VM_MEMORY_DYLIB:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[dylib]", path_len);
+      break;
+    case VKI_VM_MEMORY_OBJC_DISPATCHERS:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[objc dispatchers]", path_len);
+      break;
+    case VKI_VM_MEMORY_APPKIT:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[appkit]", path_len);
+      break;
+    case VKI_VM_MEMORY_FOUNDATION:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[foundation]", path_len);
+      break;
+    case VKI_VM_MEMORY_COREGRAPHICS:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[core graphics]", path_len);
+      break;
+    case VKI_VM_MEMORY_CORESERVICES:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[core services]", path_len);
+      break;
+    case VKI_VM_MEMORY_JAVA:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[java]", path_len);
+      break;
+    case VKI_VM_MEMORY_COREDATA:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[core data]", path_len);
+      break;
+    case VKI_VM_MEMORY_COREDATA_OBJECTIDS:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[core data object ids]", path_len);
+      break;
+    case VKI_VM_MEMORY_ATS:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[ats]", path_len);
+      break;
+    case VKI_VM_MEMORY_LAYERKIT:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[layer kit]", path_len);
+      break;
+    case VKI_VM_MEMORY_CGIMAGE:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[core graphics image]", path_len);
+      break;
+    case VKI_VM_MEMORY_TCMALLOC:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[tcmalloc]", path_len);
+      break;
+    case VKI_VM_MEMORY_COREGRAPHICS_DATA:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[core graphics data]", path_len);
+      break;
+    case VKI_VM_MEMORY_COREGRAPHICS_SHARED:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[core graphics shared]", path_len);
+      break;
+    case VKI_VM_MEMORY_COREGRAPHICS_FRAMEBUFFERS:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[core graphics framebuffers]", path_len);
+      break;
+    case VKI_VM_MEMORY_COREGRAPHICS_BACKINGSTORES:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[core graphics backing stores]", path_len);
+      break;
+    case VKI_VM_MEMORY_COREGRAPHICS_XALLOC:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[core graphics xalloc]", path_len);
+      break;
+    case VKI_VM_MEMORY_DYLD_MALLOC:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[dyld malloc]", path_len);
+      break;
+    case VKI_VM_MEMORY_SQLITE:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[sqlite]", path_len);
+      break;
+    case VKI_VM_MEMORY_JAVASCRIPT_CORE:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[javascript core]", path_len);
+      break;
+    case VKI_VM_MEMORY_JAVASCRIPT_JIT_EXECUTABLE_ALLOCATOR:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[javascript jit executable allocator]", path_len);
+      break;
+    case VKI_VM_MEMORY_JAVASCRIPT_JIT_REGISTER_FILE:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[javascript jit register file]", path_len);
+      break;
+    case VKI_VM_MEMORY_GLSL:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[glsl]", path_len);
+      break;
+    case VKI_VM_MEMORY_OPENCL:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[opencl]", path_len);
+      break;
+    case VKI_VM_MEMORY_COREIMAGE:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[core image]", path_len);
+      break;
+    case VKI_VM_MEMORY_WEBCORE_PURGEABLE_BUFFERS:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[webcore purgeable buffers]", path_len);
+      break;
+    case VKI_VM_MEMORY_IMAGEIO:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[imageio]", path_len);
+      break;
+    case VKI_VM_MEMORY_COREPROFILE:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[core profile]", path_len);
+      break;
+    case VKI_VM_MEMORY_ASSETSD:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[assetsd]", path_len);
+      break;
+    case VKI_VM_MEMORY_LIBDISPATCH:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[libdispatch]", path_len);
+      break;
+    case VKI_VM_MEMORY_ACCELERATE:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[accelerate]", path_len);
+      break;
+    case VKI_VM_MEMORY_COREUI:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[core ui]", path_len);
+      break;
+    case VKI_VM_MEMORY_COREUIFILE:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[core ui file]", path_len);
+      break;
+    case VKI_VM_MEMORY_RAWCAMERA:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[raw camera]", path_len);
+      break;
+    case VKI_VM_MEMORY_CORPSEINFO:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[corpse info]", path_len);
+      break;
+    case VKI_VM_MEMORY_ASL:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[asl]", path_len);
+      break;
+    case VKI_VM_MEMORY_SWIFT_RUNTIME:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[swift runtime]", path_len);
+      break;
+    case VKI_VM_MEMORY_SWIFT_METADATA:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[swift metadata]", path_len);
+      break;
+    case VKI_VM_MEMORY_DHMM:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[dhmm]", path_len);
+      break;
+    case VKI_VM_MEMORY_SCENEKIT:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[scene kit]", path_len);
+      break;
+    case VKI_VM_MEMORY_SKYWALK:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[skywalk]", path_len);
+      break;
+    case VKI_VM_MEMORY_IOSURFACE:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[io surface]", path_len);
+      break;
+    case VKI_VM_MEMORY_LIBNETWORK:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[libnetwork]", path_len);
+      break;
+    case VKI_VM_MEMORY_AUDIO:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[audio]", path_len);
+      break;
+    case VKI_VM_MEMORY_VIDEOBITSTREAM:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[video bitstream]", path_len);
+      break;
+    case VKI_VM_MEMORY_CM_XPC:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[cm xpc]", path_len);
+      break;
+    case VKI_VM_MEMORY_CM_RPC:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[cm rpc]", path_len);
+      break;
+    case VKI_VM_MEMORY_CM_MEMORYPOOL:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[cm memory pool]", path_len);
+      break;
+    case VKI_VM_MEMORY_CM_READCACHE:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[cm read cache]", path_len);
+      break;
+    case VKI_VM_MEMORY_CM_CRABS:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[cm crabs]", path_len);
+      break;
+    case VKI_VM_MEMORY_QUICKLOOK_THUMBNAILS:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[quicklook thumbnails]", path_len);
+      break;
+    case VKI_VM_MEMORY_ACCOUNTS:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[accounts]", path_len);
+      break;
+    case VKI_VM_MEMORY_SANITIZER:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[sanitizer]", path_len);
+      break;
+    case VKI_VM_MEMORY_IOACCELERATOR:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[io accelerator]", path_len);
+      break;
+    case VKI_VM_MEMORY_CM_REGWARP:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[cm regwarp]", path_len);
+      break;
+    case VKI_VM_MEMORY_EAR_DECODER:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[ear decoder]", path_len);
+      break;
+    case VKI_VM_MEMORY_COREUI_CACHED_IMAGE_DATA:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[core ui cached image data]", path_len);
+      break;
+    case VKI_VM_MEMORY_COLORSYNC:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[color sync]", path_len);
+      break;
+    case VKI_VM_MEMORY_BTINFO:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[bt info]", path_len);
+      break;
+    case VKI_VM_MEMORY_CM_HLS:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[cm hls]", path_len);
+      break;
+    case VKI_VM_MEMORY_ROSETTA:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[rosetta]", path_len);
+      break;
+    case VKI_VM_MEMORY_ROSETTA_THREAD_CONTEXT:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[rosetta thread context]", path_len);
+      break;
+    case VKI_VM_MEMORY_ROSETTA_INDIRECT_BRANCH_MAP:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[rosetta indirect branch map]", path_len);
+      break;
+    case VKI_VM_MEMORY_ROSETTA_RETURN_STACK:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[rosetta return stack]", path_len);
+      break;
+    case VKI_VM_MEMORY_ROSETTA_EXECUTABLE_HEAP:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[rosetta executable heap]", path_len);
+      break;
+    case VKI_VM_MEMORY_ROSETTA_USER_LDT:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[rosetta user ldt]", path_len);
+      break;
+    case VKI_VM_MEMORY_ROSETTA_ARENA:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[rosetta arena]", path_len);
+      break;
+    case VKI_VM_MEMORY_ROSETTA_10:
+      VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[rosetta 10]", path_len);
+      break;
+    case VKI_VM_MEMORY_VALGRIND:
+    case 0:
+      return False;
+    default:
+      if (tag >= VKI_VM_MEMORY_APPLICATION_SPECIFIC_1 && tag <= VKI_VM_MEMORY_APPLICATION_SPECIFIC_16) {
+        VG_(strlcpy)(path, DARWIN_FAKE_MEMORY_PATH "[application specific]", path_len);
+        return True;
+      }
+      VG_(debugLog)(0, "aspacem", "unknown vm tag: %d\n", tag);
+      return False;
+  }
+  return True;
+}
+
+static void fill_segment(NSegment* seg) {
+  Int pid;
+  HChar name[VKI_PATH_MAX];
+  Int ret;
+
+  if (seg->fnIdx != -1 || seg->kind == SkFree || seg->kind == SkResvn) {
+    return;
+  }
+
+  pid = sr_Res(VG_(do_syscall0)(__NR_getpid));
+  ret = get_filename_for_region(pid, seg->start, name, sizeof(name), &seg->ino);
+  if (ret != 0) {
+    if (ret == -1) {
+      return;
+    }
+  } else if (get_name_from_tag(seg->ino, name, sizeof(name))) {
+    // these are owned by the kernel and are already initialized
+    // we flag them as client so m_main.c track them correctly
+    seg->kind = SkFileC;
+  } else {
+    return;
+  }
+  seg->fnIdx = ML_(am_allocate_segname)( name );
+}
+
+static Bool endswith(const HChar* str, const HChar* suffix) {
+  SizeT str_len = VG_(strlen)(str);
+  SizeT suffix_len = VG_(strlen)(suffix);
+  if (str_len < suffix_len) {
+    return False;
+  }
+  return VG_(strcmp)(str + str_len - suffix_len, suffix) == 0;
 }
 
 static UInt stats_machcalls = 0;
@@ -3723,13 +4517,16 @@ static void parse_procselfmaps (
    vm_address_t iter;
    unsigned int depth;
    vm_address_t last;
+   HChar name[VKI_PATH_MAX];
+   Bool ret;
+   Int pid = sr_Res(VG_(do_syscall0)(__NR_getpid));
 
    iter = 0;
    depth = 0;
    last = 0;
    while (1) {
       mach_vm_address_t addr = iter;
-      mach_vm_size_t size;
+      mach_vm_size_t size = 0;
       vm_region_submap_short_info_data_64_t info;
       kern_return_t kr;
 
@@ -3749,12 +4546,19 @@ static void parse_procselfmaps (
       }
       iter = addr + size;
 
+      // FIXME: not sure we should fill up anything here as it will added later anyway
+      ret = get_filename_for_region(pid, addr, name, sizeof(name), NULL);
+      if (!ret) {
+        ret = get_name_from_tag(info.user_tag, name, sizeof(name));
+      }
+
+
       if (addr > last  &&  record_gap) {
          (*record_gap)(last, addr - last);
       }
       if (record_mapping) {
          (*record_mapping)(addr, size, mach2vki(info.protection),
-                           0, 0, info.offset, NULL, False);
+                           0, info.user_tag, info.offset, ret ? name : NULL, False);
       }
       last = addr + size;
    }
@@ -3964,32 +4768,33 @@ static char* maybe_merge_procmap_stack(char* p,  struct vki_kinfo_vmentry *kve, 
 {
    static Bool sgrowsiz_read = False;
    static SizeT kern_sgrowsiz;
+   static SizeT kern_maxssiz;
    if (!sgrowsiz_read) {
       SizeT sysctl_size = sizeof(SizeT);
-      VG_(sysctlbyname)("kern.sgrowsiz", &kern_sgrowsiz, &sysctl_size, NULL, 0);
+      Int res = VG_(sysctlbyname)("kern.sgrowsiz", &kern_sgrowsiz, &sysctl_size, NULL, 0);
+      vg_assert(res == 0);
+#if defined(VGP_amd64_freebsd) || defined(VGP_arm64_freebsd)
+      res = VG_(sysctlbyname)("kern.maxssiz", &kern_maxssiz, &sysctl_size, NULL, 0);
+      vg_assert(0 == res);
+#elif defined (VGP_x86_freebsd)
+      // first check for x86 on amd64
+      res = VG_(sysctlbyname)("compat.ia32.maxssiz", &kern_maxssiz, &sysctl_size, NULL, 0);
+      if (0 != res) {
+         // then x86 on x86
+         res = VG_(sysctlbyname)("kern.maxssiz", &kern_maxssiz, &sysctl_size, NULL, 0);
+      }
+      vg_assert(0 == res);
+#else
+#error "unknown FreeBSD platform"
+#endif
       sgrowsiz_read = True;
    }
    char* p_next = p + kve->kve_structsize;
    struct vki_kinfo_vmentry *kve_next = (struct vki_kinfo_vmentry *)(p_next);
 
-#if defined(VGP_amd64_freebsd)
-   // I think that this is the stacksize rlimit
-   // I could use sysctl kern.maxssiz for this
-   if ( *pEndPlusOne + kern_sgrowsiz - kve->kve_start == 512ULL*1024ULL*1024ULL) {
+   if ( *pEndPlusOne + kern_sgrowsiz - kve->kve_start == kern_maxssiz) {
       return p;
    }
-#elif defined(VGP_x86_freebsd)
-   // sysctl kern.maxssiz OK for x86 on x86 but not x86 on amd64
-   if ( *pEndPlusOne + kern_sgrowsiz - kve->kve_start == 64ULL*1024ULL*1024ULL) {
-      return p;
-   }
-#elif defined(VGP_arm64_freebsd)
-   if ( *pEndPlusOne + kern_sgrowsiz - kve->kve_start == 1024ULL*1024ULL*1024ULL) {
-      return p;
-   }
-#else
-#    error Unknown platform
-#endif
 
    while (kve_next->kve_protection & VKI_KVME_PROT_READ &&
           kve_next->kve_protection & VKI_KVME_PROT_WRITE &&
@@ -4016,8 +4821,6 @@ static char* maybe_merge_procmap_stack(char* p,  struct vki_kinfo_vmentry *kve, 
 
 
 /*
- * PJF 2023-09-23
- *
  * This function is somewhat badly named for FreeBSD, where the
  * /proc filesystem is optional so we can't count on users
  * having it. Instead we use the KERN_PROC_VMMAP syscall.
@@ -4031,8 +4834,8 @@ static char* maybe_merge_procmap_stack(char* p,  struct vki_kinfo_vmentry *kve, 
  * The other use is at startup in order to get the mapping for the
  * tool itself. In this case we have a fairly big problem. There is
  * a difference in the mapping used when the kernel loads an exe
- * and when the link loader ldrt (or Valgrind which does the same
- * job for the guest exe. In the case of ldrt, all ELF PT_LOAD
+ * and when the link loader rtld (or Valgrind which does the same
+ * job for the guest exe). In the case of rtld, all ELF PT_LOAD
  * sections get mmap'd. The kernel, however, does _not_ mmap
  * the RW PT_LOAD.
  *
@@ -4052,9 +4855,32 @@ static char* maybe_merge_procmap_stack(char* p,  struct vki_kinfo_vmentry *kve, 
  * Instead of mmap'ing the RW PT_LOAD the kernel has mmap'd anonymous swap and copied from the exe file.
  * See https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=273956
  *
- * So what can we do? We can reuse most of the info from the previous 'r-x' mapping.
- * The filename, dev and ino are all the same. That leaves the offset. We can
- * make a rough estimate of the value as being previous offset + previous size.
+ * If Valgrind is built with GNU bfd.ld (which could be with clang or GCC) then we have
+ *
+ * objdump -p .in_place/memcheck-amd64-freebsd
+ *    LOAD off    0x0000000000000000 vaddr 0x0000000038000000 paddr 0x0000000038000000 align 2**12
+ *         filesz 0x0000000000297b40 memsz 0x0000000000297b40 flags r-x
+ *    LOAD off    0x0000000000298000 vaddr 0x0000000038298000 paddr 0x0000000038298000 align 2**12
+ *         filesz 0x0000000000000a38 memsz 0x00000000025dcfb8 flags rw-
+ *
+ * and the procstat -v output
+ * 57440         0x38000000         0x38298000 r-x  664 2776   1   0 CN--- vn /home/paulf/valgrind/memcheck/memcheck-amd64-freebsd
+ * 57440         0x38298000         0x3a875000 rw- 4512 4512   1   0 ----- sw
+ *
+ * Is that complicated enough? No.
+ *
+ * The final RW PT_LOAD for the host can be split (at least when building
+ * with the LLVM toolchain).
+ *
+ * 40751         0x38000000         0x380cc000 r--  204 2722   3   1 CN--- vn /home/paulf/scratch/valgrind/memcheck/memcheck-amd64-freebsd
+ * 40751         0x380cc000         0x38294000 r-x  456 2722   3   1 CN--- vn /home/paulf/scratch/valgrind/memcheck/memcheck-amd64-freebsd
+ * 40751         0x38294000         0x38295000 rw-    1    0   1   0 C---- vn /home/paulf/scratch/valgrind/memcheck/memcheck-amd64-freebsd
+ * 40751         0x38295000         0x3a872000 rw- 4587 4587   1   0 --S-- sw
+ *
+ * So what can we do? We can reuse most of the info from the previous 'r-x'
+ * or 'rw-' mapping. The filename, dev and ino are all the same. That leaves
+ * the offset. We can make a rough estimate of the value as being
+ * previous offset + previous size.
  * Since the addresses in memory will be page aligned it's not possible to
  * obtain the original offset. It isn't good enough for ML_(read_elf_object)
  * in readelf.c
@@ -4067,6 +4893,12 @@ static char* maybe_merge_procmap_stack(char* p,  struct vki_kinfo_vmentry *kve, 
  * if Valgrind crashes or asserts it will print its own stack without
  * debuginfo, which is mostly useless. See the above FreeBSD bugzilla item
  * for an example.
+ *
+ * The rule for triggering the recording of the part or whole RW PT_LOAD
+ * mapped as swap is:
+ *
+ * "The first time that there is a swap mapping after a RW or RX mapping
+ * then also record that swap mapping."
  */
 
 /* Size of a smallish table used to read /proc/self/map entries. */
@@ -4088,27 +4920,11 @@ static void parse_procselfmaps (
    UInt   prot;
    ULong  foffset, dev, ino;
    struct vki_kinfo_vmentry *kve;
-   vki_size_t len;
+   SizeT len;
    Int    oid[4];
    SysRes sres;
-   Int map_count = 0;
-   // this assumes that compiling with clang uses ld.lld which produces 3 LOAD segements
-   // and that compiling with GCC uses ld.bfd which produces 2 LOAD segments
-#if defined(__clang__)
-   Int const rx_map = 1;
-   Int const rw_map = 2;
-#elif defined(__GNUC__)
-   Int const rx_map = 0;
-   Int const rw_map = 1;
-#else
-#error("unsupported compiler")
-#endif
-   // could copy the whole kinfo_vmentry but it is 1160 bytes
-   char   *rx_filename = NULL;
-   ULong  rx_dev = 0U;
-   ULong  rx_ino = 0U;
-   ULong  rx_foffset = 0U;
    Bool   tool_read_maps = (record_mapping == read_maps_callback);
+   Bool   host_rw_map_swap_hack_done = False;
 
    foffset = ino = 0; /* keep gcc-4.1.0 happy */
 
@@ -4144,16 +4960,6 @@ static void parse_procselfmaps (
       if (kve->kve_protection & VKI_KVME_PROT_WRITE) prot |= VKI_PROT_WRITE;
       if (kve->kve_protection & VKI_KVME_PROT_EXEC)  prot |= VKI_PROT_EXEC;
 
-      map_count = (p - (char *)procmap_buf)/kve->kve_structsize;
-
-      if (tool_read_maps && map_count == rw_map) {
-         aspacem_assert((prot & (VKI_PROT_READ | VKI_PROT_WRITE)) == (VKI_PROT_READ | VKI_PROT_WRITE));
-         filename = rx_filename;
-         dev = rx_dev;
-         ino = rx_ino;
-         foffset = rx_foffset;
-      }
- 
       if (record_gap && gapStart < start)
          (*record_gap) ( gapStart, start-gapStart );
 
@@ -4163,27 +4969,48 @@ static void parse_procselfmaps (
          p = maybe_merge_procmap_stack(p, kve, &endPlusOne, &prot);
       }
 
+      /* a normal mapping */
       if (record_mapping && start < endPlusOne) {
          (*record_mapping) ( start, endPlusOne-start,
                              prot, dev, ino,
-                           foffset, filename, tool_read_maps && map_count == 2 );
+                           foffset, filename, False );
       }
 
-      if (tool_read_maps && map_count == rx_map) {
-         aspacem_assert((prot & (VKI_PROT_READ | VKI_PROT_EXEC)) == (VKI_PROT_READ | VKI_PROT_EXEC));
-         rx_filename = filename;
-         rx_dev = dev;
-         rx_ino = ino;
-         /* this is only accurate to the page alignment */
-         rx_foffset = foffset + endPlusOne - start;
+      /* check for the host RW segment partially or wholly mapped as swap */
+      if (!host_rw_map_swap_hack_done &&
+         tool_read_maps &&
+          (((prot & (VKI_PROT_READ | VKI_PROT_EXEC)) == (VKI_PROT_READ | VKI_PROT_EXEC)) ||
+           ((prot & (VKI_PROT_READ | VKI_PROT_WRITE)) == (VKI_PROT_READ | VKI_PROT_WRITE))) &&
+          filename &&
+          p + kve->kve_structsize < (char*)procmap_buf + len) {
+         char* p_next = p + kve->kve_structsize;
+         struct vki_kinfo_vmentry* kve_next = (struct vki_kinfo_vmentry *)p_next;
+         UInt prot_next = 0;
+         if (kve_next->kve_protection & VKI_KVME_PROT_READ)  prot_next |= VKI_PROT_READ;
+         if (kve_next->kve_protection & VKI_KVME_PROT_WRITE) prot_next |= VKI_PROT_WRITE;
+         if (kve_next->kve_protection & VKI_KVME_PROT_EXEC)  prot_next |= VKI_PROT_EXEC;
+         if (((prot_next & (VKI_PROT_READ | VKI_PROT_WRITE)) == (VKI_PROT_READ | VKI_PROT_WRITE)) &&
+             (kve_next->kve_type == VKI_KVME_TYPE_SWAP)) {
+            Addr start_next      = (UWord)kve_next->kve_start;
+            Addr endPlusOne_next = (UWord)kve_next->kve_end;
+            if (record_mapping && start_next < endPlusOne_next) {
+               (*record_mapping) ( start_next, endPlusOne_next-start_next,
+                                   prot_next, dev, ino,
+                                   foffset + start_next - start,
+                                   filename, True );
+               p += kve_next->kve_structsize;
+               host_rw_map_swap_hack_done = True;
+            }
+         }
       }
 
       gapStart = endPlusOne;
-      // PJF I think that we need to walk this based on each entry's kve_structsize
+      // We need to walk this based on each entry's kve_structsize
       // because sysctl kern.coredump_pack_fileinfo (on by default) can cause this
       // array to be packed (for core dumps)
       // the packing consists of only storing the used part of kve_path rather than
-      // the full 1024 bytes
+      // the full 1024 bytes.
+      // Other BSDs do not provide the filename and can therefore use sizeof.
       p += kve->kve_structsize;
    }
  

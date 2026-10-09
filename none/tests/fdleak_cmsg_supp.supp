@@ -97,9 +97,17 @@
 {
    sup10
    CoreError:FdNotClosed
-   fun:__so_accept
+   fun:*_accept
    fun:accept
    fun:server
+   fun:main
+}
+
+{
+   sup11
+   CoreError:FdNotClosed
+   fun:__recvmsg64
+   fun:client
    fun:main
 }
 
