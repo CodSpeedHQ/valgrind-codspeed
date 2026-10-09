@@ -1778,6 +1778,11 @@ Int valgrind_main ( Int argc, HChar **argv, HChar **envp )
       }
       client_auxv_len += 2 * sizeof(UWord);
 
+      UWord *saved_auxv = VG_(malloc)("main.saved_auxv", client_auxv_len);
+      VG_(memcpy)(saved_auxv, VG_(client_auxv), client_auxv_len);
+      VG_(client_saved_auxv) = saved_auxv;
+      VG_(client_saved_auxv_size) = client_auxv_len;
+
       VG_(write)(fd, VG_(client_auxv), client_auxv_len);
 
       /* Don't bother to seek the file back to the start; instead do
