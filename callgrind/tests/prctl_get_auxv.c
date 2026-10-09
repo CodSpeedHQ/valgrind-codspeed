@@ -58,7 +58,7 @@ int main(int argc, char **argv, char **envp)
    char **env_end = envp;
    while (*env_end != NULL)
       env_end++;
-   const unsigned long *stack_auxv = (const unsigned long *)(env_end + 1);
+   unsigned long *stack_auxv = (unsigned long *)(env_end + 1);
    size_t stack_auxv_size = 2 * sizeof(unsigned long);
    for (const unsigned long *p = stack_auxv; p[0] != AT_NULL; p += 2)
       stack_auxv_size += 2 * sizeof(unsigned long);
@@ -90,6 +90,18 @@ int main(int argc, char **argv, char **envp)
       && has_only_byte(bytes + size, sizeof(buf) - size, 0xaa);
    printf("zero padding up to the returned size: %s\n",
           is_zero_padded ? "yes" : "no");
+
+   /* The kernel answers from the auxv it saved at exec, so later writes
+      to the copy on the stack do not show. */
+   unsigned long first_value = stack_auxv[1];
+   stack_auxv[1] = ~first_value;
+   unsigned long later[512];
+   long later_size = prctl(PR_GET_AUXV, later, sizeof(later), 0, 0);
+   stack_auxv[1] = first_value;
+   int is_saved_copy = later_size == size
+                       && memcmp(later, buf, stack_auxv_size) == 0;
+   printf("stack auxv modified: %s\n",
+          is_saved_copy ? "saved vector returned" : "modified vector returned");
 
    unsigned long small[4], fill;
    memset(small, 0xaa, sizeof(small));

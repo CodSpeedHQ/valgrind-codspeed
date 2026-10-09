@@ -1589,8 +1589,9 @@ PRE(sys_prctl)
                     unsigned long, size, unsigned long, arg4,
                     unsigned long, arg5);
       /* The kernel would return the auxv it saved when it exec'd the
-         Valgrind tool.  Return the client's auxv instead: the one on the
-         client stack, which getauxval() and /proc/self/auxv report.
+         Valgrind tool.  Return the client's auxv instead, from the copy
+         saved at startup: the vector getauxval() and /proc/self/auxv
+         report, read without touching the client stack.
          A call completed in the pre-handler must not set SfMayBlock. */
       *flags &= ~SfMayBlock;
       if (ARG4 != 0 || ARG5 != 0) {
@@ -1604,9 +1605,8 @@ PRE(sys_prctl)
          SET_STATUS_from_SysRes(kres);
          break;
       }
-      SizeT auxv_size = 2 * sizeof(UWord);   /* the terminating AT_NULL */
-      for (const UWord *p = VG_(client_auxv); p[0] != 0; p += 2)
-         auxv_size += 2 * sizeof(UWord);
+      vg_assert(VG_(client_saved_auxv) != NULL);
+      SizeT auxv_size = VG_(client_saved_auxv_size);
       /* Like the kernel, report the size of a zero-padded buffer at least
          as large as the auxv, and copy as much of it as fits. */
       SizeT total = VG_MAX(sr_Res(kres), auxv_size);
@@ -1618,7 +1618,7 @@ PRE(sys_prctl)
             break;
          }
          SizeT copied = VG_MIN(len, auxv_size);
-         VG_(memcpy)((void *)(Addr)ARG2, VG_(client_auxv), copied);
+         VG_(memcpy)((void *)(Addr)ARG2, VG_(client_saved_auxv), copied);
          VG_(memset)((HChar *)(Addr)ARG2 + copied, 0, len - copied);
       }
       SET_STATUS_Success(total);

@@ -59,6 +59,10 @@ SizeT VG_(clstk_max_size) = 0;
    initimg-{linux,solaris}.c. */
 UWord* VG_(client_auxv) = NULL;
 
+/* Solaris and Linux only, a startup copy of the client auxv. */
+const UWord* VG_(client_saved_auxv) = NULL;
+SizeT VG_(client_saved_auxv_size) = 0;
+
 Addr  VG_(brk_base)    = 0;       /* start of brk */
 Addr  VG_(brk_limit)   = 0;       /* current brk */
 
