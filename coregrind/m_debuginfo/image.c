@@ -94,7 +94,12 @@ typedef
       // The rest of these fields are only valid when using remote files
       // (that is, using a debuginfo server; hence when is_local==False)
       // Session ID allocated to us by the server.  Cannot be zero.
-      ULong session_id;
+      // The memory union member is used by Darwin when reading the DiImage
+      // from memory when there is no local file and fd is -1.
+       union {
+         ULong session_id;
+         Addr memory;
+      };
    }
    Source;
 
@@ -139,8 +144,8 @@ static Bool is_sane_CEnt ( const HChar* who, const DiImage* img, UInt i )
    if (!(ce->used <= ce->size)) goto fail;
    if (ce->fromC) {
       // ce->size can be anything, but ce->used must be either the
-      // same or zero, in the case that it hasn't been set yet.  
-      // Similarly, ce->off must either be above the real_size 
+      // same or zero, in the case that it hasn't been set yet.
+      // Similarly, ce->off must either be above the real_size
       // threshold, or zero if it hasn't been set yet.
       if (!(ce->off >= img->real_size || ce->off == 0)) goto fail;
       if (!(ce->off + ce->used <= img->size)) goto fail;
@@ -432,7 +437,7 @@ static Bool parse_Frame_asciiz ( const Frame* fr, const HChar* tag,
 static Bool parse_Frame_le64_le64_le64_bytes (
                const Frame* fr, const HChar* tag,
                /*OUT*/ULong* n1, /*OUT*/ULong* n2, /*OUT*/ULong* n3,
-               /*OUT*/UChar** data, /*OUT*/ULong* n_data 
+               /*OUT*/UChar** data, /*OUT*/ULong* n_data
             )
 {
    vg_assert(VG_(strlen)(tag) == 4);
@@ -581,35 +586,38 @@ static void set_CEnt ( const DiImage* img, UInt entNo, DiOffT off )
       UInt delay = now - t_last;
       t_last = now;
       nread += len;
-      VG_(printf)("XXXXXXXX (tot %'llu)  read %'lu  offset %'llu  delay %'u\n", 
+      VG_(printf)("XXXXXXXX (tot %'llu)  read %'lu  offset %'llu  delay %'u\n",
                   nread, len, off, delay);
    }
 
    if (img->source.is_local) {
       // Simple: just read it
-
-      // PJF not quite so simple - see
-      // https://bugs.kde.org/show_bug.cgi?id=480405
-      // if img->source.fd was opened with O_DIRECT the memory needs
-      // to be aligned and also the length
-      // that's a lot of hassle just to take a quick peek to see if
-      // is an ELF binary so just twiddle the flag before and after
-      // peeking.
-      // This doesn't seem to be a problem on FreeBSD. I haven't tested
-      // on macOS or Solaris, hence the conditional compilation
+      if (img->source.fd == -1) {
+         VG_(memcpy)(&ce->data[0], ((const char *)img->source.memory) + off, len);
+      } else {
+         // PJF not quite so simple - see
+         // https://bugs.kde.org/show_bug.cgi?id=480405
+         // if img->source.fd was opened with O_DIRECT the memory needs
+         // to be aligned and also the length
+         // that's a lot of hassle just to take a quick peek to see if
+         // is an ELF binary so just twiddle the flag before and after
+         // peeking.
+         // This doesn't seem to be a problem on FreeBSD. I haven't tested
+         // on macOS or Solaris, hence the conditional compilation
 #if defined(VKI_O_DIRECT)
-      Int flags = VG_(fcntl)(img->source.fd, VKI_F_GETFL, 0);
-      if (flags & VKI_O_DIRECT) {
-          VG_(fcntl)(img->source.fd, VKI_F_SETFL, flags & ~VKI_O_DIRECT);
-      }
+         Int flags = VG_(fcntl)(img->source.fd, VKI_F_GETFL, 0);
+         if (flags & VKI_O_DIRECT) {
+            VG_(fcntl)(img->source.fd, VKI_F_SETFL, flags & ~VKI_O_DIRECT);
+         }
 #endif
-      SysRes sr = VG_(pread)(img->source.fd, &ce->data[0], (Int)len, off);
+         SysRes sr = VG_(pread)(img->source.fd, &ce->data[0], (Int)len, off);
 #if defined(VKI_O_DIRECT)
-      if (flags & VKI_O_DIRECT) {
-         VG_(fcntl)(img->source.fd, VKI_F_SETFL, flags);
-      }
+         if (flags & VKI_O_DIRECT) {
+            VG_(fcntl)(img->source.fd, VKI_F_SETFL, flags);
+         }
 #endif
-      vg_assert(!sr_isError(sr));
+         vg_assert(!sr_isError(sr));
+      }
    } else {
       // Not so simple: poke the server
       vg_assert(img->source.session_id > 0);
@@ -671,7 +679,7 @@ static void set_CEnt ( const DiImage* img, UInt entNo, DiOffT off )
      end_of_else_clause:
       {}
    }
-   
+
    ce->off  = off;
    ce->used = len;
    ce->fromC = False;
@@ -888,7 +896,7 @@ DiImage* ML_(img_from_local_file)(const HChar* fullpath)
        || /* size is unrepresentable as a SizeT */
           size != (DiOffT)(SizeT)(size)) {
       VG_(close)(sr_Res(fd));
-      return NULL; 
+      return NULL;
    }
 
    DiImage* img = ML_(dinfo_zalloc)("di.image.ML_iflf.1", sizeof(DiImage));
@@ -958,6 +966,39 @@ DiImage* ML_(img_from_fd)(Int fd, const HChar* fullpath)
    return img;
 }
 
+/* Create an image from a place in memory, this is to support certain use cases (DSC on macOS)
+   where images are already loaded in memory without changing every usage of DiImage. */
+DiImage* ML_(img_from_memory)(Addr a, SizeT size, const HChar* fullpath)
+{
+   if (size == 0 || size == DiOffT_INVALID
+       || /* size is unrepresentable as a SizeT */
+          size != (DiOffT)(SizeT)(size)) {
+      return NULL;
+   }
+
+   DiImage* img = ML_(dinfo_zalloc)("di.image.ML_iflf.1", sizeof(DiImage));
+   img->source.is_local   = True;
+   img->source.fd         = -1;
+   img->source.memory     = a;
+   img->size              = size;
+   img->real_size         = size;
+   img->ces_used          = 0;
+   img->source.name       = ML_(dinfo_strdup)("di.image.ML_iflf.2", fullpath);
+   img->cslc              = NULL;
+   img->cslc_size         = 0;
+   img->cslc_used         = 0;
+
+   /* Force the zeroth entry to be the first chunk of the file.
+      That's likely to be the first part that's requested anyway, and
+      loading it at this point forcing img->cent[0] to always be
+      non-empty, thereby saving us an is-it-empty check on the fast
+      path in get(). */
+   UInt entNo = alloc_CEnt(img, CACHE_ENTRY_SIZE, False/*!fromC*/);
+   vg_assert(entNo == 0);
+   set_CEnt(img, 0, 0);
+
+   return img;
+}
 
 
 /* Create an image from a file on a remote debuginfo server.  This is
@@ -984,7 +1025,7 @@ DiImage* ML_(img_from_di_server)(const HChar* filename,
    if (!set_blocking(sd))
       return NULL;
    Int one = 1;
-   Int sr = VG_(setsockopt)(sd, VKI_IPPROTO_TCP, VKI_TCP_NODELAY, 
+   Int sr = VG_(setsockopt)(sd, VKI_IPPROTO_TCP, VKI_TCP_NODELAY,
                             &one, sizeof(one));
    vg_assert(sr == 0);
 
@@ -1116,9 +1157,11 @@ void ML_(img_done)(DiImage* img)
 {
    vg_assert(img != NULL);
    if (img->source.is_local) {
+      if (img->source.fd != -1) {
       /* Close the file; nothing else to do. */
       vg_assert(img->source.session_id == 0);
       VG_(close)(img->source.fd);
+      }
    } else {
       /* Close the socket.  The server can detect this and will scrub
          the connection when it happens, so there's no need to tell it

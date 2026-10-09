@@ -167,10 +167,10 @@ mach_hdrs += \
         m_mach/thread_act.h \
         m_mach/vm_map.h
 mach_defs += \
-	@XCODE_DIR@/mach/mach_vm.defs \
-        @XCODE_DIR@/mach/task.defs \
-        @XCODE_DIR@/mach/thread_act.defs \
-        @XCODE_DIR@/mach/vm_map.defs
+  @SDK_INC_DIR@/mach/mach_vm.defs \
+  @SDK_INC_DIR@/mach/task.defs \
+  @SDK_INC_DIR@/mach/thread_act.defs \
+  @SDK_INC_DIR@/mach/vm_map.defs
 endif
 
 # Be careful w.r.t. parallel builds.  See section 27.9 of the automake info
@@ -178,9 +178,9 @@ endif
 $(abs_builddir)/m_mach: 
 	mkdir -p $@
 $(mach_user_srcs): $(mach_defs) $(abs_builddir)/m_mach
-	(cd m_mach && mig $(mach_defs))
+	(cd m_mach && mig -I@SDK_INC_DIR@ $(mach_defs))
 $(mach_hdrs): $(mach_defs) $(mach_user_srcs) $(abs_builddir)/m_mach
-	(cd m_mach && mig $(mach_defs))
+	(cd m_mach && mig -I@SDK_INC_DIR@ $(mach_defs))
 
 #----------------------------------------------------------------------------
 # Headers
@@ -283,6 +283,7 @@ noinst_HEADERS = \
 	m_gdbserver/target.h \
 	m_gdbserver/valgrind_low.h \
 	m_gdbserver/gdb/signals.h \
+	m_mach/priv_dyld_internals.h \
 	m_scheduler/priv_sema.h \
 	m_scheduler/priv_sched-lock.h \
 	m_scheduler/priv_sched-lock-impl.h \
@@ -433,6 +434,8 @@ COREGRIND_SOURCES_COMMON = \
 	m_mach/mach_msg.c \
 	m_mach/mach_traps-x86-darwin.S \
 	m_mach/mach_traps-amd64-darwin.S \
+	m_mach/mig_strncpy.c \
+        m_mach/dyld_cache.c \
 	m_replacemalloc/replacemalloc_core.c \
 	m_scheduler/sched-lock.c \
 	m_scheduler/sched-lock-generic.c \

@@ -117,14 +117,10 @@
 #include <mach-o/fat.h>
 #include <mach/i386/thread_status.h>
 
-/* Get hold of DARWIN_VERS, and check it has a sane value. */
+/* Check that DARWIN_VERS is defined */
 #include "config.h"
-#if DARWIN_VERS != DARWIN_10_5 && DARWIN_VERS != DARWIN_10_6 \
-    && DARWIN_VERS != DARWIN_10_7 && DARWIN_VERS != DARWIN_10_8 \
-    && DARWIN_VERS != DARWIN_10_9 && DARWIN_VERS != DARWIN_10_10 \
-    && DARWIN_VERS != DARWIN_10_11 && DARWIN_VERS != DARWIN_10_12 \
-    && DARWIN_VERS != DARWIN_10_13
-#  error "Unknown DARWIN_VERS value.  This file only compiles on Darwin."
+#if !defined(DARWIN_VERS)
+#  error "DARWIN_VERS not defind. This file only compiles on Darwin."
 #endif
 
 
@@ -271,7 +267,7 @@ static Int map_image_aboard ( /*OUT*/ImageInfo* ii, HChar* filename )
    { struct fat_header*  fh_be;
      struct fat_header   fh;
      struct mach_header_64* mh;
-     
+
      // Assume initially that we have a thin image, and update
      // these if it turns out to be fat.
      ii->macho_img     = ii->img;
@@ -294,7 +290,7 @@ static Int map_image_aboard ( /*OUT*/ImageInfo* ii, HChar* filename )
                           + fh.nfat_arch * sizeof(struct fat_arch))
            fail("Invalid Mach-O file (1 too small).");
 
-        for (f = 0, arch_be = (struct fat_arch *)(fh_be+1); 
+        for (f = 0, arch_be = (struct fat_arch *)(fh_be+1);
              f < fh.nfat_arch;
              f++, arch_be++) {
            Int cputype;
@@ -519,8 +515,13 @@ void modify_macho_loadcmds ( HChar* filename,
          fail("has __UNIXSTACK, but wrong ::vmaddr");
       if (seg->vmsize != expected_stack_size)
          fail("has __UNIXSTACK, but wrong ::vmsize");
+#if SDK_VERS >= SDK_10_14_6
+      if (seg->maxprot != 3)
+         fail("has __UNIXSTACK, but wrong ::maxprot (should be 3)");
+#else
       if (seg->maxprot != 7)
          fail("has __UNIXSTACK, but wrong ::maxprot (should be 7)");
+#endif
       if (seg->initprot != 3)
          fail("has __UNIXSTACK, but wrong ::initprot (should be 3)");
       if (seg->nsects != 0)
@@ -605,7 +606,7 @@ int main ( int argc, char** argv )
 
    if (argc != 4)
       fail("args: -stack_addr-arg -stack_size-arg "
-           "name-of-tool-executable-to-modify"); 
+           "name-of-tool-executable-to-modify");
 
    r= sscanf(argv[1], "0x%llx", &req_stack_addr);
    if (r != 1) fail("invalid stack_addr arg");
@@ -620,7 +621,7 @@ int main ( int argc, char** argv )
    if (!is_plausible_tool_exe_name(argv[3]))
       fail("implausible tool exe name -- not of the form *-{x86,amd64}-darwin");
 
-   fprintf(stderr, "fixup_macho_loadcmds: examining tool exe: %s\n", 
+   fprintf(stderr, "fixup_macho_loadcmds: examining tool exe: %s\n",
            argv[3] );
    modify_macho_loadcmds( argv[3], req_stack_addr - req_stack_size,
                           req_stack_size );

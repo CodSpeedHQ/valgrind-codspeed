@@ -363,7 +363,7 @@ asm(
 
 void VG_(cleanup_thread) ( ThreadArchState* arch )
 {
-}
+}  
 
 /* ---------------------------------------------------------------------
    PRE/POST wrappers for ppc64/Linux-specific syscalls
@@ -399,7 +399,7 @@ PRE(sys_mmap)
                  unsigned long, prot,  unsigned long, flags,
                  unsigned long, fd,    unsigned long, offset);
 
-   r = ML_(generic_PRE_sys_mmap)( tid, ARG1, ARG2, ARG3, ARG4, ARG5,
+   r = ML_(generic_PRE_sys_mmap)( tid, ARG1, ARG2, ARG3, ARG4, ARG5, 
                                        (Off64T)ARG6 );
    SET_STATUS_from_SysRes(r);
 }
@@ -407,7 +407,7 @@ PRE(sys_mmap)
 //zz PRE(sys_mmap2)
 //zz {
 //zz    SysRes r;
-//zz
+//zz 
 //zz    // Exactly like old_mmap() except:
 //zz    //  - the file offset is specified in 4K units rather than bytes,
 //zz    //    so that it can be used for files bigger than 2^32 bytes.
@@ -417,12 +417,12 @@ PRE(sys_mmap)
 //zz                  unsigned long, start, unsigned long, length,
 //zz                  unsigned long, prot,  unsigned long, flags,
 //zz                  unsigned long, fd,    unsigned long, offset);
-//zz
-//zz    r = ML_(generic_PRE_sys_mmap)( tid, ARG1, ARG2, ARG3, ARG4, ARG5,
+//zz 
+//zz    r = ML_(generic_PRE_sys_mmap)( tid, ARG1, ARG2, ARG3, ARG4, ARG5, 
 //zz                                        4096 * (Off64T)ARG6 );
 //zz    SET_STATUS_from_SysRes(r);
 //zz }
-//zz
+//zz 
 //zz // XXX: lstat64/fstat64/stat64 are generic, but not necessarily
 //zz // applicable to every architecture -- I think only to 32-bit archs.
 //zz // We're going to need something like linux/core_os32.h for such
@@ -434,12 +434,12 @@ PRE(sys_mmap)
 //zz    PRE_MEM_RASCIIZ( "stat64(file_name)", ARG1 );
 //zz    PRE_MEM_WRITE( "stat64(buf)", ARG2, sizeof(struct vki_stat64) );
 //zz }
-//zz
+//zz 
 //zz POST(sys_stat64)
 //zz {
 //zz    POST_MEM_WRITE( ARG2, sizeof(struct vki_stat64) );
 //zz }
-//zz
+//zz 
 //zz PRE(sys_lstat64)
 //zz {
 //zz    PRINT("sys_lstat64 ( %p(%s), %p )",ARG1,ARG1,ARG2);
@@ -447,7 +447,7 @@ PRE(sys_mmap)
 //zz    PRE_MEM_RASCIIZ( "lstat64(file_name)", ARG1 );
 //zz    PRE_MEM_WRITE( "lstat64(buf)", ARG2, sizeof(struct vki_stat64) );
 //zz }
-//zz
+//zz 
 //zz POST(sys_lstat64)
 //zz {
 //zz    vg_assert(SUCCESS);
@@ -455,14 +455,14 @@ PRE(sys_mmap)
 //zz       POST_MEM_WRITE( ARG2, sizeof(struct vki_stat64) );
 //zz    }
 //zz }
-//zz
+//zz 
 //zz PRE(sys_fstat64)
 //zz {
 //zz   PRINT("sys_fstat64 ( %d, %p )",ARG1,ARG2);
 //zz   PRE_REG_READ2(long, "fstat64", unsigned long, fd, struct stat64 *, buf);
 //zz   PRE_MEM_WRITE( "fstat64(buf)", ARG2, sizeof(struct vki_stat64) );
 //zz }
-//zz
+//zz 
 //zz POST(sys_fstat64)
 //zz {
 //zz   POST_MEM_WRITE( ARG2, sizeof(struct vki_stat64) );
@@ -588,7 +588,7 @@ POST(sys_ptrace)
    ------------------------------------------------------------------ */
 
 /* Add an ppc64-linux specific wrapper to a syscall table. */
-#define PLAX_(sysno, name)    WRAPPER_ENTRY_X_(ppc64_linux, sysno, name)
+#define PLAX_(sysno, name)    WRAPPER_ENTRY_X_(ppc64_linux, sysno, name) 
 #define PLAXY(sysno, name)    WRAPPER_ENTRY_XY(ppc64_linux, sysno, name)
 
 // This table maps from __NR_xxx syscall numbers (from
@@ -713,7 +713,7 @@ static SyscallTableEntry syscall_table[] = {
    GENX_(__NR_truncate,          sys_truncate),           //  92
    GENX_(__NR_ftruncate,         sys_ftruncate),          //  93
    GENX_(__NR_fchmod,            sys_fchmod),             //  94
-
+   
    GENX_(__NR_fchown,            sys_fchown),             //  95
    GENX_(__NR_getpriority,       sys_getpriority),        //  96
    GENX_(__NR_setpriority,       sys_setpriority),        //  97
@@ -757,7 +757,7 @@ static SyscallTableEntry syscall_table[] = {
    LINX_(__NR_delete_module,     sys_delete_module),      // 129
 
 // _____(__NR_get_kernel_syms,   sys_get_kernel_syms),    // 130
-   LINX_(__NR_quotactl,          sys_quotactl),           // 131
+   LINXY(__NR_quotactl,          sys_quotactl),           // 131
    GENX_(__NR_getpgid,           sys_getpgid),            // 132
    GENX_(__NR_fchdir,            sys_fchdir),             // 133
 // _____(__NR_bdflush,           sys_bdflush),            // 134
@@ -846,7 +846,7 @@ static SyscallTableEntry syscall_table[] = {
    LINX_(__NR_pivot_root,        sys_pivot_root),         // 203
    LINXY(__NR_fcntl64,           sys_fcntl64),            // 204 !!!!?? 32bit only */
 
-   GENX_(__NR_madvise,           sys_madvise),            // 205
+   GENXY(__NR_madvise,           sys_madvise),            // 205
    GENXY(__NR_mincore,           sys_mincore),            // 206
    LINX_(__NR_gettid,            sys_gettid),             // 207
    LINXY(__NR_tkill,             sys_tkill),              // 208
@@ -871,7 +871,7 @@ static SyscallTableEntry syscall_table[] = {
 
 // _____(__NR_tuxcall,           sys_tuxcall),            // 225
 // /* #define __NR_sendfile64      226     32bit only */
-   LINX_(__NR_io_setup,          sys_io_setup),           // 227
+   LINXY(__NR_io_setup,          sys_io_setup),           // 227
    LINX_(__NR_io_destroy,        sys_io_destroy),         // 228
    LINXY(__NR_io_getevents,      sys_io_getevents),       // 229
    LINX_(__NR_io_submit,         sys_io_submit),          // 230
@@ -1012,7 +1012,7 @@ static SyscallTableEntry syscall_table[] = {
 
    LINX_(__NR_sched_setattr,     sys_sched_setattr),    // 355
    LINXY(__NR_sched_getattr,     sys_sched_getattr),    // 356
-   LINX_(__NR_renameat2,         sys_renameat2),        // 357
+   GENX_(__NR_renameat2,         sys_renameat2),        // 357
 
    LINXY(__NR_getrandom,         sys_getrandom),        // 359
    LINXY(__NR_memfd_create,      sys_memfd_create),     // 360
@@ -1025,13 +1025,13 @@ static SyscallTableEntry syscall_table[] = {
 
    GENX_(__NR_mlock2,            sys_mlock2),           // 378
    LINX_(__NR_copy_file_range,   sys_copy_file_range),  // 379
-   LINX_(__NR_preadv2,           sys_preadv2),          // 380
+   LINXY(__NR_preadv2,           sys_preadv2),          // 380
    LINX_(__NR_pwritev2,          sys_pwritev2),         // 381
 
    LINXY(__NR_statx,             sys_statx),            // 383
 
    GENX_(__NR_rseq,              sys_ni_syscall),       // 387
-   LINX_(__NR_io_pgetevents,     sys_io_pgetevents),    // 388
+   LINXY(__NR_io_pgetevents,     sys_io_pgetevents),    // 388
    LINX_(__NR_semtimedop,        sys_semtimedop),        // 392
    LINXY(__NR_semctl,            sys_semctl),            // 394
    LINXY(__NR_shmctl,            sys_shmctl),            // 396
@@ -1054,7 +1054,7 @@ static SyscallTableEntry syscall_table[] = {
 
    LINXY (__NR_epoll_pwait2,     sys_epoll_pwait2),      // 441
    LINX_ (__NR_mount_setattr,    sys_mount_setattr),     // 442
-   LINX_ (__NR_quotactl_fd,      sys_quotactl_fd),       // 443
+   LINXY (__NR_quotactl_fd,      sys_quotactl_fd),       // 443
 
    LINXY(__NR_landlock_create_ruleset, sys_landlock_create_ruleset), // 444
    LINX_(__NR_landlock_add_rule,       sys_landlock_add_rule),       // 445
@@ -1065,7 +1065,12 @@ static SyscallTableEntry syscall_table[] = {
    LINX_ (__NR_fchmodat2,        sys_fchmodat2),         // 452
    LINXY (__NR_statmount,        sys_statmount),         // 457
    LINXY (__NR_listmount,        sys_listmount),         // 458
+   LINXY (__NR_lsm_get_self_attr,sys_lsm_get_self_attr), // 459
+   LINX_ (__NR_lsm_set_self_attr,sys_lsm_set_self_attr), // 460
+   LINXY (__NR_lsm_list_modules, sys_lsm_list_modules),  // 461
    LINX_ (__NR_mseal,            sys_mseal),             // 462
+   LINXY (__NR_file_getattr,     sys_file_getattr),      // 468
+   LINX_ (__NR_file_setattr,     sys_file_setattr),      // 469
 };
 
 SyscallTableEntry* ML_(get_linux_syscall_entry) ( UInt sysno )
