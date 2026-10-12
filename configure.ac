@@ -2187,6 +2187,21 @@ AC_MSG_RESULT([no])
 
 AM_CONDITIONAL(HAVE_NR_IO_PGETEVENTS, [test x$ac_have_nr_io_pgetevents = xyes])
 
+AC_MSG_CHECKING([for PR_GET_AUXV])
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+#include <sys/prctl.h>
+]], [[
+return PR_GET_AUXV
+]])], [
+ac_have_pr_get_auxv=yes
+AC_MSG_RESULT([yes])
+], [
+ac_have_pr_get_auxv=no
+AC_MSG_RESULT([no])
+])
+
+AM_CONDITIONAL(HAVE_PR_GET_AUXV, [test x$ac_have_pr_get_auxv = xyes])
+
 #----------------------------------------------------------------------------
 # Checking for supported compiler flags.
 #----------------------------------------------------------------------------

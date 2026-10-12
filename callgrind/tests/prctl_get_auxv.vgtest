@@ -1,0 +1,5 @@
+prereq: test -x prctl_get_auxv && ../../tests/os_test linux 6.4.0
+prog: prctl_get_auxv
+args: `./prctl_get_auxv --kernel-size`
+vgopts: -q --callgrind-out-file=callgrind.out.prctl_get_auxv
+cleanup: rm -f callgrind.out.prctl_get_auxv
