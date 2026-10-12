@@ -1,0 +1,68 @@
+# Temporary: reproduces Valgrind 3.27 aborting with "Max number of guard
+# pages is too low" when glibc >= 2.42 guards thread stacks with
+# madvise(MADV_GUARD_INSTALL). Not meant to be merged.
+name: Thread stacks guard repro
+
+on:
+  push:
+    branches: [tmp/thread-stacks-guard-repro]
+  workflow_dispatch:
+
+jobs:
+  repro:
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: arm64 ubuntu-26.04 (hosted)
+            runner: ubuntu-26.04-arm
+            container: ""
+            guard: ""
+          - name: arm64 ubuntu:26.04 container
+            runner: ubuntu-24.04-arm
+            container: ubuntu:26.04
+            guard: ""
+          - name: amd64 ubuntu-26.04, 64 KiB guard like arm64
+            runner: ubuntu-26.04
+            container: ""
+            guard: "65536"
+          - name: amd64 ubuntu-26.04, default guard (control)
+            runner: ubuntu-26.04
+            container: ""
+            guard: ""
+    runs-on: ${{ matrix.runner }}
+    container: ${{ matrix.container }}
+    steps:
+      - name: Install build dependencies
+        run: |
+          SUDO=$(command -v sudo || true)
+          $SUDO apt-get update
+          $SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            build-essential automake autoconf libc6-dev git ca-certificates strace
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Show kernel and glibc
+        run: |
+          uname -srm
+          ldd --version | head -1
+
+      - name: Build demo
+        run: gcc -O1 -pthread -o threads tmp-repro/threads.c
+
+      - name: Run natively, showing guard installs
+        run: |
+          strace -f -e trace=madvise ./threads ${{ matrix.guard }} 2>&1 | tee native.log | tail -5
+          echo "MADV_GUARD_INSTALL calls: $(grep -c MADV_GUARD_INSTALL native.log || true)"
+
+      - name: Build Valgrind 3.27.1 (this branch)
+        run: |
+          ./autogen.sh
+          ./configure --enable-only64bit
+          make -j"$(nproc)"
+
+      - name: Run under Callgrind
+        run: ./vg-in-place --tool=callgrind --callgrind-out-file=/dev/null ./threads ${{ matrix.guard }}
