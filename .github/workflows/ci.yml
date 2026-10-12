@@ -19,6 +19,8 @@ jobs:
             ubuntu-version: 22.04
           - platform: ubuntu-24.04
             ubuntu-version: 24.04
+          - platform: ubuntu-26.04
+            ubuntu-version: 26.04
 
     runs-on: ${{ matrix.runner.platform }}
 
