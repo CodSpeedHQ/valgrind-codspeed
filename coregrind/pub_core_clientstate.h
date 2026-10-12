@@ -51,6 +51,12 @@ extern SizeT VG_(clstk_max_size); // max size of the main threads's client stack
    or initimg-solaris.c, respectively. */
 extern UWord* VG_(client_auxv);
 
+/* Linux and Solaris only: a copy of the client auxv taken at startup,
+   which later changes to the client stack cannot affect.  The size is in
+   bytes and includes the terminating AT_NULL entry. */
+extern const UWord* VG_(client_saved_auxv);
+extern SizeT VG_(client_saved_auxv_size);
+
 extern Addr  VG_(brk_base);	 // start of brk
 extern Addr  VG_(brk_limit);	 // current brk
 
