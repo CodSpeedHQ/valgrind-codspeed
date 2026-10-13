@@ -179,7 +179,7 @@ BBCC* lookup_bbcc(BB* bb, Context* cxt)
    }
    
    CLG_DEBUG(2,"  lookup_bbcc(BB %#lx, Cxt %u, fn '%s'): %p (tid %u)\n",
-	    bb_addr(bb), cxt->base_number, cxt->fn[0]->name,
+	    bb_addr(bb), cxt->base_number, cxt->fn[0]->name, 
 	    bbcc, bbcc ? bbcc->tid : 0);
 
    CLG_DEBUGIF(2)
