@@ -32,7 +32,7 @@
 /*------------------------------------------------------------*/
 
 #define N_FNSTACK_INITIAL_ENTRIES 500
-#define N_CXT_INITIAL_ENTRIES 2537
+#define N_CXT_INITIAL_ENTRIES 4096
 
 fn_stack CLG_(current_fn_stack);
 
@@ -87,7 +87,7 @@ static void resize_cxt_table(void)
     Context **new_table, *curr, *next;
     UInt new_idx;
 
-    new_size  = 2* cxts.size +3;
+    new_size  = 2* cxts.size;
     new_table = (Context**) CLG_MALLOC("cl.context.rct.1",
                                        new_size * sizeof(Context*));
 
@@ -101,7 +101,7 @@ static void resize_cxt_table(void)
         while (NULL != curr) {
             next = curr->next;
 
-            new_idx = (UInt) (curr->hash % new_size);
+            new_idx = (UInt) (curr->hash & (new_size - 1));
 
             curr->next = new_table[new_idx];
             new_table[new_idx] = curr;
@@ -208,7 +208,7 @@ static Context* new_cxt(fn_node** fn)
     CLG_(stat).distinct_contexts++;
 
     /* insert into Context hash table */
-    idx = (UInt) (hash % cxts.size);
+    idx = (UInt) (hash & (cxts.size - 1));
     cxt->next = cxts.table[idx];
     cxts.table[idx] = cxt;
 
@@ -246,7 +246,7 @@ Context* CLG_(get_cxt)(fn_node** fn)
 
     CLG_(stat).cxt_lru_misses++;
 
-    idx = (UInt) (hash % cxts.size);
+    idx = (UInt) (hash & (cxts.size - 1));
     cxt = cxts.table[idx];
 
     while(cxt) {
