@@ -62,6 +62,11 @@ static void cc_analyse_alloc_arena ( ArenaId aid ); /* fwds */
 
 #define N_MALLOC_LISTS     112    // do not change this
 
+// Bitmap tracking which of the N_MALLOC_LISTS free lists are non-empty.
+#define FL_BITS_PER_WORD   (8 * sizeof(UWord))
+#define FL_BITMAP_WORDS    ((N_MALLOC_LISTS + FL_BITS_PER_WORD - 1) \
+                            / FL_BITS_PER_WORD)
+
 // The amount you can ask for is limited only by sizeof(SizeT)...
 #define MAX_PSZB              (~((SizeT)0x0))
 
@@ -208,6 +213,11 @@ typedef
       // Smaller size superblocks are splittable and can be reclaimed when all
       // their blocks are freed.
       Block*       freelist[N_MALLOC_LISTS];
+      // Bitmap of the non-empty entries of 'freelist': bit i is set iff
+      // freelist[i] != NULL.  It lets the allocator jump straight to the
+      // next non-empty list instead of scanning up to N_MALLOC_LISTS
+      // (mostly empty) list heads on every allocation.
+      UWord        freelist_used[FL_BITMAP_WORDS];
       // A dynamically expanding, ordered array of (pointers to)
       // superblocks in the arena.  If this array is expanded, which
       // is rare, the previous space it occupies is simply abandoned.
@@ -600,6 +610,7 @@ void arena_init ( ArenaId aid, const HChar* name, SizeT rz_szB,
    a->min_sblock_szB = min_sblock_szB;
    a->min_unsplittable_sblock_szB = min_unsplittable_sblock_szB;
    for (i = 0; i < N_MALLOC_LISTS; i++) a->freelist[i] = NULL;
+   for (i = 0; i < FL_BITMAP_WORDS; i++) a->freelist_used[i] = 0;
 
    a->sblocks                  = & a->sblocks_initial[0];
    a->sblocks_size             = SBLOCKS_SIZE_INITIAL;
@@ -1020,6 +1031,42 @@ Superblock* maybe_findSb ( Arena* a, Addr ad )
 /*------------------------------------------------------------*/
 /*--- Functions for working with freelists.                ---*/
 /*------------------------------------------------------------*/
+
+// Record that a->freelist[lno] just became non-empty / empty.
+static __inline__
+void mark_listNo_used ( Arena* a, UInt lno )
+{
+   a->freelist_used[lno / FL_BITS_PER_WORD]
+      |= (UWord)1 << (lno % FL_BITS_PER_WORD);
+}
+
+static __inline__
+void mark_listNo_free ( Arena* a, UInt lno )
+{
+   a->freelist_used[lno / FL_BITS_PER_WORD]
+      &= ~((UWord)1 << (lno % FL_BITS_PER_WORD));
+}
+
+// Return the lowest list number >= lno whose free list is non-empty, or
+// N_MALLOC_LISTS if there is none.  This replaces a linear scan over the
+// (mostly empty) list heads on the allocation hot path.
+static __inline__
+UInt next_used_listNo ( Arena* a, UInt lno )
+{
+   UInt  w;
+   UWord bits;
+
+   if (lno >= N_MALLOC_LISTS) return N_MALLOC_LISTS;
+
+   w    = lno / FL_BITS_PER_WORD;
+   bits = a->freelist_used[w] & (~(UWord)0 << (lno % FL_BITS_PER_WORD));
+   while (bits == 0) {
+      w++;
+      if (w >= FL_BITMAP_WORDS) return N_MALLOC_LISTS;
+      bits = a->freelist_used[w];
+   }
+   return w * FL_BITS_PER_WORD + (UInt)__builtin_ctzll((ULong)bits);
+}
 
 #if defined(__clang__)
 /* The nicely aligned 'returns' in the function below produce
@@ -1643,6 +1690,7 @@ void mkFreeBlock ( Arena* a, Block* b, SizeT bszB, UInt b_lno )
       set_prev_b(b, b);
       set_next_b(b, b);
       a->freelist[b_lno] = b;
+      mark_listNo_used(a, b_lno);
    } else {
       Block* b_prev = get_prev_b(a->freelist[b_lno]);
       Block* b_next = a->freelist[b_lno];
@@ -1709,6 +1757,7 @@ void unlinkBlock ( Arena* a, Block* b, UInt listno )
       // Only one element in the list; treat it specially.
       vg_assert(get_next_b(b) == b);
       a->freelist[listno] = NULL;
+      mark_listNo_free(a, listno);
    } else {
       Block* b_prev = get_prev_b(b);
       Block* b_next = get_next_b(b);
@@ -1779,27 +1828,19 @@ void* VG_(arena_malloc) ( ArenaId aid, const HChar* cc, SizeT req_pszB )
 
    // Scan through all the big-enough freelists for a block.
    //
-   // Nb: this scanning might be expensive in some cases.  Eg. if you
-   // allocate lots of small objects without freeing them, but no
-   // medium-sized objects, it will repeatedly scanning through the whole
-   // list, and each time not find any free blocks until the last element.
+   // Nb: the question this loop answers is "where is the first nonempty
+   // list at or above me?".  Rather than walking the (mostly empty) list
+   // heads one by one -- which touches up to N_MALLOC_LISTS/8 cache lines
+   // per allocation -- next_used_listNo() answers it from the
+   // 'freelist_used' bitmap, which is maintained by mkFreeBlock() and
+   // unlinkBlock() as lists become non-empty/empty.
    //
-   // If this becomes a noticeable problem... the loop answers the question
-   // "where is the first nonempty list above me?"  And most of the time,
-   // you ask the same question and get the same answer.  So it would be
-   // good to somehow cache the results of previous searches.
-   // One possibility is an array (with N_MALLOC_LISTS elements) of
-   // shortcuts.  shortcut[i] would give the index number of the nearest
-   // larger list above list i which is non-empty.  Then this loop isn't
-   // necessary.  However, we'd have to modify some section [ .. i-1] of the
-   // shortcut array every time a list [i] changes from empty to nonempty or
-   // back.  This would require care to avoid pathological worst-case
-   // behaviour.
-   //
-   for (lno = pszB_to_listNo(req_pszB); lno < N_MALLOC_LISTS; lno++) {
+   for (lno = next_used_listNo(a, pszB_to_listNo(req_pszB));
+        lno < N_MALLOC_LISTS;
+        lno = next_used_listNo(a, lno+1)) {
       UWord nsearches_this_level = 0;
       b = a->freelist[lno];
-      if (NULL == b) continue;   // If this list is empty, try the next one.
+      vg_assert(b);  // the bitmap says this list is non-empty
       while (True) {
          stats__nsearches++;
          nsearches_this_level++;
