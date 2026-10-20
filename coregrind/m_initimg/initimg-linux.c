@@ -312,14 +312,21 @@ static HChar *copy_str(HChar **tab, const HChar *str)
 
 
 /* ----------------------------------------------------------------
- 
-   This sets up the client's initial stack, containing the args,
-   environment and aux vector.
 
-   The format of the stack is:
+  This sets up the client's initial stack, containing the args,
+  environment and aux vector.
 
-   higher address +-----------------+ <- clstack_end
-                  |                 |
+  The startup image occupies a fixed-size region directly below
+  clstack_end, so the initial SP does not depend on the number or size
+  of arguments, environment variables or auxiliary strings.  Tables
+  grow upward from that fixed SP; strings are placed downward from
+  clstack_end.  The runtime stack starts in the page below SP and grows
+  into the reservation further down.
+
+  The format of the startup image is:
+
+  higher address +-----------------+ <- clstack_end
+                 |                 |
 		  : string table    :
 		  |                 |
 		  +-----------------+
@@ -336,13 +343,18 @@ static HChar *copy_str(HChar **tab, const HChar *str)
 		  | argv            |
 		  +-----------------+
 		  | argc            |
-   lower address  +-----------------+ <- sp
-                  | undefined       |
+		  +-----------------+ <- sp (fixed)
+  lower address  | runtime stack   |
 		  :                 :
 
-   Allocate and create the initial client stack.  It is allocated down
-   from clstack_end, which was previously determined by the address
-   space manager.  The returned value is the SP value for the client.
+  The startup image has a fixed capacity so that later mappings and the
+  runtime stack remain at stable addresses.  Linux limits the aggregate
+  argument/environment size to well below this capacity; inputs that do
+  not fit are rejected instead of silently moving SP.
+
+  Allocate and create the initial client stack.  It is allocated down
+  from clstack_end, which was previously determined by the address
+  space manager.  The returned value is the SP value for the client.
 
    The client's auxv is created by copying and modifying our own one.
    As a side effect of scanning our own auxv, some important bits of
@@ -352,6 +364,12 @@ static HChar *copy_str(HChar **tab, const HChar *str)
       VG_(have_altivec_ppc32)    // ppc32 only -- is Altivec supported?
 
    ---------------------------------------------------------------- */
+
+/* Capacity of the fixed startup image below clstack_end.  This includes
+   argument/environment strings, pointer tables, and Valgrind's executable,
+   interpreter and auxiliary-vector copies.  Oversized startup images are
+   rejected explicitly rather than moving the initial SP. */
+#define STARTUP_REGION_SZB (16 * 1024 * 1024)
 
 struct auxv
 {
@@ -487,15 +505,31 @@ Addr setup_client_stack( void*  init_sp,
 
    if (0) VG_(printf)("stacksize = %u\n", stacksize);
 
-   /* client_SP is the client's stack pointer */
-   client_SP = clstack_end - stacksize;
-   client_SP = VG_ROUNDDN(client_SP, 16); /* make stack 16 byte aligned */
+   /* client_SP is fixed so that unused startup data cannot change the
+      addresses used by the client.  The tables grow upward from it and
+      the strings are placed downward from clstack_end. */
+   vg_assert(clstack_end + 1 >= STARTUP_REGION_SZB);
+   client_SP = clstack_end + 1 - STARTUP_REGION_SZB;
+   vg_assert(VG_IS_PAGE_ALIGNED(client_SP));
+
+   if (stacksize > STARTUP_REGION_SZB) {
+      VG_(printf)("valgrind: "
+                  "The client arguments and environment need %u bytes, "
+                  "which exceeds the fixed %u-byte startup region.\n",
+                  stacksize, (unsigned)STARTUP_REGION_SZB);
+      VG_(printf)("valgrind: "
+                  "Reduce the argument/environment size.  Cannot continue. "
+                  "Sorry.\n\n");
+      VG_(exit)(1);
+   }
 
    /* base of the string table (aligned) */
-   stringbase = strtab = (HChar *)clstack_end 
-                         - VG_ROUNDUP(stringsize, sizeof(int));
+   stringbase = strtab = (HChar *)(clstack_end + 1)
+                         - VG_ROUNDUP(stringsize, sizeof(Word));
 
-   clstack_start = VG_PGROUNDDN(client_SP);
+   /* Keep the page below the fixed SP mapped so that the first stack
+      writes do not fault before stack growth is set up. */
+   clstack_start = client_SP - VKI_PAGE_SIZE;
 
    /* The max stack size */
    clstack_max_size = VG_PGROUNDUP(clstack_max_size);
@@ -966,6 +1000,9 @@ Addr setup_client_stack( void*  init_sp,
 
    /* client_SP is pointing at client's argc/argv */
 
+   vg_assert((Addr)(auxv + 1) <= (Addr)stringbase);
+   vg_assert((Addr)strtab <= clstack_end + 1);
+
    if (0) VG_(printf)("startup SP = %#lx\n", client_SP);
    return client_SP;
 }
@@ -1125,11 +1162,18 @@ IIFinaliseImageInfo VG_(ii_create_image)( IICreateImageInfo iicii,
       if (szB > m16) szB = m16;
       if (VG_(clo_main_stacksize) > 0) szB = VG_(clo_main_stacksize);
       if (szB < m1) szB = m1;
+      if (szB > (SizeT)-1 - STARTUP_REGION_SZB - (VKI_PAGE_SIZE - 1)) {
+         VG_(printf)("valgrind: "
+                     "The requested --main-stacksize is too large.\n");
+         VG_(exit)(1);
+      }
       szB = VG_PGROUNDUP(szB);
       VG_(debugLog)(1, "initimg",
                        "Setup client stack: size will be %lu\n", szB);
 
-      iifii.clstack_max_size = szB;
+      /* The startup image sits above the fixed initial SP, so account
+         for it separately from the runtime stack limit. */
+      iifii.clstack_max_size = szB + STARTUP_REGION_SZB;
 
       iifii.initial_client_SP
          = setup_client_stack( init_sp, env, 

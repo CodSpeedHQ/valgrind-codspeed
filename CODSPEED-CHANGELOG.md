@@ -4,6 +4,17 @@ This file documents changes made to Valgrind for CodSpeed integration, beyond th
 
 ## Features
 
+### Fixed Linux startup stack layout
+
+- Place the initial stack pointer at a fixed offset below the stack top,
+  independent of argument/environment string lengths and pointer counts.
+- Reserve a 16 MiB startup region for the original arguments, environment and
+  auxiliary data. Reject images that exceed this capacity instead of shifting
+  the stack pointer. Auxiliary data, including `AT_RANDOM`, is not normalized.
+- Account for this region separately from the runtime `--main-stacksize`.
+  Programs that read changed inputs can still execute different work; this
+  removes stack-address variation, not all sources of benchmark variation.
+
 ### Skip `.plt.sec` in `--skip-plt`
 
 **Feature**: Added support for skipping `.plt.sec` sections when using the `--skip-plt` option.
