@@ -2,6 +2,15 @@
 
 This file documents changes made to Valgrind for CodSpeed integration, beyond the baseline Valgrind distribution.
 
+## Fixes
+
+### Cache simulation: suppress the host L3 warning for explicit LL settings
+
+Callgrind and Cachegrind no longer print the warning about using the host's
+last-level cache when `--LL` (or its `--L2` alias) supplies the cache configuration.
+The warning remains when LL is auto-detected. Cache geometry and simulation
+results are unchanged.
+
 ## Features
 
 ### Skip `.plt.sec` in `--skip-plt`

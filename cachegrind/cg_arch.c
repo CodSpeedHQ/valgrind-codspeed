@@ -35,7 +35,8 @@
 #include "cg_arch.h"
 
 static void configure_caches(cache_t* I1c, cache_t* D1c, cache_t* LLc,
-                             Bool all_caches_clo_defined);
+                             Bool all_caches_clo_defined,
+                             Bool ll_clo_defined);
 
 // Checks cache config is ok.  Returns NULL if ok, or a pointer to an error
 // string otherwise.
@@ -294,7 +295,8 @@ void VG_(post_clo_init_configure_caches)(cache_t* I1c,
 
    // Set the cache config (using auto-detection, if supported by the
    // architecture).
-   configure_caches( I1c, D1c, LLc, all_caches_clo_defined );
+   configure_caches( I1c, D1c, LLc, all_caches_clo_defined,
+                     DEFINED(clo_LLc) );
 
    maybe_tweak_LLc( LLc );
 
@@ -350,7 +352,7 @@ locate_cache(const VexCacheInfo *ci, VexCacheKind kind, UInt level)
 // overridden by any cache configurations specified on the command line.
 static void
 configure_caches(cache_t *I1c, cache_t *D1c, cache_t *LLc,
-                 Bool all_caches_clo_defined)
+                 Bool all_caches_clo_defined, Bool ll_clo_defined)
 {
    VexArchInfo vai;
    const VexCacheInfo *ci;
@@ -368,7 +370,7 @@ configure_caches(cache_t *I1c, cache_t *D1c, cache_t *LLc,
       VG_(dmsg)("warning: L2 cache not installed, ignore LL results.\n");
    }
 
-   if (ll && ci->num_levels > 2) {
+   if (ll && ci->num_levels > 2 && !ll_clo_defined) {
       VG_(dmsg)("warning: L%u cache found, using its data for the "
                 "LL simulation.\n", ci->num_levels);
    }
