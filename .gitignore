@@ -1929,6 +1929,7 @@
 /none/tests/linux/mremap6
 /none/tests/linux/open_client
 /none/tests/linux/pthread-stack
+/none/tests/linux/stack_layout
 /none/tests/linux/stack-overflow
 /none/tests/linux/getdents_filter
 

@@ -14,6 +14,8 @@ This file documents changes made to Valgrind for CodSpeed integration, beyond th
 - Account for this region separately from the runtime `--main-stacksize`.
   Programs that read changed inputs can still execute different work; this
   removes stack-address variation, not all sources of benchmark variation.
+- Add `none/tests/linux/stack_layout` coverage for stable initial stack pointers
+  and preserved argument/environment values across string lengths and counts.
 
 ### Skip `.plt.sec` in `--skip-plt`
 
