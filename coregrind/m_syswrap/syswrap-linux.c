@@ -4166,6 +4166,7 @@ POST(sys_dup3)
    vg_assert(SUCCESS);
    if (VG_(clo_track_fds))
       ML_(record_fd_open_named)(tid, RES);
+   ML_(rng_fd_note_dup)(ARG1, RES);
 }
 
 PRE(sys_quotactl)
@@ -4357,6 +4358,17 @@ PRE(sys_getrandom)
    PRE_REG_READ3(int, "getrandom",
                  char *, buf, vki_size_t, count, unsigned int, flags);
    PRE_MEM_WRITE( "getrandom(cpu)", ARG1, ARG2 );
+
+   if (!VG_(clo_deterministic_rng))
+      return;
+   /* Reject flags as the kernel does; valid ones never block here. */
+   if ((ARG3 & ~(VKI_GRND_NONBLOCK | VKI_GRND_RANDOM | VKI_GRND_INSECURE)) != 0
+       || (ARG3 & (VKI_GRND_RANDOM | VKI_GRND_INSECURE))
+          == (VKI_GRND_RANDOM | VKI_GRND_INSECURE)) {
+      SET_STATUS_Failure(VKI_EINVAL);
+      return;
+   }
+   SET_STATUS_from_SysRes(ML_(rng_serve_read)(tid, ARG1, ARG2));
 }
 
 POST(sys_getrandom)
@@ -6295,6 +6307,7 @@ POST(sys_openat)
    } else {
       if (VG_(clo_track_fds))
          ML_(record_fd_open_with_given_name)(tid, RES, (HChar*)(Addr)ARG2);
+      ML_(rng_fd_note_open)(RES);
    }
 }
 
@@ -6667,8 +6680,9 @@ POST(sys_open_by_handle_at)
    p{read,write}v wrappers
    ------------------------------------------------------------------ */
 /* This handles the common part of the PRE macro for preadv and preadv2. */
-void handle_pre_sys_preadv(ThreadId tid, SyscallStatus* status,
-                           Int fd, Addr vector, Int count, const char *str)
+void handle_pre_sys_preadv(ThreadId tid, SyscallStatus* status, UWord* flags,
+                           Int fd, Addr vector, Int count, Long offset,
+                           UInt rwf_flags, const char *str)
 {
    struct vki_iovec * vec;
    Int i;
@@ -6677,21 +6691,34 @@ void handle_pre_sys_preadv(ThreadId tid, SyscallStatus* status,
 
    if (!ML_(fd_allowed)(fd, str, tid, False)) {
       SET_STATUS_Failure( VKI_EBADF );
-   } else if (count > 0) {
-      VG_(strcpy) (tmp, str);
-      VG_(strcat) (tmp, "(vector)");
-      PRE_MEM_READ( tmp, vector, count * sizeof(struct vki_iovec) );
+      return;
+   }
+   if (count <= 0)
+      return;
 
-      if (ML_(safe_to_deref) ((void *)(Addr)vector,
-                              count * sizeof(struct vki_iovec))) {
-         vec = (struct vki_iovec *)(Addr)vector;
-         for (i = 0; i < count; i++) {
-            /* Note: building such a dynamic error string is *not*
-               a pattern to follow.  See bug 417075.  */
-            VG_(snprintf) (tmp, 30, "%s(vector[%d])", str, i);
-            PRE_MEM_WRITE( tmp, (Addr)vec[i].iov_base, vec[i].iov_len );
-         }
+   VG_(strcpy) (tmp, str);
+   VG_(strcat) (tmp, "(vector)");
+   PRE_MEM_READ( tmp, vector, count * sizeof(struct vki_iovec) );
+
+   if (ML_(safe_to_deref) ((void *)(Addr)vector,
+                           count * sizeof(struct vki_iovec))) {
+      vec = (struct vki_iovec *)(Addr)vector;
+      for (i = 0; i < count; i++) {
+         /* Note: building such a dynamic error string is *not*
+            a pattern to follow.  See bug 417075.  */
+         VG_(snprintf) (tmp, 30, "%s(vector[%d])", str, i);
+         PRE_MEM_WRITE( tmp, (Addr)vec[i].iov_base, vec[i].iov_len );
       }
+   }
+
+   if (VG_(clo_deterministic_rng) && ML_(rng_fd_is_marked)(fd)) {
+      *flags &= ~SfMayBlock;
+      /* The kernel rejects negative offsets before reading. */
+      if (offset < 0)
+         SET_STATUS_Failure(VKI_EINVAL);
+      else
+         SET_STATUS_from_SysRes(
+            ML_(rng_serve_iovec)(tid, vector, count, rwf_flags));
    }
 }
 
@@ -6740,8 +6767,13 @@ PRE(sys_preadv)
    Int fd = ARG1;
    Addr vector = ARG2;
    Int count = ARG3;
+#if VG_WORDSIZE == 4
+   Long offset = LOHI64(ARG4, ARG5);
+#else
+   Long offset = SARG4;
+#endif
 
-   handle_pre_sys_preadv(tid, status, fd, vector, count, str);
+   handle_pre_sys_preadv(tid, status, flags, fd, vector, count, offset, 0, str);
 
 }
 
@@ -6766,20 +6798,30 @@ PRE(sys_preadv2)
    PRE_REG_READ6(ssize_t, "preadv2",
                  unsigned long, fd, const struct iovec *, vector,
                  unsigned long, count, vki_u32, offset_low,
-                 vki_u32, offset_high, unsigned long, flags);
+                 vki_u32, offset_high, unsigned int, flags);
 #elif VG_WORDSIZE == 8
-   PRINT("sys_preadv2 ( %lu, %#lx, %lu, %ld, %lu )", ARG1, ARG2, ARG3, SARG4, ARG5);
-   PRE_REG_READ5(ssize_t, "preadv2",
+   PRINT("sys_preadv2 ( %lu, %#lx, %lu, %ld, %lu )", ARG1, ARG2, ARG3, SARG4, ARG6);
+   PRE_REG_READ6(ssize_t, "preadv2",
                  unsigned long, fd, const struct iovec *, vector,
-                 unsigned long, count, Word, offset, unsigned long, flags);
+                 unsigned long, count, Word, offset,
+                 unsigned long, offset_high, unsigned int, flags);
 #else
 #  error Unexpected word size
 #endif
    Int fd = ARG1;
    Addr vector = ARG2;
    Int count = ARG3;
+#if VG_WORDSIZE == 4
+   Long offset = LOHI64(ARG4, ARG5);
+#else
+   Long offset = SARG4;
+#endif
 
-   handle_pre_sys_preadv(tid, status, fd, vector, count, str);
+   /* preadv2 treats -1 as "use the file position". */
+   if (offset == -1)
+      offset = 0;
+   handle_pre_sys_preadv(tid, status, flags, fd, vector, count, offset,
+                         (UInt)ARG6, str);
 }
 
 POST(sys_preadv2)
@@ -7515,6 +7557,7 @@ POST(sys_fcntl)
       } else {
          if (VG_(clo_track_fds))
             ML_(record_fd_open_named)(tid, RES);
+         ML_(rng_fd_note_dup)(ARG1, RES);
       }
    }
    else if (ARG2 == VKI_F_DUPFD_CLOEXEC) {
@@ -7525,6 +7568,7 @@ POST(sys_fcntl)
       } else {
          if (VG_(clo_track_fds))
             ML_(record_fd_open_named)(tid, RES);
+         ML_(rng_fd_note_dup)(ARG1, RES);
       }
    } else if (ARG2 == VKI_F_GETOWN_EX) {
       POST_MEM_WRITE(ARG3, sizeof(struct vki_f_owner_ex));
@@ -7640,6 +7684,7 @@ POST(sys_fcntl64)
       } else {
          if (VG_(clo_track_fds))
             ML_(record_fd_open_named)(tid, RES);
+         ML_(rng_fd_note_dup)(ARG1, RES);
       }
    }
    else if (ARG2 == VKI_F_DUPFD_CLOEXEC) {
@@ -7650,6 +7695,7 @@ POST(sys_fcntl64)
       } else {
          if (VG_(clo_track_fds))
             ML_(record_fd_open_named)(tid, RES);
+         ML_(rng_fd_note_dup)(ARG1, RES);
       }
    } else if (ARG2 == VKI_F_GETOWN_EX) {
       POST_MEM_WRITE(ARG3, sizeof(struct vki_f_owner_ex));
@@ -14165,6 +14211,9 @@ POST(sys_close_range)
    UInt fd;
    UInt last = ARG2;
 
+   if (VG_(clo_deterministic_rng) && (ARG3 & VKI_CLOSE_RANGE_CLOEXEC) == 0)
+      ML_(rng_fd_note_close_range)(ARG1, ARG2);
+
    if (!VG_(clo_track_fds)
        || (ARG3 & VKI_CLOSE_RANGE_CLOEXEC) != 0)
       return;
@@ -14348,6 +14397,7 @@ POST(sys_openat2)
    } else {
       if (VG_(clo_track_fds))
          ML_(record_fd_open_with_given_name)(tid, RES, (HChar*)(Addr)ARG2);
+      ML_(rng_fd_note_open)(RES);
    }
 }
 
