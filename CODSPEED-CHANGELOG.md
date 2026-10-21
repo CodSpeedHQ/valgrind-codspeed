@@ -13,6 +13,11 @@ results are unchanged.
 
 ## Features
 
+### Fixed Linux startup stack layout
+
+Reduce simulated cache-miss variation from argument and environment sizes
+by keeping the Linux initial stack pointer at a fixed offset from the stack top.
+
 ### Skip `.plt.sec` in `--skip-plt`
 
 **Feature**: Added support for skipping `.plt.sec` sections when using the `--skip-plt` option.
