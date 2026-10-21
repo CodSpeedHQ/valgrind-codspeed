@@ -1744,6 +1744,7 @@
 /none/tests/amd64/clc
 /none/tests/amd64/cmpxchg
 /none/tests/amd64/crc32
+/none/tests/amd64/deterministic_rng
 /none/tests/amd64/f16c
 /none/tests/amd64/faultstatus
 /none/tests/amd64/fb_test_amd64

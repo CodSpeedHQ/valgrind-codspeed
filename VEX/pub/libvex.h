@@ -687,6 +687,10 @@ extern void LibVEX_Init (
    const VexControl* vcon
 );
 
+/* Install before guest execution. NULL preserves host RDRAND/RDSEED.
+   The callback runs on the executing guest thread and returns 32 random bits. */
+extern void LibVEX_SetRandom32 ( UInt (*random32)(void) );
+
 
 /*-------------------------------------------------------*/
 /*--- Make a translation                              ---*/
