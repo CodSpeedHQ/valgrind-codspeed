@@ -772,6 +772,15 @@ void log_bytes ( const HChar* bytes, SizeT nbytes )
      VG_(printf)("%c", bytes[i]);
 }
 
+static UInt deterministic_random32 ( void )
+{
+   ThreadId tid = VG_(running_tid);
+   UInt value;
+   vg_assert(tid != VG_INVALID_THREADID);
+   VG_(prng_fill)(&VG_(threads)[tid].prng_state, &value, sizeof(value));
+   return value;
+}
+
 
 /* --------- Various helper functions for translation --------- */
 
@@ -1519,6 +1528,8 @@ Bool VG_(translate) ( ThreadId tid,
       LibVEX_Init ( &failure_exit, &log_bytes, 
                     1,     /* debug_paranoia */ 
                     &VG_(clo_vex_control) );
+      if (VG_(clo_deterministic_rng))
+         LibVEX_SetRandom32(&deterministic_random32);
       vex_init_done = True;
    }
 

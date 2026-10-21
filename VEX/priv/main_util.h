@@ -48,6 +48,8 @@
 
 #define NULL ((void*)0)
 
+extern UInt (*vex_random32)(void);
+
 #if defined(_MSC_VER) // building with MSVC
 # define LIKELY(x)          (x)
 # define UNLIKELY(x)        (x)

@@ -87,6 +87,7 @@ EXTRA_DIST = \
 	rcl-amd64.vgtest rcl-amd64.stdout.exp rcl-amd64.stderr.exp \
 	rdrand.vgtest rdrand.stdout.exp rdrand.stderr.exp \
 	rdseed.vgtest rdseed.stdout.exp rdseed.stderr.exp \
+	deterministic_rng.vgtest deterministic_rng.stdout.exp deterministic_rng.stderr.exp \
 	redundantRexW.vgtest redundantRexW.stdout.exp \
 	redundantRexW.stderr.exp \
 	smc1.stderr.exp smc1.stdout.exp smc1.vgtest \
@@ -113,6 +114,7 @@ check_PROGRAMS = \
 	cet_nops \
 	clc \
 	cmpxchg \
+	deterministic_rng \
 	getseg \
 	$(INSN_TESTS) \
 	nan80and64 \
@@ -179,6 +181,9 @@ endif
 if BUILD_RDSEED_TESTS
  check_PROGRAMS += rdseed
 endif
+
+deterministic_rng_LDADD = -lpthread
+deterministic_rng_CFLAGS = $(AM_CFLAGS) -mno-red-zone
 
 
 # DDD: these need to be made to work on Darwin like the x86/ ones were.
