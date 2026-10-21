@@ -235,6 +235,14 @@ extern Int VG_(log2_64)( ULong x );
 // non-NULL, it uses and updates whatever pSeed points at.
 extern UInt VG_(random) ( /*MOD*/UInt* pSeed );
 
+/* Splitmix64 streams; callers own the state and allocate stream ids. */
+#define DETERMINISTIC_RNG_SEED 0x436F6453706565ULL  /* "CodSpee" */
+/* Thread stream ids follow creation order. */
+#define DETERMINISTIC_RNG_STREAM_AT_RANDOM     0ULL
+#define DETERMINISTIC_RNG_STREAM_FIRST_THREAD  1ULL
+extern ULong VG_(prng_derive) ( ULong seed, ULong stream );
+extern void  VG_(prng_fill)   ( /*MOD*/ULong* state, void* buf, SizeT n );
+
 /* Update a running Adler-32 checksum with the bytes buf[0..len-1] and
    return the updated checksum. If buf is NULL, this function returns
    the required initial value for the checksum. An Adler-32 checksum is
