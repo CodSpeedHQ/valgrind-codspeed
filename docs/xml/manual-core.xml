@@ -793,6 +793,55 @@ in most cases.  We group the available options by rough categories.</para>
     </listitem>
   </varlistentry>
 
+  <varlistentry id="opt.deterministic-rng" xreflabel="--deterministic-rng">
+    <term>
+      <option><![CDATA[--deterministic-rng=<yes|no> [default: no] ]]></option>
+    </term>
+    <listitem>
+      <para>When enabled, randomness the client can read is served
+        from a fixed-seed PRNG, so it is identical across runs.  This
+        covers the <computeroutput>AT_RANDOM</computeroutput> auxv
+        bytes, <computeroutput>getrandom(2)</computeroutput>, and
+        <computeroutput>read</computeroutput>,
+        <computeroutput>pread</computeroutput>,
+        <computeroutput>readv</computeroutput>,
+        <computeroutput>preadv</computeroutput> and
+        <computeroutput>preadv2</computeroutput> on
+        <computeroutput>/dev/random</computeroutput> and
+        <computeroutput>/dev/urandom</computeroutput> (resolved
+        through <computeroutput>/proc/self/fd</computeroutput>, so
+        symlinks count).  On amd64, <computeroutput>RDRAND</computeroutput>
+        and <computeroutput>RDSEED</computeroutput> draw from the calling
+        thread's PRNG stream and always report success.  CPUID still
+        reports them only when the host supports them.</para>
+      <para>For nonempty <computeroutput>preadv2</computeroutput> reads,
+        the supported flags are <computeroutput>RWF_HIPRI</computeroutput>,
+        <computeroutput>RWF_DSYNC</computeroutput>,
+        <computeroutput>RWF_SYNC</computeroutput>,
+        <computeroutput>RWF_NOWAIT</computeroutput>,
+        <computeroutput>RWF_APPEND</computeroutput> and
+        <computeroutput>RWF_NOAPPEND</computeroutput>.  Other flags return
+        <computeroutput>EOPNOTSUPP</computeroutput> without advancing the
+        PRNG stream.</para>
+      <para>Each client thread draws from its own stream, keyed by a
+        fixed built-in seed and the thread's creation index, so output
+        depends only on the order of draws within each thread.
+        <computeroutput>AT_RANDOM</computeroutput> has its own stream.
+        A forked child continues its parent's streams; with
+        <option>--trace-children=yes</option> each exec'd program
+        restarts from the seed.</para>
+      <para>Time, pids and tids,
+        <computeroutput>/proc/sys/kernel/random/*</computeroutput>,
+        <computeroutput>mmap</computeroutput> of the devices, and
+        device fds inherited across <computeroutput>exec</computeroutput>
+        are not covered.  The seed cannot be changed.  Bytes come from
+        the stream of the OS thread that makes the call, so a program
+        whose thread scheduling is not reproducible (for example a Go
+        program, where map iteration uses the generator of whichever
+        thread runs the goroutine) can still vary between runs.</para>
+    </listitem>
+  </varlistentry>
+
   <varlistentry id="opt.child-silent-after-fork"
                 xreflabel="--child-silent-after-fork">
     <term>

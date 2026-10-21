@@ -18,6 +18,32 @@ results are unchanged.
 Reduce simulated cache-miss variation from argument and environment sizes
 by keeping the Linux initial stack pointer at a fixed offset from the stack top.
 
+### Deterministic randomness: `--deterministic-rng`
+
+**Feature**: Added `--deterministic-rng=no|yes` (default `no`). When enabled, randomness the client reads from the kernel or the CPU comes from a fixed-seed PRNG, so it is identical across runs.
+
+**Motivation**: Programs seed hash tables and similar structures from startup randomness. A different seed changes bucket collisions and probe lengths in HashMap-heavy benchmarks, which shows up as instruction-count noise under Callgrind.
+
+**How it works**:
+- `AT_RANDOM` auxv bytes (glibc stack canary and pointer guard, Go runtime hash seed) come from a dedicated stream.
+- `getrandom(2)` (Rust `RandomState`, CPython hash seed, OpenSSL, glibc `arc4random`) is served from the PRNG.
+- `read`, `pread` and `readv` on `/dev/random` and `/dev/urandom` are served from the PRNG. The device is identified by resolving the fd through `/proc/self/fd`, so symlinks to the devices are covered.
+- On amd64, `RDRAND` and `RDSEED` draw from the calling thread's PRNG stream and always report success. CPUID still reports them only when the host CPU supports them.
+- Each client thread has its own splitmix64 stream, keyed by a fixed built-in seed and the thread's creation index. The N-th created thread always draws the same bytes regardless of scheduling. Output depends only on the order of draws within each thread.
+- A forked child continues its parent's streams, so parent and child draw identical bytes. Under `--trace-children=yes` each exec'd program restarts from the seed.
+
+**Usage**:
+```bash
+valgrind --tool=callgrind --deterministic-rng=yes ./your_program
+```
+
+**Limitations**:
+- Time (`clock_gettime`, `rdtsc`), pids and tids are not made deterministic.
+- `/proc/sys/kernel/random/*` is not covered.
+- `/dev/urandom` fds inherited across `exec` are not covered.
+- The seed is fixed; there is no option to change it.
+- Each thread draws from its own stream, so the bytes a call returns depend on which thread makes it. If a runtime moves work between threads based on timing (thread pools, work stealing, Go goroutines), the results can still differ between runs.
+
 ### Skip `.plt.sec` in `--skip-plt`
 
 **Feature**: Added support for skipping `.plt.sec` sections when using the `--skip-plt` option.
