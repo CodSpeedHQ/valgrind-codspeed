@@ -19,6 +19,8 @@ EXTRA_DIST = \
 	allow_file_caps_refused.stdout.exp \
 	prctl_get_auxv.vgtest prctl_get_auxv.stderr.exp \
 	prctl_get_auxv.stdout.exp \
+	deterministic_rng.vgtest deterministic_rng.stderr.exp \
+	deterministic_rng.stdout.exp \
 	find_debuginfo.vgtest find_debuginfo.stderr.exp find_debuginfo.post.exp \
 	runtime_obj_skip_py.vgtest runtime_obj_skip_py.stderr.exp runtime_obj_skip_py.post.exp \
 	runtime_obj_skip_py.py runtime_obj_skip_py_shim.c \
@@ -44,7 +46,7 @@ EXTRA_DIST = \
 	inline-crossfile.vgtest inline-crossfile.stderr.exp inline-crossfile.stdout.exp inline-crossfile.post.exp \
 	inline-crossfile-helper1.h inline-crossfile-helper2.h filter_inline
 
-check_PROGRAMS = clreq register_desc register_desc_threads find_debuginfo simwork threads inline-samefile inline-crossfile runtime_obj_skip_c runtime_obj_skip_underflow
+check_PROGRAMS = clreq register_desc register_desc_threads find_debuginfo simwork threads inline-samefile inline-crossfile runtime_obj_skip_c runtime_obj_skip_underflow deterministic_rng
 if HAVE_PR_GET_AUXV
 check_PROGRAMS += prctl_get_auxv
 endif
@@ -57,6 +59,7 @@ inline_samefile_CFLAGS = $(AM_CFLAGS) -O2 -g
 inline_crossfile_CFLAGS = $(AM_CFLAGS) -O2 -g
 
 threads_LDADD = -lpthread
+deterministic_rng_LDADD = -lpthread
 register_desc_threads_LDADD = -lpthread
 
 # Shim loaded by runtime_obj_skip_py.py via ctypes. Built unconditionally;

@@ -1,0 +1,3 @@
+prog: deterministic_rng
+vgopts: -q --deterministic-rng=yes --callgrind-out-file=callgrind.out.deterministic_rng
+cleanup: rm -f callgrind.out.deterministic_rng
