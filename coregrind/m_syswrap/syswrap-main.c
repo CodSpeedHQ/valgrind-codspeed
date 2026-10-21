@@ -37,6 +37,7 @@
 #include "pub_core_libcassert.h"
 #include "pub_core_libcprint.h"
 #include "pub_core_libcproc.h"      // For VG_(getpid)()
+#include "pub_core_libcfile.h"      // For VG_(fstat)()
 #include "pub_core_libcsignal.h"
 #include "pub_core_scheduler.h"     // For VG_({acquire,release}_BigLock),
                                     //   and VG_(vg_yield)
@@ -2193,6 +2194,57 @@ static void ensure_initialised ( void )
 
 /* --- This is the main function of this file. --- */
 
+/* --sync-file-io: I/O syscalls on regular files complete without
+   releasing the big lock, so they are not thread-switch points.  Path
+   syscalls (open/mkdir/unlink/...) are treated the same way: they do not
+   block on regular filesystems.  fd-based syscalls keep SfMayBlock when
+   the fd is not a regular file (pipes, sockets, eventfds, ttys), so
+   blocking waits still yield the lock and cannot deadlock the scheduler. */
+#if defined(VGO_linux)
+static Bool is_regular_file_fd ( Int fd )
+{
+   struct vg_stat st;
+   if (fd < 0)
+      return False;
+   if (VG_(fstat)(fd, &st) != 0)
+      return False;
+   return VKI_S_ISREG(st.mode);
+}
+
+static void drop_mayblock_for_file_io ( SyscallInfo* sci )
+{
+   UWord sysno = sci->orig_args.sysno;
+   Bool fd_based = False;
+   Bool path_based = False;
+   switch (sysno) {
+      case __NR_read:     case __NR_write:
+      case __NR_pread64:  case __NR_pwrite64:
+      case __NR_readv:    case __NR_writev:
+      case __NR_preadv:   case __NR_pwritev:
+      case __NR_preadv2:  case __NR_pwritev2:
+      case __NR_fsync:    case __NR_fdatasync:
+      case __NR_getdents64:
+      case __NR_ftruncate:
+         fd_based = True;
+         break;
+      case __NR_open:     case __NR_openat:
+      case __NR_mkdir:    case __NR_mkdirat:
+      case __NR_unlink:   case __NR_unlinkat:
+      case __NR_rename:   case __NR_renameat: case __NR_renameat2:
+      case __NR_symlink:  case __NR_symlinkat:
+      case __NR_link:     case __NR_linkat:
+      case __NR_rmdir:    case __NR_truncate:
+      case __NR_creat:
+         path_based = True;
+         break;
+      default:
+         return;
+   }
+   if (path_based || (fd_based && is_regular_file_fd((Int)sci->orig_args.arg1)))
+      sci->flags &= ~SfMayBlock;
+}
+#endif
+
 void VG_(client_syscall) ( ThreadId tid, UInt trc )
 {
    Word                     sysno;
@@ -2412,6 +2464,11 @@ void VG_(client_syscall) ( ThreadId tid, UInt trc )
    
    /* If needed, gdbserver will report syscall entry to GDB */
    VG_(gdbserver_report_syscall)(True, sysno, tid);
+
+#  if defined(VGO_linux)
+   if (VG_(clo_sync_file_io) && (sci->flags & SfMayBlock))
+      drop_mayblock_for_file_io(sci);
+#  endif
 
    /* The pre-handler may have modified:
          sci->args

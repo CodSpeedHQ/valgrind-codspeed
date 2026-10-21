@@ -220,6 +220,9 @@ enum FairSchedType { disable_fair_sched, enable_fair_sched, try_fair_sched };
 extern enum FairSchedType VG_(clo_fair_sched);
 /* thread-scheduling timeslice. */
 extern Word   VG_(clo_scheduling_quantum);
+/* Run read/write/open-style syscalls on regular files synchronously, i.e.
+   without releasing the big lock, so they are not thread-switch points. */
+extern Bool   VG_(clo_sync_file_io);
 /* DEBUG: print thread scheduling events?  default: NO */
 extern Bool  VG_(clo_trace_sched);
 /* DEBUG: do heap profiling?  default: NO */

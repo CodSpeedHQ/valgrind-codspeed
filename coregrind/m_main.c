@@ -222,6 +222,8 @@ static void usage_NORETURN ( int need_help )
 "    --scheduling-quantum=<number>  thread-scheduling timeslice in number of\n"
 "           basic blocks [100000]\n"
 "    --fair-sched=no|yes|try   schedule threads fairly on multicore systems [no]\n"
+"    --sync-file-io=no|yes     keep the scheduler lock across I/O syscalls on\n"
+"           regular files so they never switch threads [no]\n"
 "    --kernel-variant=variant1,variant2,...\n"
 "         handle non-standard kernel variants [none]\n"
 "         where variant is one of:\n"
@@ -679,6 +681,7 @@ static void process_option (Clo_Mode mode,
                         VG_(clo_child_silent_after_fork)) {}
    else if VG_INT_CLOM(cloPD, arg, "--scheduling-quantum",
                        VG_(clo_scheduling_quantum)) {}
+   else if VG_BOOL_CLOM(cloPD, arg, "--sync-file-io", VG_(clo_sync_file_io)) {}
    else if VG_STR_CLO(arg, "--fair-sched",        tmp_str) {
       if (VG_(Clo_Mode)() != cloP)
          ;

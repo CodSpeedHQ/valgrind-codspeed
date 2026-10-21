@@ -157,6 +157,8 @@ enum FairSchedType
    Smaller values give finer interleaving but much increased scheduling
    overheads. */
 Word   VG_(clo_scheduling_quantum) = 100000;
+/* Keep the big lock across I/O syscalls on regular files? default: NO */
+Bool   VG_(clo_sync_file_io) = False;
 Bool   VG_(clo_trace_sched)    = False;
 Bool   VG_(clo_profile_heap)   = False;
 UInt   VG_(clo_progress_interval) = 0; /* in seconds, 1 .. 3600,
