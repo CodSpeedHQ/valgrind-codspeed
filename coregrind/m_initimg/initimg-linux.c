@@ -961,7 +961,13 @@ Addr setup_client_stack( void*  init_sp,
                propagated to the client as glibc will assume it is
                present if it is built for kernel 2.6.29 or later */
             auxv->u.a_ptr = strtab;
-            VG_(memcpy)(strtab, orig_auxv->u.a_ptr, 16);
+            if (VG_(clo_deterministic_rng)) {
+               ULong state = VG_(prng_derive)(DETERMINISTIC_RNG_SEED,
+                                              DETERMINISTIC_RNG_STREAM_AT_RANDOM);
+               VG_(prng_fill)(&state, strtab, 16);
+            } else {
+               VG_(memcpy)(strtab, orig_auxv->u.a_ptr, 16);
+            }
             strtab += 16;
             break;
 

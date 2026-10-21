@@ -300,6 +300,9 @@ const HChar* name_of_sched_event ( UInt event )
   }
 }
 
+/* Use creation order, not reusable ThreadState slots, for PRNG streams. */
+static ULong n_threads_created = 0;
+
 /* Allocate a completely empty ThreadState record. */
 ThreadId VG_(alloc_ThreadState) ( void )
 {
@@ -311,6 +314,11 @@ ThreadId VG_(alloc_ThreadState) ( void )
          if (VG_(threads)[i].thread_name)
             VG_(free)(VG_(threads)[i].thread_name);
          VG_(threads)[i].thread_name = NULL;
+         VG_(threads)[i].prng_state
+            = VG_(prng_derive)(DETERMINISTIC_RNG_SEED,
+                               DETERMINISTIC_RNG_STREAM_FIRST_THREAD
+                                  + n_threads_created);
+         n_threads_created++;
          return i;
       }
    }

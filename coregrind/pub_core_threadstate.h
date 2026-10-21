@@ -391,6 +391,8 @@ typedef struct {
    /* OS-specific thread state */
    ThreadOSstate os_state;
 
+   ULong prng_state;
+
    /* Error disablement level.  A counter which allows selectively
       disabling error reporting in threads.  When zero, reporting is
       enabled.  When nonzero, it is disabled.  This is controlled by
