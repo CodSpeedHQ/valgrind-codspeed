@@ -69,6 +69,19 @@ void ML_(fd_at_check_allowed)(Int fd, const HChar* path,
                               const HChar* function_name, ThreadId tid,
                               SyscallStatus* status);
 
+extern void ML_(rng_fd_note_open)  (Int fd);
+extern void ML_(rng_fd_note_dup)   (Int oldfd, Int newfd);
+extern void ML_(rng_fd_note_close) (Int fd);
+extern void ML_(rng_fd_note_close_range) (UInt first, UInt last);
+extern Bool ML_(rng_fd_is_marked)  (Int fd);
+/* Fill a client buffer from the calling thread's stream; returns its
+   length, or an EFAULT error if the buffer is not writable. */
+extern SysRes ML_(rng_serve_read)  (ThreadId tid, Addr buf, SizeT n);
+/* Serve a readv-style iovec array, validating the vector and Linux RWF flags
+   before filling buffers. Return a partial count if a later buffer faults. */
+extern SysRes ML_(rng_serve_iovec) (ThreadId tid, Addr vec, UInt count,
+                                  UInt rwf_flags);
+
 
 extern void ML_(record_fd_close)               (ThreadId tid, Int fd);
 extern Int  ML_(get_fd_count)                  (void);
@@ -133,9 +146,9 @@ extern void handle_sys_mprotect (ThreadId tid, SyscallStatus *status,
                                  Addr *addr, SizeT *len, Int *prot);
 /* Helper functions for preadv/preadv2. */
 extern
-void handle_pre_sys_preadv(ThreadId tid, SyscallStatus* status,
-                           Int fd, Addr vector, Int count,
-                           const char *str);
+void handle_pre_sys_preadv(ThreadId tid, SyscallStatus* status, UWord* flags,
+                           Int fd, Addr vector, Int count, Long offset,
+                           UInt rwf_flags, const char *str);
 extern
 void handle_post_sys_preadv(ThreadId tid, SyscallStatus* status, Addr vector, Int count);
 

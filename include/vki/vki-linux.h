@@ -5515,6 +5515,23 @@ struct vki_open_how {
 #define VKI_CLOSE_RANGE_UNSHARE (1U << 1)
 #define VKI_CLOSE_RANGE_CLOEXEC (1U << 2)
 
+#define VKI_GRND_NONBLOCK 0x0001
+#define VKI_GRND_RANDOM   0x0002
+#define VKI_GRND_INSECURE 0x0004
+
+#define VKI_UIO_MAXIOV 1024
+
+#ifndef VKI_EOPNOTSUPP
+#define VKI_EOPNOTSUPP 95
+#endif
+
+#define VKI_RWF_HIPRI    0x00000001
+#define VKI_RWF_DSYNC    0x00000002
+#define VKI_RWF_SYNC     0x00000004
+#define VKI_RWF_NOWAIT   0x00000008
+#define VKI_RWF_APPEND   0x00000010
+#define VKI_RWF_NOAPPEND 0x00000020
+
 struct vki_cachestat_range {
     __vki_u64 off;
     __vki_u64 len;
