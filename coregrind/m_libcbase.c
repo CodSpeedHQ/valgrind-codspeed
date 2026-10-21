@@ -991,6 +991,39 @@ UInt VG_(random)( /*MOD*/UInt* pSeed )
    return *pSeed;
 }
 
+#define SPLITMIX64_GAMMA  0x9E3779B97F4A7C15ULL
+#define SPLITMIX64_MIX1   0xBF58476D1CE4E5B9ULL
+#define SPLITMIX64_MIX2   0x94D049BB133111EBULL
+
+static ULong splitmix64_next ( /*MOD*/ULong* state )
+{
+   ULong z = (*state += SPLITMIX64_GAMMA);
+   z = (z ^ (z >> 30)) * SPLITMIX64_MIX1;
+   z = (z ^ (z >> 27)) * SPLITMIX64_MIX2;
+   return z ^ (z >> 31);
+}
+
+ULong VG_(prng_derive) ( ULong seed, ULong stream )
+{
+   ULong state = seed ^ stream;
+   return splitmix64_next(&state);
+}
+
+void VG_(prng_fill) ( /*MOD*/ULong* state, void* buf, SizeT n )
+{
+   UChar* p = buf;
+   while (n >= sizeof(ULong)) {
+      ULong v = splitmix64_next(state);
+      VG_(memcpy)(p, &v, sizeof(v));
+      p += sizeof(v);
+      n -= sizeof(v);
+   }
+   if (n > 0) {
+      ULong v = splitmix64_next(state);
+      VG_(memcpy)(p, &v, n);
+   }
+}
+
 
 /* The following Adler-32 checksum code is taken from zlib-1.2.3, which
    has the following copyright notice. */

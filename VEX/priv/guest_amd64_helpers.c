@@ -3979,6 +3979,8 @@ void amd64g_dirtyhelper_SxDT ( void *address, ULong op ) {
    32 bit random number using RDRAND, and return it and the associated rflags.C
    value. */
 ULong amd64g_dirtyhelper_RDRAND ( void ) {
+   if (vex_random32)
+      return (1ULL << 32) | (ULong)vex_random32();
 #  if defined(__x86_64__)
    ULong res   = 0;
    ULong cflag = 0;
@@ -4002,6 +4004,8 @@ ULong amd64g_dirtyhelper_RDRAND ( void ) {
 }
 
 ULong amd64g_dirtyhelper_RDSEED ( void ) {
+   if (vex_random32)
+      return (1ULL << 32) | (ULong)vex_random32();
 #  if defined(__x86_64__)
    ULong res   = 0;
    ULong cflag = 0;

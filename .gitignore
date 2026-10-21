@@ -168,6 +168,7 @@
 /callgrind/tests/runtime_obj_skip_c
 /callgrind/tests/runtime_obj_skip_underflow
 /callgrind/tests/prctl_get_auxv
+/callgrind/tests/deterministic_rng
 /callgrind/tests/*.so
 /callgrind/tests/out_dbg
 /callgrind/tests/test-suite-overall.log
@@ -1744,6 +1745,7 @@
 /none/tests/amd64/clc
 /none/tests/amd64/cmpxchg
 /none/tests/amd64/crc32
+/none/tests/amd64/deterministic_rng
 /none/tests/amd64/f16c
 /none/tests/amd64/faultstatus
 /none/tests/amd64/fb_test_amd64

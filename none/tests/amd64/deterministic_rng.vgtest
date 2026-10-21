@@ -1,0 +1,3 @@
+prog: deterministic_rng
+prereq: test -x deterministic_rng && ../../../tests/x86_amd64_features amd64-rdrand && ../../../tests/x86_amd64_features amd64-rdseed
+vgopts: -q --deterministic-rng=yes

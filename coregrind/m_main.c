@@ -107,6 +107,8 @@ static void usage_NORETURN ( int need_help )
 "    --allow-file-caps=patt1,patt2,...   specifies a list of executables\n"
 "                              to run despite their file capabilities, which\n"
 "                              they do not get under Valgrind\n"
+"    --deterministic-rng=no|yes serve AT_RANDOM, getrandom() and /dev/urandom\n"
+"                              and RDRAND/RDSEED from a fixed-seed PRNG [no]\n"
 "    --child-silent-after-fork=no|yes omit child output between fork & exec? [no]\n"
 "    --vgdb=no|yes|full        activate gdbserver? [yes]\n"
 "                              full is slower but provides precise watchpoint/step\n"
@@ -513,6 +515,12 @@ static void process_option (Clo_Mode mode,
    // before main_process_cmd_line_options().
    else if VG_STR_CLOM(cloE, arg, "--allow-file-caps",
                        VG_(clo_allow_file_caps)) {}
+
+   // Set up VG_(clo_deterministic_rng). This is needed by
+   // VG_(ii_create_image), which fills AT_RANDOM before
+   // main_process_cmd_line_options().
+   else if VG_BOOL_CLOM(cloE, arg, "--deterministic-rng",
+                        VG_(clo_deterministic_rng)) {}
 
    // Set up VG_(clo_max_stackframe) and VG_(clo_main_stacksize).
    // These are needed by VG_(ii_create_image), which happens

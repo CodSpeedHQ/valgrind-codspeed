@@ -212,6 +212,14 @@ void LibVEX_set_VexControl ( VexControl vcon )
    __builtin_memcpy(&vex_control, &vcon, sizeof vex_control);
 }
 
+UInt (*vex_random32)(void) = NULL;
+
+void LibVEX_SetRandom32 ( UInt (*random32)(void) )
+{
+   vassert(vex_initdone);
+   vex_random32 = random32;
+}
+
 
 /* Exported to library client. */
 

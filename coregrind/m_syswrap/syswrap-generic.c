@@ -1794,6 +1794,135 @@ Bool ML_(fd_allowed)(Int fd, const HChar *syscallname, ThreadId tid,
    return allowed;
 }
 
+/* Fork inherits this table; exec resets it, leaving inherited random-device
+   fds served by the kernel. */
+static const HChar* const rng_dev_random  = "/dev/random";
+static const HChar* const rng_dev_urandom = "/dev/urandom";
+static Bool* rng_fd_table = NULL;
+
+static Bool rng_fd_in_range(Int fd)
+{
+   return fd >= 0 && fd < VG_(fd_hard_limit);
+}
+
+void ML_(rng_fd_note_open)(Int fd)
+{
+   const HChar* path;
+   UChar probe;
+
+   if (!VG_(clo_deterministic_rng) || !rng_fd_in_range(fd))
+      return;
+   if (rng_fd_table == NULL) {
+      rng_fd_table = VG_(malloc)("syswrap.rng_fd_table",
+                                 VG_(fd_hard_limit) * sizeof(Bool));
+      VG_(memset)(rng_fd_table, 0, VG_(fd_hard_limit) * sizeof(Bool));
+   }
+   rng_fd_table[fd] = False;
+   if (!VG_(resolve_filename)(fd, &path))
+      return;
+   if (VG_(strcmp)(path, rng_dev_random) != 0
+       && VG_(strcmp)(path, rng_dev_urandom) != 0)
+      return;
+   /* Serve only descriptors the kernel would let us read: a zero-length
+      read fails with EBADF on O_WRONLY and O_PATH descriptors and
+      consumes no entropy otherwise. */
+   if (VG_(read)(fd, &probe, 0) < 0)
+      return;
+   rng_fd_table[fd] = True;
+}
+
+void ML_(rng_fd_note_dup)(Int oldfd, Int newfd)
+{
+   if (!VG_(clo_deterministic_rng) || rng_fd_table == NULL
+       || !rng_fd_in_range(newfd))
+      return;
+   rng_fd_table[newfd] = rng_fd_in_range(oldfd) && rng_fd_table[oldfd];
+}
+
+void ML_(rng_fd_note_close)(Int fd)
+{
+   if (!VG_(clo_deterministic_rng) || rng_fd_table == NULL
+       || !rng_fd_in_range(fd))
+      return;
+   rng_fd_table[fd] = False;
+}
+
+void ML_(rng_fd_note_close_range)(UInt first, UInt last)
+{
+   UInt i;
+
+   if (!VG_(clo_deterministic_rng) || rng_fd_table == NULL)
+      return;
+   if (last >= (UInt)VG_(fd_hard_limit))
+      last = VG_(fd_hard_limit) - 1;
+   if (first > last)
+      return;
+   for (i = first; i <= last; i++)
+      rng_fd_table[i] = False;
+}
+
+Bool ML_(rng_fd_is_marked)(Int fd)
+{
+   if (rng_fd_table == NULL || !rng_fd_in_range(fd))
+      return False;
+   return rng_fd_table[fd];
+}
+
+SysRes ML_(rng_serve_read)(ThreadId tid, Addr buf, SizeT n)
+{
+   if (!VG_(am_is_valid_for_client)(buf, n, VKI_PROT_WRITE))
+      return VG_(mk_SysRes_Error)(VKI_EFAULT);
+   VG_(prng_fill)(&VG_(threads)[tid].prng_state, (void*)buf, n);
+   return VG_(mk_SysRes_Success)(n);
+}
+
+/* The kernel truncates the count to 32 bits and copies the vector before
+   filling buffers, which may overlap it. */
+SysRes ML_(rng_serve_iovec)(ThreadId tid, Addr vec, UInt count, UInt rwf_flags)
+{
+   /* Syscall wrappers run under the big lock, so one buffer suffices. */
+   static struct vki_iovec iov[VKI_UIO_MAXIOV];
+   UInt i;
+   SizeT total = 0;
+   Bool has_data = False;
+   SysRes res = VG_(mk_SysRes_Success)(0);
+
+   if (count > VKI_UIO_MAXIOV)
+      return VG_(mk_SysRes_Error)(VKI_EINVAL);
+   if (!ML_(safe_to_deref)((void*)vec, count * sizeof(*iov)))
+      return VG_(mk_SysRes_Error)(VKI_EFAULT);
+   VG_(memcpy)(iov, (void*)vec, count * sizeof(*iov));
+   for (i = 0; i < count; i++) {
+      if ((SSizeT)iov[i].iov_len < 0)
+         return VG_(mk_SysRes_Error)(VKI_EINVAL);
+      if (iov[i].iov_len != 0)
+         has_data = True;
+   }
+
+   /* Linux returns zero for empty vectors before checking RWF flags. */
+   if (!has_data)
+      return VG_(mk_SysRes_Success)(0);
+
+#if defined(VGO_linux)
+   const UInt supported_flags =
+      VKI_RWF_HIPRI | VKI_RWF_DSYNC | VKI_RWF_SYNC |
+      VKI_RWF_NOWAIT | VKI_RWF_APPEND | VKI_RWF_NOAPPEND;
+   if (rwf_flags & ~supported_flags)
+      return VG_(mk_SysRes_Error)(VKI_EOPNOTSUPP);
+#endif
+
+   for (i = 0; i < count; i++) {
+      res = ML_(rng_serve_read)(tid, (Addr)iov[i].iov_base, iov[i].iov_len);
+      if (sr_isError(res))
+         break;
+      total += iov[i].iov_len;
+   }
+   /* A fault after some bytes were written reports the partial count. */
+   if (sr_isError(res) && total == 0)
+      return res;
+   return VG_(mk_SysRes_Success)(total);
+}
+
 void ML_(fd_at_check_allowed)(Int fd, const HChar* path, const HChar* function_name, ThreadId tid, SyscallStatus* status)
 {
    if ((ML_(safe_to_deref) (path, 1)) && (path[0] != '/'))
@@ -3277,6 +3406,20 @@ PRE(sys_pread64)
 #  error Unexpected word size
 #endif
    PRE_MEM_WRITE( "pread64(buf)", ARG2, ARG3 );
+
+   if (VG_(clo_deterministic_rng) && ML_(rng_fd_is_marked)(ARG1)) {
+#if VG_WORDSIZE == 4
+      Long offset = MERGE64(ARG4, ARG5);
+#else
+      Long offset = SARG4;
+#endif
+      *flags &= ~SfMayBlock;
+      /* The kernel rejects negative offsets before reading. */
+      if (offset < 0)
+         SET_STATUS_Failure(VKI_EINVAL);
+      else
+         SET_STATUS_from_SysRes(ML_(rng_serve_read)(tid, ARG2, ARG3));
+   }
 }
 POST(sys_pread64)
 {
@@ -3790,6 +3933,7 @@ PRE(sys_close)
 	 file descriptor is still really closed/invalid. So we do the
 	 recording and checking here.  */
       if (VG_(clo_track_fds)) ML_(record_fd_close)(tid, ARG1);
+      ML_(rng_fd_note_close)(ARG1);
    }
 }
 
@@ -3809,6 +3953,7 @@ POST(sys_dup)
    } else {
       if (VG_(clo_track_fds))
          ML_(record_fd_open_named)(tid, RES);
+      ML_(rng_fd_note_dup)(ARG1, RES);
    }
 }
 
@@ -3827,6 +3972,7 @@ POST(sys_dup2)
    vg_assert(SUCCESS);
    if (VG_(clo_track_fds))
       ML_(record_fd_open_named)(tid, RES);
+   ML_(rng_fd_note_dup)(ARG1, RES);
 }
 
 PRE(sys_fchdir)
@@ -4946,6 +5092,7 @@ POST(sys_open)
    } else {
       if (VG_(clo_track_fds))
          ML_(record_fd_open_with_given_name)(tid, RES, (HChar*)(Addr)ARG1);
+      ML_(rng_fd_note_open)(RES);
    }
 }
 
@@ -4959,8 +5106,13 @@ PRE(sys_read)
 
    if (!ML_(fd_allowed)(ARG1, "read", tid, False))
       SET_STATUS_Failure( VKI_EBADF );
-   else
+   else {
       PRE_MEM_WRITE( "read(buf)", ARG2, ARG3 );
+      if (VG_(clo_deterministic_rng) && ML_(rng_fd_is_marked)(ARG1)) {
+         *flags &= ~SfMayBlock;
+         SET_STATUS_from_SysRes(ML_(rng_serve_read)(tid, ARG2, ARG3));
+      }
+   }
 }
 
 POST(sys_read)
@@ -5125,6 +5277,11 @@ PRE(sys_readv)
             VG_(sprintf)(buf, "readv(vector[%d])", i);
             PRE_MEM_WRITE(buf, (Addr)vec[i].iov_base, vec[i].iov_len );
          }
+      }
+
+      if (VG_(clo_deterministic_rng) && ML_(rng_fd_is_marked)(ARG1)) {
+         *flags &= ~SfMayBlock;
+         SET_STATUS_from_SysRes(ML_(rng_serve_iovec)(tid, ARG2, ARG3, 0));
       }
    }
 }
