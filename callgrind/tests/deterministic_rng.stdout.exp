@@ -24,3 +24,13 @@ getrandom: 8ed714994f0b56b219b5f45e069d4b8b6f48a57231b10044bfc3b47f3ddb9f85
 urandom: 6b7a1a135a8a966fec3be6b88e91d4f72e8600910ab56c52fe70aaf1782306f6
 urandom_dup: a43452d5a1cd8f55
 readv: f4ecbbd9da0e77e1e49041b2e10e5627
+proc_uuid_0: d8939d3a-1526-46e4-aa6b-e27e1238ab1f
+proc_uuid_1: 5ab7ae59-ff8c-4f96-a562-fe86d3cb0459
+proc_uuid_2: 19315e0a-1252-4cdf-add5-921798381e25
+proc_uuid_3: 1e19eeec-dee4-467f-9d5a-05047eb9fd1c
+proc_uuid_4: 93bfedd5-373b-4456-81cd-5a66024086a9
+proc_uuid_5: e37d863b-5e10-48e9-99f5-f25d37a736c3
+boot_id: 42a6a49b-c07f-40e7-b99e-dd747582b7d6
+proc_uuid_pread_negative: ok
+proc_uuid_opath: ok
+proc_uuid_offsets: ok

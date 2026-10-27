@@ -69,11 +69,15 @@ void ML_(fd_at_check_allowed)(Int fd, const HChar* path,
                               const HChar* function_name, ThreadId tid,
                               SyscallStatus* status);
 
+typedef enum { RngFdNone, RngFdBytes, RngFdUuid, RngFdBootId } RngFdKind;
+
+typedef enum { RngReadBuffer, RngReadVector } RngReadKind;
+
 extern void ML_(rng_fd_note_open)  (Int fd);
 extern void ML_(rng_fd_note_dup)   (Int oldfd, Int newfd);
 extern void ML_(rng_fd_note_close) (Int fd);
 extern void ML_(rng_fd_note_close_range) (UInt first, UInt last);
-extern Bool ML_(rng_fd_is_marked)  (Int fd);
+extern RngFdKind ML_(rng_fd_kind)(Int fd);
 /* Fill a client buffer from the calling thread's stream; returns its
    length, or an EFAULT error if the buffer is not writable. */
 extern SysRes ML_(rng_serve_read)  (ThreadId tid, Addr buf, SizeT n);
@@ -81,7 +85,12 @@ extern SysRes ML_(rng_serve_read)  (ThreadId tid, Addr buf, SizeT n);
    before filling buffers. Return a partial count if a later buffer faults. */
 extern SysRes ML_(rng_serve_iovec) (ThreadId tid, Addr vec, UInt count,
                                   UInt rwf_flags);
-
+/* Run a proc UUID read under the big lock, then replace the returned text.
+   Vector writes are also reported to the tool here, using a saved iovec. */
+extern SysRes ML_(rng_serve_proc_read)(ThreadId           tid,
+                                       const SyscallArgs* args,
+                                       Long               offset,
+                                       RngReadKind        read_kind);
 
 extern void ML_(record_fd_close)               (ThreadId tid, Int fd);
 extern Int  ML_(get_fd_count)                  (void);

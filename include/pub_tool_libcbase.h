@@ -239,6 +239,7 @@ extern UInt VG_(random) ( /*MOD*/UInt* pSeed );
 #define DETERMINISTIC_RNG_SEED 0x436F6453706565ULL  /* "CodSpee" */
 /* Thread stream ids follow creation order. */
 #define DETERMINISTIC_RNG_STREAM_AT_RANDOM     0ULL
+#define DETERMINISTIC_RNG_STREAM_BOOT_ID       (~0ULL)
 #define DETERMINISTIC_RNG_STREAM_FIRST_THREAD  1ULL
 extern ULong VG_(prng_derive) ( ULong seed, ULong stream );
 extern void  VG_(prng_fill)   ( /*MOD*/ULong* state, void* buf, SizeT n );

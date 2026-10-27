@@ -1794,11 +1794,11 @@ Bool ML_(fd_allowed)(Int fd, const HChar *syscallname, ThreadId tid,
    return allowed;
 }
 
-/* Fork inherits this table; exec resets it, leaving inherited random-device
+/* Fork inherits this table; exec resets it, leaving inherited random-source
    fds served by the kernel. */
 static const HChar* const rng_dev_random  = "/dev/random";
 static const HChar* const rng_dev_urandom = "/dev/urandom";
-static Bool* rng_fd_table = NULL;
+static RngFdKind*         rng_fd_table    = NULL;
 
 static Bool rng_fd_in_range(Int fd)
 {
@@ -1808,43 +1808,52 @@ static Bool rng_fd_in_range(Int fd)
 void ML_(rng_fd_note_open)(Int fd)
 {
    const HChar* path;
-   UChar probe;
+   UChar        probe;
+   RngFdKind    kind = RngFdNone;
 
    if (!VG_(clo_deterministic_rng) || !rng_fd_in_range(fd))
       return;
    if (rng_fd_table == NULL) {
       rng_fd_table = VG_(malloc)("syswrap.rng_fd_table",
-                                 VG_(fd_hard_limit) * sizeof(Bool));
-      VG_(memset)(rng_fd_table, 0, VG_(fd_hard_limit) * sizeof(Bool));
+                                 VG_(fd_hard_limit)* sizeof(*rng_fd_table));
+      VG_(memset)(rng_fd_table, 0, VG_(fd_hard_limit)* sizeof(*rng_fd_table));
    }
-   rng_fd_table[fd] = False;
+   rng_fd_table[fd] = RngFdNone;
    if (!VG_(resolve_filename)(fd, &path))
       return;
-   if (VG_(strcmp)(path, rng_dev_random) != 0
-       && VG_(strcmp)(path, rng_dev_urandom) != 0)
+   if (VG_(strcmp)(path, rng_dev_random) == 0 ||
+       VG_(strcmp)(path, rng_dev_urandom) == 0)
+      kind = RngFdBytes;
+#if defined(VGO_linux)
+   else if (VG_(strcmp)(path, "/proc/sys/kernel/random/uuid") == 0)
+      kind = RngFdUuid;
+   else if (VG_(strcmp)(path, "/proc/sys/kernel/random/boot_id") == 0)
+      kind = RngFdBootId;
+#endif
+   if (kind == RngFdNone)
       return;
    /* Serve only descriptors the kernel would let us read: a zero-length
       read fails with EBADF on O_WRONLY and O_PATH descriptors and
       consumes no entropy otherwise. */
    if (VG_(read)(fd, &probe, 0) < 0)
       return;
-   rng_fd_table[fd] = True;
+   rng_fd_table[fd] = kind;
 }
 
 void ML_(rng_fd_note_dup)(Int oldfd, Int newfd)
 {
-   if (!VG_(clo_deterministic_rng) || rng_fd_table == NULL
-       || !rng_fd_in_range(newfd))
+   if (!VG_(clo_deterministic_rng) || rng_fd_table == NULL ||
+       !rng_fd_in_range(newfd))
       return;
-   rng_fd_table[newfd] = rng_fd_in_range(oldfd) && rng_fd_table[oldfd];
+   rng_fd_table[newfd] = ML_(rng_fd_kind)(oldfd);
 }
 
 void ML_(rng_fd_note_close)(Int fd)
 {
-   if (!VG_(clo_deterministic_rng) || rng_fd_table == NULL
-       || !rng_fd_in_range(fd))
+   if (!VG_(clo_deterministic_rng) || rng_fd_table == NULL ||
+       !rng_fd_in_range(fd))
       return;
-   rng_fd_table[fd] = False;
+   rng_fd_table[fd] = RngFdNone;
 }
 
 void ML_(rng_fd_note_close_range)(UInt first, UInt last)
@@ -1858,13 +1867,13 @@ void ML_(rng_fd_note_close_range)(UInt first, UInt last)
    if (first > last)
       return;
    for (i = first; i <= last; i++)
-      rng_fd_table[i] = False;
+      rng_fd_table[i] = RngFdNone;
 }
 
-Bool ML_(rng_fd_is_marked)(Int fd)
+RngFdKind ML_(rng_fd_kind)(Int fd)
 {
    if (rng_fd_table == NULL || !rng_fd_in_range(fd))
-      return False;
+      return RngFdNone;
    return rng_fd_table[fd];
 }
 
@@ -1921,6 +1930,88 @@ SysRes ML_(rng_serve_iovec)(ThreadId tid, Addr vec, UInt count, UInt rwf_flags)
    if (sr_isError(res) && total == 0)
       return res;
    return VG_(mk_SysRes_Success)(total);
+}
+
+enum { RNG_UUID_BYTES = 16, RNG_UUID_TEXT_LEN = 37 };
+
+static void
+rng_uuid_text(ThreadId tid, RngFdKind kind, HChar text[RNG_UUID_TEXT_LEN])
+{
+   static const HChar hex[] = "0123456789abcdef";
+   UChar              uuid[RNG_UUID_BYTES];
+   ULong              boot_state;
+   ULong*             state = &VG_(threads)[tid].prng_state;
+   UInt               i, pos = 0;
+
+   if (kind == RngFdBootId) {
+      boot_state = VG_(prng_derive)(DETERMINISTIC_RNG_SEED,
+                                    DETERMINISTIC_RNG_STREAM_BOOT_ID);
+      state      = &boot_state;
+   }
+   VG_(prng_fill)(state, uuid, sizeof(uuid));
+   /* RFC 9562: version 4 and the RFC variant (binary 10). */
+   uuid[6] = (uuid[6] & 0x0f) | 0x40;
+   uuid[8] = (uuid[8] & 0x3f) | 0x80;
+   for (i = 0; i < RNG_UUID_BYTES; i++) {
+      if (i == 4 || i == 6 || i == 8 || i == 10)
+         text[pos++] = '-';
+      text[pos++] = hex[uuid[i] >> 4];
+      text[pos++] = hex[uuid[i] & 0x0f];
+   }
+   text[pos] = '\n';
+}
+
+SysRes ML_(rng_serve_proc_read)(ThreadId           tid,
+                                const SyscallArgs* args,
+                                Long               offset,
+                                RngReadKind        read_kind)
+{
+   /* Keep a snapshot: the kernel output can overwrite the client's iovec.
+      The big lock protects both this scratch space and the fd position. */
+   static struct vki_iovec vector[VKI_UIO_MAXIOV];
+   struct vki_iovec        scalar = {(void*)(Addr)args->arg2, args->arg3};
+   struct vki_iovec*       iov    = &scalar;
+   UInt                    count  = 1, i;
+   SizeT                   remaining, pos;
+   HChar                   text[RNG_UUID_TEXT_LEN];
+   SysRes                  res;
+
+   if (read_kind == RngReadVector) {
+      count = (UInt)args->arg3;
+      iov   = vector;
+      if (count <= VKI_UIO_MAXIOV &&
+          ML_(safe_to_deref)((void*)(Addr)args->arg2, count * sizeof(*iov)))
+         VG_(memcpy)(iov, (void*)(Addr)args->arg2, count * sizeof(*iov));
+      else
+         count = 0; /* Let the kernel choose the error and its precedence. */
+   }
+
+   /* proc_do_uuid does not wait for entropy. Keep this syscall synchronous
+      so no other client thread can seek/close the fd before replacement.
+      In particular, retain the host kernel's partial-read and EOF rules. */
+   res = VG_(do_syscall8)(args->sysno, args->arg1, args->arg2, args->arg3,
+                          args->arg4, args->arg5, args->arg6, args->arg7,
+                          args->arg8);
+   if (sr_isError(res) || sr_Res(res) == 0)
+      return res;
+
+   remaining = sr_Res(res);
+   vg_assert(count > 0 && offset >= 0 && offset < RNG_UUID_TEXT_LEN);
+   vg_assert(remaining <= RNG_UUID_TEXT_LEN - offset);
+   /* Like proc_do_uuid, generate anew on each successful retrieval, not
+      once per open: successive short reads need not share a UUID. */
+   rng_uuid_text(tid, ML_(rng_fd_kind)(args->arg1), text);
+   pos = offset;
+   for (i = 0; i < count && remaining > 0; i++) {
+      SizeT n = iov[i].iov_len < remaining ? iov[i].iov_len : remaining;
+      VG_(memcpy)(iov[i].iov_base, text + pos, n);
+      if (read_kind == RngReadVector)
+         POST_MEM_WRITE((Addr)iov[i].iov_base, n);
+      pos += n;
+      remaining -= n;
+   }
+   vg_assert(remaining == 0);
+   return res;
 }
 
 void ML_(fd_at_check_allowed)(Int fd, const HChar* path, const HChar* function_name, ThreadId tid, SyscallStatus* status)
@@ -3407,15 +3498,19 @@ PRE(sys_pread64)
 #endif
    PRE_MEM_WRITE( "pread64(buf)", ARG2, ARG3 );
 
-   if (VG_(clo_deterministic_rng) && ML_(rng_fd_is_marked)(ARG1)) {
+   RngFdKind kind = ML_(rng_fd_kind)(ARG1);
+   if (VG_(clo_deterministic_rng)&& kind != RngFdNone) {
 #if VG_WORDSIZE == 4
       Long offset = MERGE64(ARG4, ARG5);
 #else
       Long offset = SARG4;
 #endif
       *flags &= ~SfMayBlock;
+      if (kind != RngFdBytes)
+         SET_STATUS_from_SysRes(
+            ML_(rng_serve_proc_read)(tid, arrghs, offset, RngReadBuffer));
       /* The kernel rejects negative offsets before reading. */
-      if (offset < 0)
+      else if (offset < 0)
          SET_STATUS_Failure(VKI_EINVAL);
       else
          SET_STATUS_from_SysRes(ML_(rng_serve_read)(tid, ARG2, ARG3));
@@ -5108,9 +5203,14 @@ PRE(sys_read)
       SET_STATUS_Failure( VKI_EBADF );
    else {
       PRE_MEM_WRITE( "read(buf)", ARG2, ARG3 );
-      if (VG_(clo_deterministic_rng) && ML_(rng_fd_is_marked)(ARG1)) {
+      RngFdKind kind = ML_(rng_fd_kind)(ARG1);
+      if (VG_(clo_deterministic_rng)&& kind != RngFdNone) {
          *flags &= ~SfMayBlock;
-         SET_STATUS_from_SysRes(ML_(rng_serve_read)(tid, ARG2, ARG3));
+         if (kind == RngFdBytes)
+            SET_STATUS_from_SysRes(ML_(rng_serve_read)(tid, ARG2, ARG3));
+         else
+            SET_STATUS_from_SysRes(ML_(rng_serve_proc_read)(
+               tid, arrghs, VG_(lseek)(ARG1, 0, VKI_SEEK_CUR), RngReadBuffer));
       }
    }
 }
@@ -5279,9 +5379,14 @@ PRE(sys_readv)
          }
       }
 
-      if (VG_(clo_deterministic_rng) && ML_(rng_fd_is_marked)(ARG1)) {
+      RngFdKind kind = ML_(rng_fd_kind)(ARG1);
+      if (VG_(clo_deterministic_rng)&& kind != RngFdNone) {
          *flags &= ~SfMayBlock;
-         SET_STATUS_from_SysRes(ML_(rng_serve_iovec)(tid, ARG2, ARG3, 0));
+         if (kind == RngFdBytes)
+            SET_STATUS_from_SysRes(ML_(rng_serve_iovec)(tid, ARG2, ARG3, 0));
+         else
+            SET_STATUS_from_SysRes(ML_(rng_serve_proc_read)(
+               tid, arrghs, VG_(lseek)(ARG1, 0, VKI_SEEK_CUR), RngReadVector));
       }
    }
 }
@@ -5289,6 +5394,10 @@ PRE(sys_readv)
 POST(sys_readv)
 {
    vg_assert(SUCCESS);
+   RngFdKind kind = ML_(rng_fd_kind)(ARG1);
+   /* Already reported from the saved vector, before it could be overwritten. */
+   if (kind == RngFdUuid || kind == RngFdBootId)
+      return;
    if (RES > 0) {
       Int i;
       struct vki_iovec * vec = (struct vki_iovec *)(Addr)ARG2;

@@ -28,6 +28,7 @@ by keeping the Linux initial stack pointer at a fixed offset from the stack top.
 - `AT_RANDOM` auxv bytes (glibc stack canary and pointer guard, Go runtime hash seed) come from a dedicated stream.
 - `getrandom(2)` (Rust `RandomState`, CPython hash seed, OpenSSL, glibc `arc4random`) is served from the PRNG.
 - `read`, `pread` and `readv` on `/dev/random` and `/dev/urandom` are served from the PRNG. The device is identified by resolving the fd through `/proc/self/fd`, so symlinks to the devices are covered.
+- Reads of `/proc/sys/kernel/random/uuid` return lowercase UUIDv4 text from the thread's stream; `/proc/sys/kernel/random/boot_id` uses a fixed seed-derived UUID independent of thread or read order. This covers `read`, `pread`, `readv`, `preadv` and `preadv2`. The kernel preserves offsets, short reads, EOF and errors; only returned bytes are replaced. UUIDs are not cached across short reads. Errors and empty reads consume no PRNG state.
 - On amd64, `RDRAND` and `RDSEED` draw from the calling thread's PRNG stream and always report success. CPUID still reports them only when the host CPU supports them.
 - Each client thread has its own splitmix64 stream, keyed by a fixed built-in seed and the thread's creation index. The N-th created thread always draws the same bytes regardless of scheduling. Output depends only on the order of draws within each thread.
 - A forked child continues its parent's streams, so parent and child draw identical bytes. Under `--trace-children=yes` each exec'd program restarts from the seed.
@@ -39,10 +40,10 @@ valgrind --tool=callgrind --deterministic-rng=yes ./your_program
 
 **Limitations**:
 - Time (`clock_gettime`, `rdtsc`), pids and tids are not made deterministic.
-- `/proc/sys/kernel/random/*` is not covered.
-- `/dev/urandom` fds inherited across `exec` are not covered.
+- Only `/proc/sys/kernel/random/uuid` and `/proc/sys/kernel/random/boot_id` are covered among the files under `/proc/sys/kernel/random/`.
+- Fds to `/dev/urandom` or the two procfs files inherited across `exec` are not covered.
 - The seed is fixed; there is no option to change it.
-- Each thread draws from its own stream, so the bytes a call returns depend on which thread makes it. If a runtime moves work between threads based on timing (thread pools, work stealing, Go goroutines), the results can still differ between runs.
+- Each thread draws from its own stream, so the bytes a call returns depend on which thread makes it. If a runtime moves work between threads based on timing (thread pools, work stealing, Go goroutines), the results can still differ between runs. `boot_id` is the exception: it is derived from the seed alone, not from a thread's stream.
 
 ### Skip `.plt.sec` in `--skip-plt`
 

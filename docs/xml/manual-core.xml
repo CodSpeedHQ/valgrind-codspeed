@@ -814,8 +814,9 @@ in most cases.  We group the available options by rough categories.</para>
         and <computeroutput>RDSEED</computeroutput> draw from the calling
         thread's PRNG stream and always report success.  CPUID still
         reports them only when the host supports them.</para>
-      <para>For nonempty <computeroutput>preadv2</computeroutput> reads,
-        the supported flags are <computeroutput>RWF_HIPRI</computeroutput>,
+      <para>For nonempty random-device
+        <computeroutput>preadv2</computeroutput> reads, the supported flags are
+        <computeroutput>RWF_HIPRI</computeroutput>,
         <computeroutput>RWF_DSYNC</computeroutput>,
         <computeroutput>RWF_SYNC</computeroutput>,
         <computeroutput>RWF_NOWAIT</computeroutput>,
@@ -823,6 +824,15 @@ in most cases.  We group the available options by rough categories.</para>
         <computeroutput>RWF_NOAPPEND</computeroutput>.  Other flags return
         <computeroutput>EOPNOTSUPP</computeroutput> without advancing the
         PRNG stream.</para>
+      <para>The same read calls also cover
+        <computeroutput>/proc/sys/kernel/random/uuid</computeroutput> and
+        <computeroutput>/proc/sys/kernel/random/boot_id</computeroutput>.
+        The former draws fresh UUIDv4 text from the thread's stream for
+        each nonempty read, including short reads; the latter uses a fixed,
+        seed-derived UUID independent of thread and read order.
+        The kernel handles offsets, short reads, EOF and errors; only
+        returned bytes are replaced. Errors and empty reads consume no
+        PRNG state.</para>
       <para>Each client thread draws from its own stream, keyed by a
         fixed built-in seed and the thread's creation index, so output
         depends only on the order of draws within each thread.
@@ -831,14 +841,19 @@ in most cases.  We group the available options by rough categories.</para>
         <option>--trace-children=yes</option> each exec'd program
         restarts from the seed.</para>
       <para>Time, pids and tids,
-        <computeroutput>/proc/sys/kernel/random/*</computeroutput>,
-        <computeroutput>mmap</computeroutput> of the devices, and
-        device fds inherited across <computeroutput>exec</computeroutput>
+        the files under <computeroutput>/proc/sys/kernel/random/</computeroutput>
+        other than <computeroutput>uuid</computeroutput> and
+        <computeroutput>boot_id</computeroutput>,
+        <computeroutput>mmap</computeroutput> of the devices, and fds to
+        any of these sources inherited across
+        <computeroutput>exec</computeroutput>
         are not covered.  The seed cannot be changed.  Bytes come from
         the stream of the OS thread that makes the call, so a program
         whose thread scheduling is not reproducible (for example a Go
         program, where map iteration uses the generator of whichever
-        thread runs the goroutine) can still vary between runs.</para>
+        thread runs the goroutine) can still vary between runs.
+        <computeroutput>boot_id</computeroutput> is the exception: it is
+        derived from the seed alone, not from a thread's stream.</para>
     </listitem>
   </varlistentry>
 

@@ -6711,7 +6711,7 @@ void handle_pre_sys_preadv(ThreadId tid, SyscallStatus* status, UWord* flags,
       }
    }
 
-   if (VG_(clo_deterministic_rng) && ML_(rng_fd_is_marked)(fd)) {
+   if (VG_(clo_deterministic_rng)&& ML_(rng_fd_kind)(fd) == RngFdBytes) {
       *flags &= ~SfMayBlock;
       /* The kernel rejects negative offsets before reading. */
       if (offset < 0)
@@ -6774,7 +6774,13 @@ PRE(sys_preadv)
 #endif
 
    handle_pre_sys_preadv(tid, status, flags, fd, vector, count, offset, 0, str);
-
+   RngFdKind kind = ML_(rng_fd_kind)(fd);
+   if (status->what != SsComplete &&
+       (kind == RngFdUuid || kind == RngFdBootId)) {
+      *flags &= ~SfMayBlock;
+      SET_STATUS_from_SysRes(
+         ML_(rng_serve_proc_read)(tid, arrghs, offset, RngReadVector));
+   }
 }
 
 POST(sys_preadv)
@@ -6782,6 +6788,9 @@ POST(sys_preadv)
    Addr vector = ARG2;
    Int count = ARG3;
 
+   RngFdKind kind = ML_(rng_fd_kind)(ARG1);
+   if (kind == RngFdUuid || kind == RngFdBootId)
+      return; /* Writes were reported from the saved vector in PRE. */
    handle_post_sys_preadv(tid, status, vector, count);
 }
 
@@ -6818,16 +6827,26 @@ PRE(sys_preadv2)
 #endif
 
    /* preadv2 treats -1 as "use the file position". */
-   if (offset == -1)
-      offset = 0;
-   handle_pre_sys_preadv(tid, status, flags, fd, vector, count, offset,
-                         (UInt)ARG6, str);
+   handle_pre_sys_preadv(tid, status, flags, fd, vector, count,
+                         offset == -1 ? 0 : offset, (UInt)ARG6, str);
+   RngFdKind kind = ML_(rng_fd_kind)(fd);
+   if (status->what != SsComplete &&
+       (kind == RngFdUuid || kind == RngFdBootId)) {
+      *flags &= ~SfMayBlock;
+      if (offset == -1)
+         offset = VG_(lseek)(fd, 0, VKI_SEEK_CUR);
+      SET_STATUS_from_SysRes(
+         ML_(rng_serve_proc_read)(tid, arrghs, offset, RngReadVector));
+   }
 }
 
 POST(sys_preadv2)
 {
    Addr vector = ARG2;
    Int count = ARG3;
+   RngFdKind kind   = ML_(rng_fd_kind)(ARG1);
+   if (kind == RngFdUuid || kind == RngFdBootId)
+      return; /* Writes were reported from the saved vector in PRE. */
 
    handle_post_sys_preadv(tid, status, vector, count);
 }
