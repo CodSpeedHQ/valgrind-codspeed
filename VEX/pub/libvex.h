@@ -688,7 +688,8 @@ extern void LibVEX_Init (
 );
 
 /* Install before guest execution. NULL preserves host RDRAND/RDSEED.
-   The callback runs on the executing guest thread and returns 32 random bits. */
+   Otherwise CPUID hides them, and they return bits from this callback,
+   which runs on the executing guest thread. */
 extern void LibVEX_SetRandom32 ( UInt (*random32)(void) );
 
 

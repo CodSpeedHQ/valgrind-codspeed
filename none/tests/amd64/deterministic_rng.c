@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <cpuid.h>
 #include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -35,6 +36,12 @@ DRAW(rdseed64, "rdseed", "%q0")
 
 int main(void)
 {
+   unsigned int eax, ebx, ecx, edx;
+   __cpuid(1, eax, ebx, ecx, edx);
+   printf("cpuid rdrand: %u\n", (ecx >> 30) & 1);
+   __cpuid_count(7, 0, eax, ebx, ecx, edx);
+   printf("cpuid rdseed: %u\n", (ebx >> 18) & 1);
+
    void* (*draws[])(void*) = {
       rdrand16, rdrand32, rdrand64, rdseed16, rdseed32, rdseed64
    };

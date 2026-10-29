@@ -1,3 +1,5 @@
+cpuid rdrand: 0
+cpuid rdseed: 0
 rdrand16: 555555555555d78e
 rdrand16: 555555555555b519
 rdrand32: 00000000131a7a6b

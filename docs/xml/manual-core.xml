@@ -810,10 +810,11 @@ in most cases.  We group the available options by rough categories.</para>
         <computeroutput>/dev/random</computeroutput> and
         <computeroutput>/dev/urandom</computeroutput> (resolved
         through <computeroutput>/proc/self/fd</computeroutput>, so
-        symlinks count).  On amd64, <computeroutput>RDRAND</computeroutput>
-        and <computeroutput>RDSEED</computeroutput> draw from the calling
-        thread's PRNG stream and always report success.  CPUID still
-        reports them only when the host supports them.</para>
+        symlinks count).  On amd64, CPUID does not report
+        <computeroutput>RDRAND</computeroutput> and
+        <computeroutput>RDSEED</computeroutput>.  On hosts that support them,
+        programs that execute them anyway draw from the calling thread's PRNG
+        stream, which always reports success.</para>
       <para>For nonempty random-device
         <computeroutput>preadv2</computeroutput> reads, the supported flags are
         <computeroutput>RWF_HIPRI</computeroutput>,
