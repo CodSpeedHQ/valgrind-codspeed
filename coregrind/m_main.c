@@ -108,7 +108,7 @@ static void usage_NORETURN ( int need_help )
 "                              to run despite their file capabilities, which\n"
 "                              they do not get under Valgrind\n"
 "    --deterministic-rng=no|yes serve AT_RANDOM, getrandom() and /dev/urandom\n"
-"                              and RDRAND/RDSEED from a fixed-seed PRNG [no]\n"
+"                              and hardware RNG insns from a fixed-seed PRNG [no]\n"
 "    --child-silent-after-fork=no|yes omit child output between fork & exec? [no]\n"
 "    --vgdb=no|yes|full        activate gdbserver? [yes]\n"
 "                              full is slower but provides precise watchpoint/step\n"

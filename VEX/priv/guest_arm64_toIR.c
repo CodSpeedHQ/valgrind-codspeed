@@ -7978,6 +7978,34 @@ Bool dis_ARM64_branch_etc(/*MB_OUT*/DisResult* dres, UInt insn,
       DIP("mrs %s, cntfrq_el0\n", nameIReg64orZR(tt));
       return True;
    }   
+   /* ---- Cases for RNDR and RNDRRS (FEAT_RNG) ----
+      D5 3B 24 000 Rt  MRS Xt, rndr
+      D5 3B 24 001 Rt  MRS Xt, rndrrs
+      Decoded when the host has FEAT_RNG, or when a deterministic RNG is
+      installed, since then the host register is never read.  On success
+      NZCV is 0000; on failure Xt is 0 and NZCV is 0100.
+   */
+   if ((INSN(31,0) & 0xFFFFFFC0) == 0xD53B2400
+       && ((archinfo->hwcaps & VEX_HWCAPS_ARM64_RNG) || vex_random32)) {
+      UInt     tt     = INSN(4,0);
+      Bool     reseed = INSN(5,5) == 1;
+      IRTemp   pair   = newTemp(Ity_V128);
+      IRDirty* d      = unsafeIRDirty_1_N(
+                           pair,
+                           0/*regparms*/,
+                           "arm64g_dirtyhelper_RNDR",
+                           &arm64g_dirtyhelper_RNDR,
+                           mkIRExprVec_2(IRExpr_VECRET(),
+                                         mkU64(reseed ? 1 : 0))
+                        );
+      stmt( IRStmt_Dirty(d) );
+      IRTemp nzcv = newTemp(Ity_I64);
+      assign(nzcv, unop(Iop_V128HIto64, mkexpr(pair)));
+      putIReg64orZR(tt, unop(Iop_V128to64, mkexpr(pair)));
+      setFlags_COPY(nzcv);
+      DIP("mrs %s, %s\n", nameIReg64orZR(tt), reseed ? "rndrrs" : "rndr");
+      return True;
+   }
 
    /* ------------------ IC_IVAU ------------------ */
    /* D5 0B 75 001 Rt  ic ivau, rT

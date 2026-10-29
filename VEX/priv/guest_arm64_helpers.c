@@ -924,10 +924,11 @@ ULong arm64g_dirtyhelper_MRS_ID_AA64ISAR0_EL1 ( void )
    // 9 - SM3 (unsupported)
    // 10 - SM4 (unsupported)
    // 11 - DP
+   // 15 - RNDR
 
-   //     10
-   //     109876543210
-   w &= 0xF000F0FFFFFF;
+   //     1          10
+   //     5432109876543210
+   w &= 0xF000F000F0FFFFFFULL;
 
    return w;
 #  else
@@ -950,6 +951,39 @@ ULong arm64g_dirtyhelper_MRS_ID_AA64ISAR1_EL1 ( void )
    return w;
 #  else
    return 0ULL;
+#  endif
+}
+
+/* CALLED FROM GENERATED CODE */
+/* DIRTY HELPER (non-referentially-transparent) */
+/* Read RNDR (reseed == 0) or RNDRRS (reseed != 0).  Writes the random value
+   to res->w64[0] and the resulting NZCV, in bits 31:28, to res->w64[1].  With
+   a deterministic RNG installed, both read the calling thread's stream and
+   always succeed.  Otherwise the host's register is read.  On non-arm64
+   hosts, report failure. */
+void arm64g_dirtyhelper_RNDR ( /*OUT*/V128* res, ULong reseed )
+{
+   if (vex_random32) {
+      ULong lo = vex_random32();
+      ULong hi = vex_random32();
+      res->w64[0] = (hi << 32) | lo;
+      res->w64[1] = 0;
+      return;
+   }
+#  if defined(__aarch64__) && !defined(__arm__)
+   ULong value = 0;
+   ULong nzcv  = 0;
+   if (reseed)
+      __asm__ __volatile__("mrs %0, s3_3_c2_c4_1 ; mrs %1, nzcv"
+                           : "=r"(value), "=r"(nzcv) : : "cc");
+   else
+      __asm__ __volatile__("mrs %0, s3_3_c2_c4_0 ; mrs %1, nzcv"
+                           : "=r"(value), "=r"(nzcv) : : "cc");
+   res->w64[0] = value;
+   res->w64[1] = nzcv & (0xFULL << ARM64G_CC_SHIFT_V);
+#  else
+   res->w64[0] = 0;
+   res->w64[1] = 1ULL << ARM64G_CC_SHIFT_Z;
 #  endif
 }
 
