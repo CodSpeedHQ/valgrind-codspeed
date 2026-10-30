@@ -1856,11 +1856,11 @@ Bool VG_(machine_get_hwcaps)( void )
 
      Bool have_fhm, have_dp, have_sm4, have_sm3, have_sha3, have_rdm;
      Bool have_atomics, have_i8mm, have_bf16, have_dpbcvap, have_dpbcvadp;
-     Bool have_vfp16, have_fp16;
+     Bool have_vfp16, have_fp16, have_rng;
 
      have_fhm = have_dp = have_sm4 = have_sm3 = have_sha3 = have_rdm
               = have_atomics = have_i8mm = have_bf16 = have_dpbcvap
-              = have_dpbcvadp = have_vfp16 = have_fp16 = False;
+              = have_dpbcvadp = have_vfp16 = have_fp16 = have_rng = False;
 
      /* Some baseline v8.0 kernels do not allow reads of these registers. Use
       * the same SIGILL handling algorithm as other architectures for such
@@ -1938,6 +1938,7 @@ Bool VG_(machine_get_hwcaps)( void )
         return True;
 
      /* ID_AA64ISAR0_EL1 Instruction set attribute register 0 fields */
+     #define ID_AA64ISAR0_RNDR_SHIFT           60
      #define ID_AA64ISAR0_FHM_SHIFT            48
      #define ID_AA64ISAR0_DP_SHIFT             44
      #define ID_AA64ISAR0_SM4_SHIFT            40
@@ -1946,6 +1947,7 @@ Bool VG_(machine_get_hwcaps)( void )
      #define ID_AA64ISAR0_RDM_SHIFT            28
      #define ID_AA64ISAR0_ATOMICS_SHIFT        20
      /* Field values */
+     #define ID_AA64ISAR0_RNDR_SUPPORTED       0x1
      #define ID_AA64ISAR0_FHM_SUPPORTED        0x1
      #define ID_AA64ISAR0_DP_SUPPORTED         0x1
      #define ID_AA64ISAR0_SM4_SUPPORTED        0x1
@@ -2032,6 +2034,12 @@ Bool VG_(machine_get_hwcaps)( void )
      get_ftr(ID_AA64ISAR0_EL1, ID_AA64ISAR0_ATOMICS_SHIFT,
              ID_AA64ISAR0_ATOMICS_SUPPORTED, have_atomics);
 
+     /* RNDR indicates support for the RNDR and RNDRRS registers.
+      * Optional for v8.5.
+      */
+     get_ftr(ID_AA64ISAR0_EL1, ID_AA64ISAR0_RNDR_SHIFT,
+             ID_AA64ISAR0_RNDR_SUPPORTED, have_rng);
+
      /* Read ID_AA64ISAR1_EL1 attributes */
 
      /* I8MM indicates support for SMMLA, SUDOT, UMMLA, USMMLA, and USDOT
@@ -2086,6 +2094,7 @@ Bool VG_(machine_get_hwcaps)( void )
      if (have_bf16)       vai.hwcaps |= VEX_HWCAPS_ARM64_BF16;
      if (have_fp16)       vai.hwcaps |= VEX_HWCAPS_ARM64_FP16;
      if (have_vfp16)      vai.hwcaps |= VEX_HWCAPS_ARM64_VFP16;
+     if (have_rng)        vai.hwcaps |= VEX_HWCAPS_ARM64_RNG;
 
      #undef get_cpu_ftr
      #undef get_ftr

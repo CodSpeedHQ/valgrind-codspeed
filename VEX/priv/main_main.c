@@ -1913,6 +1913,7 @@ static const HChar* show_hwcaps_arm64 ( UInt hwcaps )
       { VEX_HWCAPS_ARM64_BF16,        "bf16" },
       { VEX_HWCAPS_ARM64_FP16,        "fp16" },
       { VEX_HWCAPS_ARM64_VFP16,       "vfp16" },
+      { VEX_HWCAPS_ARM64_RNG,         "rng" },
    };
 
    static HChar buf[sizeof prefix +                       // '\0'

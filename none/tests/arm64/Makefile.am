@@ -9,6 +9,8 @@ EXTRA_DIST = \
 	crc32.stdout.exp crc32.stderr.exp crc32.vgtest \
 	cvtf_imm.stdout.exp cvtf_imm.stderr.exp cvtf_imm.vgtest \
 	dc_cvax.vgtest dc_cvax.stderr.exp \
+	deterministic_rng.stdout.exp deterministic_rng.stderr.exp \
+		deterministic_rng.vgtest \
 	fcvta_s_u.vgtest fcvta_s_u.stderr.exp \
 	fp_and_simd.stdout.exp fp_and_simd.stderr.exp fp_and_simd.vgtest \
 	frinta_frintn.stderr.exp frinta_frintn.vgtest \
@@ -33,6 +35,7 @@ check_PROGRAMS = \
 	bug489338 \
         cvtf_imm \
         dc_cvax \
+	deterministic_rng \
 	fp_and_simd \
 	integer \
 	memory_test \
@@ -92,6 +95,7 @@ fp_and_simd_v82_SOURCES = fp_and_simd_v82.c simd.h simd.c
 sha512_v82_SOURCES      = sha512_v82.c simd.h simd.c
 
 bug489338_LDADD    = -lm
+deterministic_rng_LDADD = -lpthread
 fp_and_simd_LDADD  = -lm
 simd_v81_LDADD     = -lm
 fp_and_simd_v82_LDADD  = -lm

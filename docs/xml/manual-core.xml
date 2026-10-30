@@ -814,7 +814,13 @@ in most cases.  We group the available options by rough categories.</para>
         <computeroutput>RDRAND</computeroutput> and
         <computeroutput>RDSEED</computeroutput>.  On hosts that support them,
         programs that execute them anyway draw from the calling thread's PRNG
-        stream, which always reports success.</para>
+        stream, which always reports success.  On arm64,
+        <computeroutput>RNDR</computeroutput> and
+        <computeroutput>RNDRRS</computeroutput> draw from the same stream and
+        always report success, also on hosts without FEAT_RNG.
+        <computeroutput>HWCAP2_RNG</computeroutput> and
+        <computeroutput>ID_AA64ISAR0_EL1.RNDR</computeroutput> still report
+        them only when the host supports them.</para>
       <para>For nonempty random-device
         <computeroutput>preadv2</computeroutput> reads, the supported flags are
         <computeroutput>RWF_HIPRI</computeroutput>,

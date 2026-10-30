@@ -894,6 +894,14 @@ Addr setup_client_stack( void*  init_sp,
             break;
 #           endif
 
+#        if defined(VGP_arm64_linux)
+         case AT_HWCAP2:
+            /* Limit AT_HWCAP2 to the features VEX supports.  RNDR and RNDRRS
+               are decoded whenever the host has FEAT_RNG. */
+            auxv->u.a_val &= VKI_HWCAP2_RNG;
+            break;
+#        endif
+
          case AT_ICACHEBSIZE:
          case AT_DCACHEBSIZE:
          case AT_UCACHEBSIZE:
