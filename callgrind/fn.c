@@ -356,12 +356,49 @@ obj_node* new_obj_node(DebugInfo* di, obj_node* next)
    return obj;
 }
 
+/* One-entry memo caches for the object and file name lookups below.
+ *
+ * Both lookups are done for every newly translated basic block (via
+ * get_fn_node_inseg) and for every address resolved while dumping, and both
+ * are dominated by string work: hashing (and, for files, first building) a
+ * full path, then walking a hash chain comparing strings.  The arguments,
+ * however, hardly ever change between consecutive calls: successive basic
+ * blocks -- and successive cost lines of a dump -- almost always belong to
+ * the same source file of the same object.
+ *
+ * The names are owned by the debuginfo reader and are stable for a given
+ * DebugInfo, so identical pointers imply identical strings.  Comparing the
+ * pointers therefore lets us return the previous result directly.  The
+ * debuginfo epoch is part of the key: it changes whenever debuginfo is
+ * discarded, which is the only way the memoized pointers could later be
+ * reused for different strings.
+ */
+static struct {
+    DiEpoch    ep;
+    DebugInfo* di;
+    obj_node*  node;
+} last_obj_lookup;
+
+static struct {
+    DiEpoch      ep;
+    obj_node*    obj;
+    const HChar* dir;
+    const HChar* file;
+    file_node*   node;
+} last_file_lookup;
+
 obj_node* CLG_(get_obj_node)(DebugInfo* di)
 {
     obj_node*    curr_obj_node;
     UInt         objname_hash;
     const HChar* obj_name;
-    
+    DiEpoch      ep = VG_(current_DiEpoch)();
+
+    if (last_obj_lookup.node &&
+	last_obj_lookup.di == di &&
+	last_obj_lookup.ep.n == ep.n)
+	return last_obj_lookup.node;
+
     obj_name = di ? VG_(DebugInfo_get_filename)(di) : anonymous_obj;
 
     /* lookup in obj hash */
@@ -375,6 +412,10 @@ obj_node* CLG_(get_obj_node)(DebugInfo* di)
 	obj_table[objname_hash] = curr_obj_node = 
 	    new_obj_node(di, obj_table[objname_hash]);
     }
+
+    last_obj_lookup.ep   = ep;
+    last_obj_lookup.di   = di;
+    last_obj_lookup.node = curr_obj_node;
 
     return curr_obj_node;
 }
@@ -404,6 +445,14 @@ file_node* CLG_(get_file_node)(obj_node* curr_obj_node,
 {
     file_node* curr_file_node;
     UInt       filename_hash;
+    DiEpoch    ep = VG_(current_DiEpoch)();
+
+    if (last_file_lookup.node &&
+	last_file_lookup.obj  == curr_obj_node &&
+	last_file_lookup.dir  == dir &&
+	last_file_lookup.file == file &&
+	last_file_lookup.ep.n == ep.n)
+	return last_file_lookup.node;
 
     /* Build up an absolute pathname, if there is a directory available */
     HChar filename[VG_(strlen)(dir) + 1 + VG_(strlen)(file) + 1];
@@ -425,6 +474,12 @@ file_node* CLG_(get_file_node)(obj_node* curr_obj_node,
 	    new_file_node(filename, curr_obj_node, 
 			  curr_obj_node->files[filename_hash]);
     }
+
+    last_file_lookup.ep   = ep;
+    last_file_lookup.obj  = curr_obj_node;
+    last_file_lookup.dir  = dir;
+    last_file_lookup.file = file;
+    last_file_lookup.node = curr_file_node;
 
     return curr_file_node;
 }
