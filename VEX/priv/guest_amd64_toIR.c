@@ -22079,12 +22079,8 @@ Long dis_ESC_0F (
       if (fAddr == &amd64g_dirtyhelper_CPUID_avx2
           || fAddr == &amd64g_dirtyhelper_CPUID_avx_and_cx16) {
          Bool hasF16C   = (archinfo->hwcaps & VEX_HWCAPS_AMD64_F16C) != 0;
-         /* A deterministic RNG still serves RDRAND/RDSEED but hides them. */
-         Bool advertiseRng = vex_random32 == NULL;
-         Bool hasRDRAND = advertiseRng
-                          && (archinfo->hwcaps & VEX_HWCAPS_AMD64_RDRAND) != 0;
-         Bool hasRDSEED = advertiseRng
-                          && (archinfo->hwcaps & VEX_HWCAPS_AMD64_RDSEED) != 0;
+         Bool hasRDRAND = (archinfo->hwcaps & VEX_HWCAPS_AMD64_RDRAND) != 0;
+         Bool hasRDSEED = (archinfo->hwcaps & VEX_HWCAPS_AMD64_RDSEED) != 0;
          args = mkIRExprVec_4(IRExpr_GSPTR(),
                               mkIRExpr_HWord(hasF16C ? 1 : 0),
                               mkIRExpr_HWord(hasRDRAND ? 1 : 0),
