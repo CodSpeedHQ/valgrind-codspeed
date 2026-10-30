@@ -41,6 +41,7 @@
 #include "pub_tool_options.h"
 #include "pub_tool_tooliface.h"
 #include "pub_tool_xarray.h"
+#include "pub_tool_hashtable.h"
 #include "pub_tool_clientstate.h"
 #include "pub_tool_machine.h"      // VG_(fnptr_to_fnentry)
 
@@ -439,6 +440,9 @@ struct _fn_node {
   Bool is_realloc :1;
   Bool is_free :1;
 
+  /* How this Go runtime function switches stacks, see gostack.c */
+  UInt go_switch :3;
+
   Int  group;
   Int  separate_callers;
   Int  separate_recursions;
@@ -494,6 +498,7 @@ struct _call_entry {
     BBCC* nonskipped;   /* see above */
     Context* cxt;       /* context before call */
     Int fn_sp;          /* function stack index before call */
+    UWord go_tag;       /* Go stack the called frame runs on, 0 if unknown */
 };
 
 
@@ -528,6 +533,9 @@ struct _exec_state {
   BBCC* nonskipped;
 
   Int call_stack_bottom; /* Index into fn_stack */
+
+  /* The signal handler runs on the thread's sigaltstack */
+  Bool on_altstack;
 };
 
 /* Global state structures */
@@ -627,6 +635,11 @@ struct _thread_info {
   fn_array fn_active;
   jcc_hash jccs;
   bbcc_hash bbccs;
+
+  /* Go goroutine this thread runs, see gostack.c */
+  UWord go_owner;
+  UWord go_cur;
+  fn_node* go_restart;
 };
 
 /* Structs used for dumping */
@@ -799,7 +812,7 @@ call_entry* CLG_(get_call_entry)(Int n);
 
 void CLG_(push_call_stack)(BBCC* from, UInt jmp, BBCC* to, Addr sp, Bool skip);
 void CLG_(pop_call_stack)(void);
-Int CLG_(unwind_call_stack)(Addr sp, Int);
+Int CLG_(unwind_call_stack)(Addr sp, Int, fn_node* running);
 void CLG_(reconstruct_call_stack_from_native)(ThreadId tid);
 
 /* from context.c */
@@ -834,6 +847,32 @@ void CLG_(set_current_exec_stack)(exec_stack*);
 void CLG_(pre_signal)(ThreadId tid, Int sigNum, Bool alt_stack);
 void CLG_(post_signal)(ThreadId tid, Int sigNum);
 void CLG_(run_post_signal_on_call_stack_bottom)(void);
+Bool CLG_(sp_in_altstack_signal_handler)(Addr sp);
+
+/* from gostack.c */
+/* Values of fn_node.go_switch */
+#define GO_SWITCH_NONE   0
+#define GO_SWITCH_GOGO   1  /* runtime.gogo: resume another goroutine */
+#define GO_SWITCH_MCALL  2  /* runtime.mcall: leave goroutine for g0 */
+#define GO_SWITCH_NESTED 3  /* systemstack: run on g0, come back */
+#define GO_SWITCH_MORESTACK 4 /* morestack: grow the stack on g0, restart */
+extern Bool  CLG_(go_runtime);
+extern UWord CLG_(go_owner);
+extern UWord CLG_(go_cur);
+extern fn_node* CLG_(go_restart);
+void CLG_(go_classify_fn)(fn_node* fn);
+Bool CLG_(go_frame_blocks_unwind)(call_entry* ce, fn_node* running);
+void CLG_(go_after_pop)(void);
+/* Results of CLG_(go_sync) */
+#define GO_SYNC_NONE    0
+#define GO_SYNC_SWAPPED 1  /* another goroutine's call stack is current */
+#define GO_SYNC_RESTART 2  /* jump back to the entry after morestack */
+Int CLG_(go_sync)(BB* bb, BB* last_bb, Addr sp);
+void CLG_(go_init_thread)(thread_info* t);
+void CLG_(go_save_thread)(thread_info* t);
+void CLG_(go_load_thread)(thread_info* t);
+void CLG_(go_unwind_thread)(void);
+void CLG_(go_unwind_all)(void);
 
 /* from dump.c */
 void CLG_(init_dumps)(void);
