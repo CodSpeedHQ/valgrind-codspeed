@@ -296,6 +296,7 @@ void CLG_(push_call_stack)(BBCC* from, UInt jmp, BBCC* to, Addr sp, Bool skip)
     current_entry->sp = sp;
     current_entry->ret_addr = ret_addr;
     current_entry->nonskipped = CLG_(current_state).nonskipped;
+    current_entry->go_tag = CLG_(go_cur);
 
     CLG_(current_call_stack).sp++;
 
@@ -428,6 +429,8 @@ void CLG_(pop_call_stack)(void)
 
     CLG_(current_call_stack).sp--;
 
+    if (CLG_(go_runtime)) CLG_(go_after_pop)();
+
 #if CLG_ENABLE_DEBUG
     CLG_DEBUGIF(1) {
 	if (CLG_(clo).verbose<4) {
@@ -461,9 +464,10 @@ void CLG_(pop_call_stack)(void)
 
 
 /* Unwind enough CallStack items to sync with current stack pointer.
+ * <running> is the function of the BB about to run.
  * Returns the number of stack frames unwinded.
  */
-Int CLG_(unwind_call_stack)(Addr sp, Int minpops)
+Int CLG_(unwind_call_stack)(Addr sp, Int minpops, fn_node* running)
 {
     Int csp;
     Int unwind_count = 0;
@@ -484,6 +488,11 @@ Int CLG_(unwind_call_stack)(Addr sp, Int minpops)
 
 	    /* Frames below an altstack handler are on another stack */
 	    if (CLG_(sp_in_altstack_signal_handler)(sp))
+		break;
+
+	    /* Frames of another Go stack, see gostack.c */
+	    if (CLG_(go_runtime) &&
+		CLG_(go_frame_blocks_unwind)(top_ce, running))
 		break;
 
 	    minpops--;
@@ -577,6 +586,7 @@ static void seed_call_stack_from_native(ThreadId tid)
         call_entry* ce = &cs->entry[cs->sp];
         ce->jcc      = 0;
         ce->nonskipped = 0;
+        ce->go_tag   = CLG_(go_cur);
 
         /* callgrind pops a frame when SP >= ce->sp, where ce->sp must be the
          * frame's *entry* SP (the SP at which its caller made the call). The

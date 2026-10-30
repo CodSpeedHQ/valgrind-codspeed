@@ -50,6 +50,7 @@ CALLGRIND_SOURCES_COMMON = \
 	dump.c \
 	events.c \
 	fn.c \
+	gostack.c \
 	jumps.c \
 	main.c \
 	sim.c \

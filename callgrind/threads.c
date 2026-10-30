@@ -238,6 +238,7 @@ thread_info* new_thread(ThreadId tid)
     CLG_(init_fn_array)( &(t->fn_active) );
     CLG_(init_bbcc_hash)( &(t->bbccs) );
     CLG_(init_jcc_hash)( &(t->jccs) );
+    CLG_(go_init_thread)(t);
     
     return t;
 }
@@ -255,6 +256,7 @@ static void load_thread_state(thread_info* t)
   CLG_(set_current_fn_stack)  ( &(t->fns) );
 
   CLG_(set_current_fn_array)  ( &(t->fn_active) );
+  CLG_(go_load_thread)(t);
   CLG_(current_thread_serial) = t->serial;
   /* If we cumulate costs of threads, use TID 1 for all jccs/bccs */
   if (!CLG_(clo).separate_threads) t = thread[1];
@@ -282,6 +284,7 @@ void CLG_(switch_thread)(ThreadId tid)
     CLG_(copy_current_fn_stack)  ( &(t->fns) );
 
     CLG_(copy_current_fn_array) ( &(t->fn_active) );
+    CLG_(go_save_thread)(t);
     /* If we cumulate costs of threads, use TID 1 for all jccs/bccs */
     if (!CLG_(clo).separate_threads) t = thread[1];
     CLG_(copy_current_bbcc_hash)( &(t->bbccs) );

@@ -545,8 +545,15 @@ static void handleUnderflow(BB* bb)
   call_entry_up = 
     &(CLG_(current_call_stack).entry[CLG_(current_call_stack).sp -1]);
   /* assume this call is lasting since last dump or
-   * for a signal handler since it's call */
-  if (CLG_(current_state).sig == 0)
+   * for a signal handler since it's call.
+   * A Go goroutine's call stack starts empty when the goroutine starts (or
+   * when callgrind first sees it), so its caller frames cannot be older than
+   * now: counting from the last dump would charge them for every goroutine
+   * that ran on this thread before. */
+  if (CLG_(go_runtime))
+    CLG_(copy_cost)( CLG_(sets).full, call_entry_up->enter_cost,
+		    CLG_(current_state).cost );
+  else if (CLG_(current_state).sig == 0)
     CLG_(copy_cost)( CLG_(sets).full, call_entry_up->enter_cost,
 		    CLG_(get_current_thread)()->lastdump_cost );
   else
@@ -572,6 +579,7 @@ void CLG_(setup_bbcc)(BB* bb)
   Int passed = 0, csp;
   Bool ret_without_call = False;
   Int popcount_on_return = 1;
+  Int go_sync = GO_SYNC_NONE;
 
   CLG_DEBUG(3,"+ setup_bbcc(BB %#lx)\n", bb_addr(bb));
 
@@ -650,6 +658,24 @@ void CLG_(setup_bbcc)(BB* bb)
       isConditionalJump = False;
   }
 
+  /* Go stack switches; a swapped call stack has its own previous BB */
+  if (UNLIKELY(CLG_(go_runtime))) {
+      go_sync = CLG_(go_sync)(bb, last_bb, sp);
+      if (go_sync == GO_SYNC_SWAPPED) {
+          last_bbcc = CLG_(current_state).bbcc;
+          last_bb = last_bbcc ? last_bbcc->bb : 0;
+          if (last_bb) {
+              passed = CLG_(current_state).jmps_passed;
+              jmpkind = last_bb->jmp[passed].jmpkind;
+              isConditionalJump = (passed < last_bb->cjmp_count);
+          }
+          else {
+              jmpkind = jk_None;
+              isConditionalJump = False;
+          }
+      }
+  }
+
   /* Manipulate JmpKind if needed, only using BB specific info */
 
   csp = CLG_(current_call_stack).sp;
@@ -692,7 +718,8 @@ void CLG_(setup_bbcc)(BB* bb)
 
   /* Should this jump be converted to call or pop/call ? */
   if (( jmpkind != jk_Return) &&
-      ( jmpkind != jk_Call) && last_bb) {
+      ( jmpkind != jk_Call) && last_bb &&
+      ( go_sync != GO_SYNC_RESTART)) {
 
     /* We simulate a JMP/Cont to be a CALL if
      * - jump is in another ELF object or section kind
@@ -790,11 +817,11 @@ void CLG_(setup_bbcc)(BB* bb)
     }
     else {
 	CLG_ASSERT(popcount_on_return >0);
-	CLG_(unwind_call_stack)(sp, popcount_on_return);
+	CLG_(unwind_call_stack)(sp, popcount_on_return, bb->fn);
     }
   }
   else {
-    Int unwind_count = CLG_(unwind_call_stack)(sp, 0);
+    Int unwind_count = CLG_(unwind_call_stack)(sp, 0, bb->fn);
     if (unwind_count > 0) {
       /* if unwinding was done, this actually is a return */
       jmpkind = jk_Return;
