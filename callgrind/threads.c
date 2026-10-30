@@ -336,6 +336,7 @@ void CLG_(pre_signal)(ThreadId tid, Int sigNum, Bool alt_stack)
     CLG_(zero_cost)( CLG_(sets).full, es->cost );
     CLG_(current_state).cost = es->cost;
     es->call_stack_bottom = CLG_(current_call_stack).sp;
+    es->on_altstack = alt_stack;
 
     /* setup current state for a spontaneous call */
     CLG_(init_exec_state)( &CLG_(current_state) );
@@ -356,6 +357,34 @@ void CLG_(run_post_signal_on_call_stack_bottom)(void)
 
     if (CLG_(current_call_stack).sp == es->call_stack_bottom)
 	CLG_(post_signal)( CLG_(current_tid), CLG_(current_state).sig );
+}
+
+/* True if the call stack is at the bottom of a signal handler running on
+ * the thread's sigaltstack, and `sp` still lies inside that altstack.
+ *
+ * The frames below the handler's call_stack_bottom live on the interrupted
+ * stack, so their SPs cannot be compared with an SP on the altstack: the
+ * altstack may be mapped above the interrupted stack (e.g. Go's per-M signal
+ * stacks vs. its heap-allocated goroutine stacks). Without this check the
+ * SP-based unwind pops through the bottom, which looks like a longjmp out of
+ * the handler, and the handler's real rt_sigreturn then fails the signal
+ * number check in post_signal.
+ */
+Bool CLG_(sp_in_altstack_signal_handler)(Addr sp)
+{
+    exec_state* es;
+    Addr alt_min;
+    SizeT alt_size;
+
+    if (CLG_(current_state).sig <= 0) return False;
+
+    es = top_exec_state();
+    if (!es->on_altstack) return False;
+    if (CLG_(current_call_stack).sp != es->call_stack_bottom) return False;
+
+    alt_min  = VG_(thread_get_altstack_min)(CLG_(current_tid));
+    alt_size = VG_(thread_get_altstack_size)(CLG_(current_tid));
+    return sp >= alt_min && sp - alt_min < alt_size;
 }
 
 void CLG_(post_signal)(ThreadId tid, Int sigNum)

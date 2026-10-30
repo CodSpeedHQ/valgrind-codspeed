@@ -482,6 +482,10 @@ Int CLG_(unwind_call_stack)(Addr sp, Int minpops)
 	if ((top_ce->sp < sp) ||
 	    ((top_ce->sp == sp) && minpops>0)) {
 
+	    /* Frames below an altstack handler are on another stack */
+	    if (CLG_(sp_in_altstack_signal_handler)(sp))
+		break;
+
 	    minpops--;
 	    unwind_count++;
 	    CLG_(pop_call_stack)();

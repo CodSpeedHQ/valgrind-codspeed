@@ -528,6 +528,9 @@ struct _exec_state {
   BBCC* nonskipped;
 
   Int call_stack_bottom; /* Index into fn_stack */
+
+  /* The signal handler runs on the thread's sigaltstack */
+  Bool on_altstack;
 };
 
 /* Global state structures */
@@ -834,6 +837,7 @@ void CLG_(set_current_exec_stack)(exec_stack*);
 void CLG_(pre_signal)(ThreadId tid, Int sigNum, Bool alt_stack);
 void CLG_(post_signal)(ThreadId tid, Int sigNum);
 void CLG_(run_post_signal_on_call_stack_bottom)(void);
+Bool CLG_(sp_in_altstack_signal_handler)(Addr sp);
 
 /* from dump.c */
 void CLG_(init_dumps)(void);

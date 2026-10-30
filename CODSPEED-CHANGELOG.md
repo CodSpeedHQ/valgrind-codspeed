@@ -11,6 +11,14 @@ last-level cache when `--LL` (or its `--L2` alias) supplies the cache configurat
 The warning remains when LL is auto-detected. Cache geometry and simulation
 results are unchanged.
 
+### Callgrind: no crash on signals handled on an alternate stack
+
+Callgrind no longer aborts with `Assertion 'sigNum == CLG_(current_state).sig'
+failed` when a signal handler runs on a `sigaltstack` placed above the
+interrupted stack. The stack-pointer based unwinding mistook such a handler for
+a `longjmp` out of the handler. Go programs hit this on every preemption signal
+(`SIGURG`) and during garbage collection.
+
 ## Features
 
 ### Fixed Linux startup stack layout
