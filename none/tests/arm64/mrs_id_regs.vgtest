@@ -1,0 +1,2 @@
+prog: mrs_id_regs
+vgopts: -q

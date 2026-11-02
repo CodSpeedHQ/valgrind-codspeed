@@ -17,6 +17,7 @@ EXTRA_DIST = \
 	integer.stdout.exp integer.stderr.exp integer.vgtest \
 	memory_test.stdout.exp memory_test.stderr.exp memory_test.vgtest \
 		memory_test.stdout.exp-clang \
+	mrs_id_regs.stdout.exp mrs_id_regs.stderr.exp mrs_id_regs.vgtest \
 	atomics_v81.stdout.exp atomics_v81.stderr.exp atomics_v81.vgtest \
 	simd_v81.stdout.exp simd_v81.stderr.exp simd_v81.vgtest \
 	simd_dotprod.stdout.exp simd_dotprod.stderr.exp simd_dotprod.vgtest \
@@ -39,6 +40,7 @@ check_PROGRAMS = \
 	fp_and_simd \
 	integer \
 	memory_test \
+	mrs_id_regs \
 	fmadd_sub \
 	ldxp_stxp
 
