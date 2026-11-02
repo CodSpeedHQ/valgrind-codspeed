@@ -7826,6 +7826,18 @@ Bool dis_ARM64_branch_etc(/*MB_OUT*/DisResult* dres, UInt insn,
       }
       return True;
    }
+   /* ---- Case for TPIDRRO_EL0 (RO) ----
+      EL0 can read but not write it.  Linux zeroes it for AArch64
+      tasks (it holds the TLS pointer only for AArch32 tasks), so
+      return 0.
+      0xD53BD0 011 Rt   MRS rT, tpidrro_el0
+   */
+   if ((INSN(31,0) & 0xFFFFFFE0) == 0xD53BD060 /*MRS*/) {
+      UInt tt = INSN(4,0);
+      putIReg64orZR(tt, mkU64(0x0));
+      DIP("mrs %s, tpidrro_el0 (FAKED)\n", nameIReg64orZR(tt));
+      return True;
+   }
    /* ---- Cases for FPCR ----
       0xD51B44 000 Rt  MSR fpcr, rT
       0xD53B44 000 Rt  MSR rT, fpcr

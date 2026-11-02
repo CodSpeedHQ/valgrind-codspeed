@@ -13,12 +13,13 @@ results are unchanged.
 
 ### arm64: decode reads of all EL0-visible ID registers
 
-`MRS` of an ID register in `S3_0_C0_C2_0` to `S3_0_C0_C7_7` that VEX did not
-decode, such as `ID_AA64FPFR0_EL1`, `ID_AA64ZFR0_EL1` or `ID_AA64ISAR2_EL1`,
-raised SIGILL under Valgrind. Linux emulates these reads, so they succeed
-natively; NumKong reads `ID_AA64FPFR0_EL1` at import time. These reads now
-return 0, which reports the features as absent. The case that was labelled
-`ID_AA64ZFR0_EL1` decoded `ID_AA64PFR2_EL1`, and is now labelled as such.
+Previously unsupported `MRS` reads in `S3_0_C0_C2_0` through `S3_0_C0_C7_7`
+now return 0 instead of raising SIGILL, reporting the features as absent.
+Linux emulates these reads natively. The decoder label for `ID_AA64PFR2_EL1`
+was also corrected from `ID_AA64ZFR0_EL1`.
+
+`MRS` reads of `TPIDRRO_EL0` now return 0 instead of raising SIGILL,
+matching Linux on AArch64.
 
 ## Features
 

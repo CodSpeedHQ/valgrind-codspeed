@@ -1,6 +1,8 @@
-/* Linux emulates EL0 reads of the ID registers in Op0=3, Op1=0, CRn=0,
-   CRm=2..7, so these reads must not raise SIGILL under Valgrind.  Valgrind
-   reports the features as absent, so each read returns 0. */
+/* Linux lets EL0 read the ID registers in Op0=3, Op1=0, CRn=0, CRm=2..7
+   (by emulating the read) and TPIDRRO_EL0, so these reads must not raise
+   SIGILL under Valgrind.  Valgrind reports the ID register features as
+   absent, and Linux zeroes TPIDRRO_EL0 for AArch64 tasks, so each read
+   returns 0. */
 
 #include <stdio.h>
 
@@ -25,5 +27,6 @@ int main(void)
    READ_ID_REG("ID_AA64MMFR3_EL1", "S3_0_C0_C7_3");
    READ_ID_REG("ID_AA64MMFR4_EL1", "S3_0_C0_C7_4");
    READ_ID_REG("S3_0_C0_C7_7", "S3_0_C0_C7_7");
+   READ_ID_REG("TPIDRRO_EL0", "tpidrro_el0");
    return 0;
 }
