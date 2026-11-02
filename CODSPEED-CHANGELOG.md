@@ -11,6 +11,16 @@ last-level cache when `--LL` (or its `--L2` alias) supplies the cache configurat
 The warning remains when LL is auto-detected. Cache geometry and simulation
 results are unchanged.
 
+### arm64: decode reads of all EL0-visible ID registers
+
+Previously unsupported `MRS` reads in `S3_0_C0_C2_0` through `S3_0_C0_C7_7`
+now return 0 instead of raising SIGILL, reporting the features as absent.
+Linux emulates these reads natively. The decoder label for `ID_AA64PFR2_EL1`
+was also corrected from `ID_AA64ZFR0_EL1`.
+
+`MRS` reads of `TPIDRRO_EL0` now return 0 instead of raising SIGILL,
+matching Linux on AArch64.
+
 ## Features
 
 ### Fixed Linux startup stack layout

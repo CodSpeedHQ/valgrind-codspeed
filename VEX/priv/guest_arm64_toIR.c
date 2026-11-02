@@ -7635,15 +7635,15 @@ Bool dis_ARM64_branch_etc(/*MB_OUT*/DisResult* dres, UInt insn,
       DIP("mrs %s, id_aa64pfr1_el1 (FAKED)\n", nameIReg32orZR(tt));
       return True;
    }
-   /* ---- Case for ID_AA64ZFR0_EL1 (RO) ----
+   /* ---- Case for ID_AA64PFR2_EL1 (RO) ----
       We just return 0x0 here, as we don't support the opcodes of
       new commands in the emulation environment.
-      0xD53804 010 Rt   MRS rT, id_aa64zfr0_el1
+      0xD53804 010 Rt   MRS rT, id_aa64pfr2_el1
    */
    if ((INSN(31,0) & 0xFFFFFFE0) == 0xD5380440 /*MRS*/) {
       UInt tt    = INSN(4,0);
       putIReg64orZR(tt, mkU64(0x0));
-      DIP("mrs %s, id_aa64zfr0_el1 (FAKED)\n", nameIReg64orZR(tt));
+      DIP("mrs %s, id_aa64pfr2_el1 (FAKED)\n", nameIReg64orZR(tt));
       return True;
    }
    /* ---- Case for ID_AA64DFR0_EL1 (RO) ----
@@ -7790,6 +7790,25 @@ Bool dis_ARM64_branch_etc(/*MB_OUT*/DisResult* dres, UInt insn,
       DIP("mrs %s, id_aa64mmfr2_el1 (FAKED)\n", nameIReg64orZR(tt));
       return True;
    }
+   /* ---- Case for the remaining ID registers (RO) ----
+      Linux emulates EL0 reads of Op0=3, Op1=0, CRn=0, CRm=2..7 and
+      returns 0 for every register it does not track, so a read never
+      traps natively.  This covers ID_AA64ZFR0_EL1, ID_AA64SMFR0_EL1,
+      ID_AA64FPFR0_EL1, ID_AA64ISAR2_EL1, ID_AA64MMFR3_EL1, the AArch32
+      ID registers and unallocated encodings.  Return 0 for all of them:
+      it reports the features as absent, which matches what the cases
+      above report for ID_AA64PFR0_EL1 (no SVE) and ID_AA64PFR1_EL1
+      (no SME).
+      0xD538 0 CRm op2 Rt   MRS rT, s3_0_c0_c<CRm>_<op2>
+   */
+   if ((INSN(31,0) & 0xFFFFF000) == 0xD5380000 /*MRS*/
+       && INSN(11,8) >= 2 && INSN(11,8) <= 7) {
+      UInt tt = INSN(4,0);
+      putIReg64orZR(tt, mkU64(0x0));
+      DIP("mrs %s, s3_0_c0_c%u_%u (FAKED)\n",
+          nameIReg64orZR(tt), INSN(11,8), INSN(7,5));
+      return True;
+   }
    /* ---- Cases for TPIDR_EL0 ----
       0xD51BD0 010 Rt   MSR tpidr_el0, rT
       0xD53BD0 010 Rt   MRS rT, tpidr_el0
@@ -7805,6 +7824,18 @@ Bool dis_ARM64_branch_etc(/*MB_OUT*/DisResult* dres, UInt insn,
          putIReg64orZR(tt, IRExpr_Get( OFFB_TPIDR_EL0, Ity_I64 ));
          DIP("mrs %s, tpidr_el0\n", nameIReg64orZR(tt));
       }
+      return True;
+   }
+   /* ---- Case for TPIDRRO_EL0 (RO) ----
+      EL0 can read but not write it.  Linux zeroes it for AArch64
+      tasks (it holds the TLS pointer only for AArch32 tasks), so
+      return 0.
+      0xD53BD0 011 Rt   MRS rT, tpidrro_el0
+   */
+   if ((INSN(31,0) & 0xFFFFFFE0) == 0xD53BD060 /*MRS*/) {
+      UInt tt = INSN(4,0);
+      putIReg64orZR(tt, mkU64(0x0));
+      DIP("mrs %s, tpidrro_el0 (FAKED)\n", nameIReg64orZR(tt));
       return True;
    }
    /* ---- Cases for FPCR ----

@@ -1890,6 +1890,7 @@
 /none/tests/arm64/ldxp_stxp
 /none/tests/arm64/integer
 /none/tests/arm64/memory_test
+/none/tests/arm64/mrs_id_regs
 /none/tests/arm64/simd_dotprod
 /none/tests/arm64/simd_v81
 /none/tests/arm64/sha512_v82
