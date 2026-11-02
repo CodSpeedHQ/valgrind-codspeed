@@ -1,3 +1,9 @@
+valgrind (1:3.26.0-0codspeed12) UNRELEASED; urgency=medium
+
+  * fix(vex): decode arm64 MRS of all EL0-visible ID registers (#59)
+
+ -- Adrien Cacciaguerra <adrien@codspeed.io>  Mon, 02 Nov 2026 17:50:18 +0000
+
 valgrind (1:3.26.0-0codspeed11) UNRELEASED; urgency=medium
 
   * feat(vex): serve arm64 RNDR and RNDRRS with --deterministic-rng (#56)
