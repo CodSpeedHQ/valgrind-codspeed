@@ -11,7 +11,29 @@ last-level cache when `--LL` (or its `--L2` alias) supplies the cache configurat
 The warning remains when LL is auto-detected. Cache geometry and simulation
 results are unchanged.
 
+### Callgrind: no crash on signals handled on an alternate stack
+
+Callgrind no longer aborts with `Assertion 'sigNum == CLG_(current_state).sig'
+failed` when a signal handler runs on a `sigaltstack` placed above the
+interrupted stack. The stack-pointer based unwinding mistook such a handler for
+a `longjmp` out of the handler. Go programs hit this on every preemption signal
+(`SIGURG`) and during garbage collection.
+
 ## Features
+
+### Callgrind: Go goroutine call stacks (amd64)
+
+On amd64, Callgrind keeps one call stack per Go goroutine, so each goroutine's
+frames stay under its own entry function without `GODEBUG`, `GOMAXPROCS` or cgo
+settings. Callgrind follows the Go runtime's stack switches (`runtime.gogo`,
+`runtime.mcall`, `runtime.systemstack`, `runtime.morestack` and the vDSO and cgo
+calls that run on the g0 stack), keyed by the goroutine's `g` register. Work a
+goroutine does on the g0 stack stays under its caller, time a goroutine spends
+suspended is not part of its frames' inclusive cost, and stacks the runtime
+moves are followed.
+
+Known limitation: some call edges inside the Go runtime's garbage collector
+still carry a recursion level (`'2`) that depends on GC timing.
 
 ### Fixed Linux startup stack layout
 

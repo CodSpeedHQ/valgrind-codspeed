@@ -238,6 +238,7 @@ thread_info* new_thread(ThreadId tid)
     CLG_(init_fn_array)( &(t->fn_active) );
     CLG_(init_bbcc_hash)( &(t->bbccs) );
     CLG_(init_jcc_hash)( &(t->jccs) );
+    CLG_(go_init_thread)(t);
     
     return t;
 }
@@ -255,6 +256,7 @@ static void load_thread_state(thread_info* t)
   CLG_(set_current_fn_stack)  ( &(t->fns) );
 
   CLG_(set_current_fn_array)  ( &(t->fn_active) );
+  CLG_(go_load_thread)(t);
   CLG_(current_thread_serial) = t->serial;
   /* If we cumulate costs of threads, use TID 1 for all jccs/bccs */
   if (!CLG_(clo).separate_threads) t = thread[1];
@@ -282,6 +284,7 @@ void CLG_(switch_thread)(ThreadId tid)
     CLG_(copy_current_fn_stack)  ( &(t->fns) );
 
     CLG_(copy_current_fn_array) ( &(t->fn_active) );
+    CLG_(go_save_thread)(t);
     /* If we cumulate costs of threads, use TID 1 for all jccs/bccs */
     if (!CLG_(clo).separate_threads) t = thread[1];
     CLG_(copy_current_bbcc_hash)( &(t->bbccs) );
@@ -336,6 +339,7 @@ void CLG_(pre_signal)(ThreadId tid, Int sigNum, Bool alt_stack)
     CLG_(zero_cost)( CLG_(sets).full, es->cost );
     CLG_(current_state).cost = es->cost;
     es->call_stack_bottom = CLG_(current_call_stack).sp;
+    es->on_altstack = alt_stack;
 
     /* setup current state for a spontaneous call */
     CLG_(init_exec_state)( &CLG_(current_state) );
@@ -356,6 +360,34 @@ void CLG_(run_post_signal_on_call_stack_bottom)(void)
 
     if (CLG_(current_call_stack).sp == es->call_stack_bottom)
 	CLG_(post_signal)( CLG_(current_tid), CLG_(current_state).sig );
+}
+
+/* True if the call stack is at the bottom of a signal handler running on
+ * the thread's sigaltstack, and `sp` still lies inside that altstack.
+ *
+ * The frames below the handler's call_stack_bottom live on the interrupted
+ * stack, so their SPs cannot be compared with an SP on the altstack: the
+ * altstack may be mapped above the interrupted stack (e.g. Go's per-M signal
+ * stacks vs. its heap-allocated goroutine stacks). Without this check the
+ * SP-based unwind pops through the bottom, which looks like a longjmp out of
+ * the handler, and the handler's real rt_sigreturn then fails the signal
+ * number check in post_signal.
+ */
+Bool CLG_(sp_in_altstack_signal_handler)(Addr sp)
+{
+    exec_state* es;
+    Addr alt_min;
+    SizeT alt_size;
+
+    if (CLG_(current_state).sig <= 0) return False;
+
+    es = top_exec_state();
+    if (!es->on_altstack) return False;
+    if (CLG_(current_call_stack).sp != es->call_stack_bottom) return False;
+
+    alt_min  = VG_(thread_get_altstack_min)(CLG_(current_tid));
+    alt_size = VG_(thread_get_altstack_size)(CLG_(current_tid));
+    return sp >= alt_min && sp - alt_min < alt_size;
 }
 
 void CLG_(post_signal)(ThreadId tid, Int sigNum)

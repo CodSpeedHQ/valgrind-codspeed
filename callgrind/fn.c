@@ -457,6 +457,7 @@ fn_node* new_fn_node(const HChar *fnname,
     fn->is_malloc    = False;
     fn->is_realloc   = False;
     fn->is_free      = False;
+    fn->go_switch    = GO_SWITCH_NONE;
 
     fn->group        = 0;
     fn->separate_callers    = CLG_(clo).separate_callers;
@@ -750,6 +751,7 @@ fn_node* CLG_(get_fn_node)(BB* bb)
       fn->is_malloc  = (VG_(strcmp)(fn->name, "malloc")==0);
       fn->is_realloc = (VG_(strcmp)(fn->name, "realloc")==0);
       fn->is_free    = (VG_(strcmp)(fn->name, "free")==0);
+      CLG_(go_classify_fn)(fn);
 
       /* apply config options from function name patterns
        * given on command line */

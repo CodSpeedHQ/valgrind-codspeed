@@ -1463,6 +1463,9 @@ void CLG_(unwind_thread)(thread_info* t)
   while(CLG_(current_call_stack).sp>0)
     CLG_(pop_call_stack)();
 
+  /* no goroutine is known to run on the empty stack */
+  CLG_(go_unwind_thread)();
+
   /* reset context and function stack for context generation */
   CLG_(init_exec_state)( &CLG_(current_state) );
   CLG_(current_fn_stack).top = CLG_(current_fn_stack).bottom;
@@ -1492,6 +1495,7 @@ void CLG_(set_instrument_state)(const HChar* reason, Bool state)
 
   /* reset internal state: call stacks, simulator */
   CLG_(forall_threads)(CLG_(unwind_thread));
+  CLG_(go_unwind_all)();
   CLG_(forall_threads)(zero_state_cost);
   (*CLG_(cachesim).clear)();
 
@@ -2016,6 +2020,7 @@ void finish(void)
   /* pop all remaining items from CallStack for correct sum
    */
   CLG_(forall_threads)(CLG_(unwind_thread));
+  CLG_(go_unwind_all)();
 
   CLG_(dump_profile)(0, False);
 
