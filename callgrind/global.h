@@ -751,6 +751,13 @@ bb_hash* CLG_(get_bb_hash)(void);
 BB*  CLG_(get_bb)(Addr addr, IRSB* bb_in, Bool *seen_before);
 void CLG_(delete_bb)(Addr addr);
 
+/* Finalize a hash value for a power-of-2 sized table: fold the upper bits
+ * down for better distribution in the low bits, then mask to the table size.
+ * 'size' must be a power of 2. Shared by the callgrind hash tables. */
+static __inline__ UInt CLG_(hash_final)(UWord h, UInt size)
+ { h ^= h >> 16;
+   return (UInt)h & (size - 1); }
+
 static __inline__ Addr bb_addr(BB* bb)
  { return bb->offset + bb->obj->offset; }
 static __inline__ Addr bb_jmpaddr(BB* bb)

@@ -33,7 +33,7 @@
 /*--- BBCC operations                                      ---*/
 /*------------------------------------------------------------*/
 
-#define N_BBCC_INITIAL_ENTRIES  10437
+#define N_BBCC_INITIAL_ENTRIES  16384
 
 /* BBCC table (key is BB/Context), per thread, resizable */
 bbcc_hash current_bbccs;
@@ -147,7 +147,11 @@ UInt bbcc_hash_idx(BB* bb, Context* cxt, UInt size)
    CLG_ASSERT(bb != 0);
    CLG_ASSERT(cxt != 0);
 
-   return ((Addr)bb + (Addr)cxt) % size;
+   /* Use bit mixing instead of modular division for power-of-2 table sizes.
+    * Shift right to discard alignment zeros from heap pointers, use
+    * different shift amounts for bb and cxt to avoid cancellation on XOR. */
+   UWord h = ((UWord)bb >> 4) ^ ((UWord)cxt >> 3);
+   return CLG_(hash_final)(h, size);
 }
  
 
@@ -197,7 +201,7 @@ static void resize_bbcc_hash(void)
     UInt new_idx;
     BBCC *curr_BBCC, *next_BBCC;
 
-    new_size = 2*current_bbccs.size+3;
+    new_size = 2*current_bbccs.size;
     new_table = (BBCC**) CLG_MALLOC("cl.bbcc.rbh.1",
                                     new_size * sizeof(BBCC*));
  
