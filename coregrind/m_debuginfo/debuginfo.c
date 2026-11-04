@@ -137,8 +137,13 @@ inline DiEpoch VG_(current_DiEpoch) ( void ) {
    DiEpoch dep; dep.n = current_epoch; return dep;
 }
 
+/* Forward */
+static void invalidate_loctab_cache ( void );
+
 static void advance_current_DiEpoch ( const HChar* msg ) {
    current_epoch++;
+   /* Anything cached about the previous epoch's DebugInfos is now stale. */
+   invalidate_loctab_cache();
    if (DEBUG_EPOCHS)
       VG_(printf)("Advancing current epoch to %u due to %s\n",
                   current_epoch, msg);
@@ -2138,6 +2143,35 @@ static void search_all_symtabs ( DiEpoch ep, Addr ptr,
 }
 
 
+/* One-entry cache for search_all_loctabs().
+ *
+ * Callers query addresses with strong locality: dumping a profile asks for
+ * every instruction of a basic block in turn, and one source line usually
+ * covers several instructions, so consecutive queries land in the same
+ * loctab entry or in the one right after it, of the same DebugInfo.
+ * Remembering the last hit turns those queries into a couple of compares
+ * instead of a walk over all DebugInfos plus a binary search of the loctab.
+ *
+ * The entry is only reused for the epoch it was found in, and it is dropped
+ * whenever the epoch advances (see advance_current_DiEpoch), i.e. whenever
+ * debug info is loaded or discarded, so a stale DebugInfo is never read. */
+static DiEpoch    loctab_cache_ep;      /* zeroed => invalid epoch */
+static DebugInfo* loctab_cache_di = NULL;
+static Word       loctab_cache_locno = 0;
+
+static void invalidate_loctab_cache ( void )
+{
+   loctab_cache_di = NULL;
+}
+
+/* Does loctab entry `lno` of `di` cover `ptr`? */
+static inline
+Bool loctab_entry_covers ( const DebugInfo* di, Word lno, Addr ptr )
+{
+   Addr lo = di->loctab[lno].addr;
+   return ptr >= lo && ptr - lo < (Addr)di->loctab[lno].size;
+}
+
 /* Search all loctabs that we know about to locate ptr at epoch ep.  If
    *found, set pdi to the relevant DebugInfo, and *locno to the loctab entry
    *number within that.  If not found, *pdi is set to NULL. */
@@ -2146,6 +2180,25 @@ static void search_all_loctabs ( DiEpoch ep, Addr ptr,
 {
    Word       lno;
    DebugInfo* di;
+
+   /* Same entry as last time, or the one following it? */
+   if (LIKELY(loctab_cache_di != NULL && eq_DiEpoch(ep, loctab_cache_ep))) {
+      di  = loctab_cache_di;
+      lno = loctab_cache_locno;
+      if (LIKELY(loctab_entry_covers(di, lno, ptr))) {
+         *locno = lno;
+         *pdi = di;
+         return;
+      }
+      lno++;
+      if (lno < di->loctab_used && loctab_entry_covers(di, lno, ptr)) {
+         loctab_cache_locno = lno;
+         *locno = lno;
+         *pdi = di;
+         return;
+      }
+   }
+
    for (di = debugInfo_list; di != NULL; di = di->next) {
       if (!is_DI_valid_for_epoch(di, ep))
          continue;
@@ -2155,6 +2208,9 @@ static void search_all_loctabs ( DiEpoch ep, Addr ptr,
           && ptr < di->text_avma + di->text_size) {
          lno = ML_(search_one_loctab) ( di, ptr );
          if (lno == -1) goto not_found;
+         loctab_cache_ep    = ep;
+         loctab_cache_di    = di;
+         loctab_cache_locno = lno;
          *locno = lno;
          *pdi = di;
          return;
@@ -2383,6 +2439,9 @@ Bool VG_(get_inline_fnname) ( DiEpoch ep, Addr a, const HChar** inl_fnname )
 {
    DebugInfo* si;
    Word locno;
+
+   if (!VG_(clo_read_inline_info))
+      return False; // No inltab was built, so no way to find inlined calls.
 
    /* Find the DebugInfo for this address */
    search_all_loctabs(ep, a, &si, &locno);
