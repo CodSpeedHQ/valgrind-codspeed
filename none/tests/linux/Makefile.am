@@ -11,6 +11,8 @@ EXTRA_DIST = \
 	bug506910.stderr.exp bug506910.vgtest \
 	clonev.stdout.exp clonev.stderr.exp clonev.vgtest \
 	getdents_filter.stderr.exp getdents_filter.stdout.exp getdents_filter.vgtest \
+	main_stack_attr.stderr.exp main_stack_attr.stdout.exp \
+	    main_stack_attr.vgtest \
         membarrier.stderr.exp membarrier.vgtest \
 	mremap.stderr.exp mremap.stderr.exp-glibc27 mremap.stdout.exp \
 	    mremap.vgtest \
@@ -31,6 +33,7 @@ check_PROGRAMS = \
 	bug498317 \
 	clonev \
 	getdents_filter \
+	main_stack_attr \
 	mremap \
 	mremap2 \
 	mremap3 \
@@ -59,6 +62,7 @@ bug506910_SOURCES = bug506910.cpp
 open_client_SOURCES = open_client.cpp
 endif
 clonev_LDADD = -lpthread
+main_stack_attr_LDADD = -lpthread
 pthread_stack_LDADD = -lpthread
 
 stack_overflow_CFLAGS = $(AM_CFLAGS) @FLAG_W_NO_UNINITIALIZED@ \

@@ -316,19 +316,25 @@ static HChar *copy_str(HChar **tab, const HChar *str)
   This sets up the client's initial stack, containing the args,
   environment and aux vector.
 
-  The startup image occupies a fixed-size region directly below
-  clstack_end, so the initial SP does not depend on the number or size
-  of arguments, environment variables or auxiliary strings.  Tables
-  grow upward from that fixed SP; strings are placed downward from
-  clstack_end.  The runtime stack starts in the page below SP and grows
-  into the reservation further down.
+  The startup image is a fixed-size region below clstack_end, so the
+  initial SP does not depend on the argument and environment sizes.
+  Strings get their own mapping, separated from the stack mapping by an
+  unmapped page: glibc's pthread_getattr_np() subtracts everything
+  between SP and the end of SP's mapping from RLIMIT_STACK, so only the
+  small table region sits there.
 
   The format of the startup image is:
 
   higher address +-----------------+ <- clstack_end
                  |                 |
-                 : string table    :
+                 : (unused)        :
                  |                 |
+                 +-----------------+
+                 | string table    |  (grows upward)
+                 +-----------------+ <- strings_start (fixed)
+                 | unmapped page   |
+                 +-----------------+ <- tables_end (fixed)
+                 | (unused)        |
                  +-----------------+
                  | AT_NULL         |
                  -                 -
@@ -347,10 +353,9 @@ static HChar *copy_str(HChar **tab, const HChar *str)
   lower address  | runtime stack   |
                  :                 :
 
-  The startup image has a fixed capacity so that later mappings and the
-  runtime stack remain at stable addresses.  Linux limits the aggregate
-  argument/environment size to well below this capacity; inputs that do
-  not fit are rejected instead of silently moving SP.
+  Tables larger than TABLES_REGION_SZB take whole granules from the
+  string mapping; SP stays put.  Inputs exceeding STARTUP_REGION_SZB are
+  rejected.
 
   Allocate and create the initial client stack.  It is allocated down
   from clstack_end, which was previously determined by the address
@@ -365,9 +370,14 @@ static HChar *copy_str(HChar **tab, const HChar *str)
 
    ---------------------------------------------------------------- */
 
-/* Since Linux 4.13, execve() limits argv/envp strings plus their pointer
-   arrays to 6 MiB (3/4 of _STK_LIM). */
+/* Fixed distance from the initial SP to clstack_end.  Since Linux 4.13,
+   execve() limits argv/envp strings plus their pointer arrays to 6 MiB
+   (3/4 of _STK_LIM). */
 #define STARTUP_REGION_SZB (8 * 1024 * 1024)
+
+/* Table mapping above SP (argc, argv, envp, auxv).  glibc subtracts it
+   from the reported main stack size, so keep it small. */
+#define TABLES_REGION_SZB (64 * 1024)
 
 struct auxv
 {
@@ -427,9 +437,11 @@ Addr setup_client_stack( void*  init_sp,
    unsigned auxsize;		/* total size of auxv in bytes */
    Int argc;			/* total argc */
    Int envc;			/* total number of env vars */
-   unsigned stacksize;		/* total client stack size */
+   unsigned tablesize;		/* argc, argv, envp and auxv in bytes */
    Addr client_SP;	        /* client stack base (initial SP) */
    Addr clstack_start;
+   Addr tables_end;		/* one past the table mapping */
+   Addr strings_start;		/* start of the string mapping */
    Int i;
 
    vg_assert(VG_IS_PAGE_ALIGNED(clstack_end+1));
@@ -491,38 +503,46 @@ Addr setup_client_stack( void*  init_sp,
 #  endif
 
    /* OK, now we know how big the client stack is */
-   stacksize =
+   tablesize =
       sizeof(Word) +                          /* argc */
       sizeof(HChar **) +                      /* argc[0] == exename */
       sizeof(HChar **)*argc +                 /* argv */
       sizeof(HChar **) +                      /* terminal NULL */
       sizeof(HChar **)*envc +                 /* envp */
       sizeof(HChar **) +                      /* terminal NULL */
-      auxsize +                               /* auxv */
-      VG_ROUNDUP(stringsize, sizeof(Word));   /* strings (aligned) */
+      auxsize;                                /* auxv */
 
-   if (0) VG_(printf)("stacksize = %u\n", stacksize);
+   if (0) VG_(printf)("tablesize = %u stringsize = %u\n",
+                      tablesize, stringsize);
 
-   /* client_SP is fixed so that unused startup data cannot change the
-      addresses used by the client.  The tables grow upward from it and
-      the strings are placed downward from clstack_end. */
-   client_SP = clstack_end + 1 - STARTUP_REGION_SZB;
-   vg_assert(VG_IS_PAGE_ALIGNED(client_SP));
-
-   if (stacksize > STARTUP_REGION_SZB) {
-      VG_(printf)("valgrind: "
-                  "The client arguments and environment need %u bytes, "
-                  "exceeding the fixed %u-byte startup region.\n",
-                  stacksize, (unsigned)STARTUP_REGION_SZB);
-      VG_(printf)("valgrind: "
-                  "Please report this at "
-                  "https://github.com/CodSpeedHQ/valgrind-codspeed/issues.\n\n");
-      VG_(exit)(1);
+   /* Tables grow upward from the fixed SP, strings upward from
+      strings_start.  Oversized tables take granules from the string
+      mapping, so SP never moves. */
+   { SizeT tables_szB = VG_ROUNDUP(tablesize, TABLES_REGION_SZB);
+     if (tables_szB + VKI_PAGE_SIZE + stringsize > STARTUP_REGION_SZB) {
+        VG_(printf)("valgrind: "
+                    "The client arguments and environment need %u + %u "
+                    "bytes, exceeding the fixed %u-byte startup region.\n",
+                    tablesize, stringsize, (unsigned)STARTUP_REGION_SZB);
+        VG_(printf)("valgrind: "
+                    "Please report this at "
+                    "https://github.com/CodSpeedHQ/valgrind-codspeed/issues.\n\n");
+        VG_(exit)(1);
+     }
+     if (tables_szB > TABLES_REGION_SZB)
+        VG_(debugLog)(1, "initimg",
+                      "Startup tables need %u bytes, more than one "
+                      "%u-byte granule; the string mapping shrinks\n",
+                      tablesize, (unsigned)TABLES_REGION_SZB);
+     client_SP  = clstack_end + 1 - STARTUP_REGION_SZB;
+     tables_end = client_SP + tables_szB;
    }
+   strings_start = tables_end + VKI_PAGE_SIZE;
+   vg_assert(VG_IS_PAGE_ALIGNED(client_SP));
+   vg_assert(VG_IS_PAGE_ALIGNED(strings_start));
 
    /* base of the string table (aligned) */
-   stringbase = strtab = (HChar *)(clstack_end + 1)
-                         - VG_ROUNDUP(stringsize, sizeof(Word));
+   stringbase = strtab = (HChar *)strings_start;
 
    /* Keep the page below the fixed SP mapped so that the first stack
       writes do not fault before stack growth is set up. */
@@ -532,16 +552,18 @@ Addr setup_client_stack( void*  init_sp,
    clstack_max_size = VG_PGROUNDUP(clstack_max_size);
 
    if (0)
-      VG_(printf)("stringsize=%u auxsize=%u stacksize=%u maxsize=0x%lx\n"
+      VG_(printf)("stringsize=%u auxsize=%u tablesize=%u maxsize=0x%lx\n"
                   "clstack_start %p\n"
                   "clstack_end   %p\n",
-                  stringsize, auxsize, stacksize, clstack_max_size,
+                  stringsize, auxsize, tablesize, clstack_max_size,
                   (void*)clstack_start, (void*)clstack_end);
 
    /* ==================== allocate space ==================== */
 
-   { SizeT anon_size   = clstack_end - clstack_start + 1;
-     SizeT resvn_size  = clstack_max_size - anon_size;
+   { SizeT anon_size   = tables_end - clstack_start;
+     SizeT strings_size = clstack_end + 1 - strings_start;
+     SizeT resvn_size  = clstack_max_size - STARTUP_REGION_SZB
+                         - VKI_PAGE_SIZE;
      Addr  anon_start  = clstack_start;
      Addr  resvn_start = anon_start - resvn_size;
      SizeT inner_HACK  = 0;
@@ -580,7 +602,9 @@ Addr setup_client_stack( void*  init_sp,
                     resvn_start, resvn_size, anon_start, anon_size);
 
      /* Create a shrinkable reservation followed by an anonymous
-        segment.  Together these constitute a growdown stack. */
+        segment.  Together these constitute a growdown stack.  The page
+        above is reserved so no client mapping lands there; the strings
+        get their own anonymous segment. */
      res = VG_(mk_SysRes_Error)(0);
      ok = VG_(am_create_reservation)(
              resvn_start,
@@ -596,6 +620,12 @@ Addr setup_client_stack( void*  init_sp,
 	         info->stack_prot
 	      );
      }
+     if (ok && !sr_isError(res))
+        ok = VG_(am_create_reservation)(tables_end, VKI_PAGE_SIZE,
+                                        SmFixed, 0);
+     if (ok && !sr_isError(res))
+        res = VG_(am_mmap_anon_fixed_client)(strings_start, strings_size,
+                                             info->stack_prot);
      if ((!ok) || sr_isError(res)) {
         /* Allocation of the stack failed.  We have to stop. */
         VG_(printf)("valgrind: "
@@ -1011,7 +1041,7 @@ Addr setup_client_stack( void*  init_sp,
 
    /* client_SP is pointing at client's argc/argv */
 
-   vg_assert((Addr)(auxv + 1) <= (Addr)stringbase);
+   vg_assert((Addr)(auxv + 1) <= tables_end);
    vg_assert((Addr)strtab <= clstack_end + 1);
 
    if (0) VG_(printf)("startup SP = %#lx\n", client_SP);
@@ -1191,6 +1221,12 @@ IIFinaliseImageInfo VG_(ii_create_image)( IICreateImageInfo iicii,
                                &info, &iifii.client_auxv, 
                                iicii.clstack_end, iifii.clstack_max_size,
                                vex_archinfo );
+
+      /* The main thread's stack ends at the stack segment, below the
+         separate string mapping; size it from the reservation bottom
+         to there. */
+      vg_assert(VG_(clstk_end) <= iicii.clstack_end);
+      iifii.clstack_max_size -= iicii.clstack_end - VG_(clstk_end);
 
       VG_(free)(env);
 

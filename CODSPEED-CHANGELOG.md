@@ -4,6 +4,20 @@ This file documents changes made to Valgrind for CodSpeed integration, beyond th
 
 ## Fixes
 
+### Linux: glibc reports the main thread stack size correctly again
+
+`pthread_getattr_np` reports the main thread's stack size as `RLIMIT_STACK`
+minus the space between the initial SP and the top of the stack mapping.
+Valgrind placed the initial SP at the bottom of a fixed 8 MiB startup region
+that holds the argument and environment strings and the argc/argv/envp/auxv
+tables. With the default 8 MiB limit, glibc therefore reported a stack of
+only 4 KiB, and CPython 3.14 failed at startup with `BufferError`.
+
+The strings now live in a separate mapping. Only the tables stay above SP,
+in a 64 KiB region, so glibc reports `RLIMIT_STACK - 64 KiB` (natively about
+`RLIMIT_STACK - 100 KiB`). The initial SP stays at the same address for any
+argument and environment size.
+
 ### Cache simulation: suppress the host L3 warning for explicit LL settings
 
 Callgrind and Cachegrind no longer print the warning about using the host's

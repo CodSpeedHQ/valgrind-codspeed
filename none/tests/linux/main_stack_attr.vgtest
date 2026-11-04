@@ -1,0 +1,3 @@
+prog: main_stack_attr
+vgopts: -q --trace-children=yes
+args: 20000
