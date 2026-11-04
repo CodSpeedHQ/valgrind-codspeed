@@ -242,6 +242,7 @@ noinst_HEADERS = \
 	pub_core_tooliface.h	\
 	pub_core_trampoline.h	\
 	pub_core_translate.h	\
+	pub_core_vclock.h	\
 	pub_core_transtab.h	\
 	pub_core_transtab_asm.h	\
 	pub_core_ume.h		\
@@ -348,6 +349,7 @@ COREGRIND_SOURCES_COMMON = \
 	m_trampoline.S \
 	m_translate.c \
 	m_transtab.c \
+	m_vclock.c \
 	m_vki.c \
 	m_vkiscnums.c \
 	m_wordfm.c \

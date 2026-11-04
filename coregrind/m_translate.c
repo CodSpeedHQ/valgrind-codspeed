@@ -47,6 +47,7 @@
 #include "pub_core_tooliface.h"  // VG_(tdict)
 
 #include "pub_core_translate.h"
+#include "pub_core_vclock.h"     // VG_(vclock_instrument)
 #include "pub_core_transtab.h"
 #include "pub_core_dispatch.h" // VG_(run_innerloop__dispatch_{un}profiled)
                                // VG_(run_a_noredir_translation__return_point)
@@ -683,6 +684,25 @@ IRSB* vg_SP_update_pass ( void*             closureV,
 #undef GET_CONST
 #undef DO_NEW
 #undef DO_DIE
+}
+
+/* The core's own instrumentation, run after the tool's. */
+static
+IRSB* vg_core_instrument_pass ( void*                   closureV,
+                                IRSB*                   sb_in,
+                                const VexGuestLayout*   layout,
+                                const VexGuestExtents*  vge,
+                                const VexArchInfo*      vai,
+                                IRType                  gWordTy,
+                                IRType                  hWordTy )
+{
+   if (need_to_handle_SP_assignment())
+      sb_in = vg_SP_update_pass(closureV, sb_in, layout, vge, vai,
+                                gWordTy, hWordTy);
+   if (VG_(clo_deterministic_time))
+      sb_in = VG_(vclock_instrument)(closureV, sb_in, layout, vge, vai,
+                                     gWordTy, hWordTy);
+   return sb_in;
 }
 
 /*------------------------------------------------------------*/
@@ -1530,6 +1550,8 @@ Bool VG_(translate) ( ThreadId tid,
                     &VG_(clo_vex_control) );
       if (VG_(clo_deterministic_rng))
          LibVEX_SetRandom32(&deterministic_random32);
+      if (VG_(clo_deterministic_time))
+         LibVEX_SetVirtualTSC(&VG_(vclock_ns), VG_VCLOCK_TSC_HZ);
       vex_init_done = True;
    }
 
@@ -1802,8 +1824,9 @@ Bool VG_(translate) ( ThreadId tid,
      vta.instrument1     = g;
    }
    /* No need for type kludgery here. */
-   vta.instrument2       = need_to_handle_SP_assignment()
-                              ? vg_SP_update_pass
+   vta.instrument2       = (need_to_handle_SP_assignment()
+                            || VG_(clo_deterministic_time))
+                              ? vg_core_instrument_pass
                               : NULL;
    vta.finaltidy         = VG_(needs).final_IR_tidy_pass
                               ? VG_(tdict).tool_final_IR_tidy_pass

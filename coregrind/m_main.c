@@ -109,6 +109,8 @@ static void usage_NORETURN ( int need_help )
 "                              they do not get under Valgrind\n"
 "    --deterministic-rng=no|yes serve AT_RANDOM, getrandom() and /dev/urandom\n"
 "                              and hardware RNG insns from a fixed-seed PRNG [no]\n"
+"    --deterministic-time=no|yes serve clocks, sleeps and TSC reads from a\n"
+"                              virtual clock of 1ns per guest instruction [no]\n"
 "    --child-silent-after-fork=no|yes omit child output between fork & exec? [no]\n"
 "    --vgdb=no|yes|full        activate gdbserver? [yes]\n"
 "                              full is slower but provides precise watchpoint/step\n"
@@ -574,6 +576,8 @@ static void process_option (Clo_Mode mode,
       early_process_cmd_line_options. */
    else if VG_BOOL_CLO(arg, "--sigill-diagnostics", VG_(clo_sigill_diag))
       pos->sigill_diag_set = True;
+   else if VG_BOOL_CLOM(cloPD, arg, "--deterministic-time",
+                        VG_(clo_deterministic_time)) {}
 
    else if VG_BOOL_CLOM(cloPD, arg, "--stats",          VG_(clo_stats)) {}
    else if VG_BOOL_CLO(arg, "--xml",            VG_(clo_xml))
