@@ -863,6 +863,38 @@ in most cases.  We group the available options by rough categories.</para>
     </listitem>
   </varlistentry>
 
+  <varlistentry id="opt.deterministic-time" xreflabel="--deterministic-time">
+    <term>
+      <option><![CDATA[--deterministic-time=<yes|no> [default: no] ]]></option>
+    </term>
+    <listitem>
+      <para>When enabled, every clock the client can read is derived
+        from the number of guest instructions executed so far, at
+        1 ns per instruction, so the same instruction stream always
+        observes the same time.  Valgrind's own work does not advance
+        the clock.  <computeroutput>clock_gettime</computeroutput>
+        serves the realtime clocks as a fixed epoch
+        (2024-01-01T00:00:00Z) plus the virtual time and the monotonic,
+        boottime and CPU-time clocks as the virtual time;
+        <computeroutput>gettimeofday</computeroutput> and
+        <computeroutput>time</computeroutput> follow the realtime clock.
+        <computeroutput>nanosleep</computeroutput> and
+        <computeroutput>clock_nanosleep</computeroutput> move the clock
+        forward by the requested duration and return at once.  On
+        amd64, <computeroutput>RDTSC</computeroutput> and
+        <computeroutput>RDTSCP</computeroutput> return the virtual time
+        in nanoseconds; on arm64,
+        <computeroutput>CNTVCT_EL0</computeroutput> does the same and
+        <computeroutput>CNTFRQ_EL0</computeroutput> reports 1 GHz.</para>
+      <para>Timeouts on blocking calls, interval timers,
+        <computeroutput>getrusage</computeroutput> and
+        <computeroutput>times</computeroutput> still use host time.
+        The clock is shared by all threads, so in multithreaded programs
+        the time one thread observes still depends on the host's
+        thread interleaving.  The epoch and rate cannot be changed.</para>
+    </listitem>
+  </varlistentry>
+
   <varlistentry id="opt.child-silent-after-fork"
                 xreflabel="--child-silent-after-fork">
     <term>
