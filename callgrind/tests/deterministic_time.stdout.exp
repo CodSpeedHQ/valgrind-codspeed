@@ -1,0 +1,18 @@
+realtime starts at the fixed epoch: ok
+gettimeofday agrees with realtime: ok
+time agrees with realtime: ok
+monotonic advances with work: ok
+boottime agrees with monotonic: ok
+process cputime agrees with monotonic: ok
+nanosleep succeeds: ok
+nanosleep advances the clock: ok
+absolute sleep succeeds: ok
+absolute sleep reaches its deadline: ok
+sleep until a past deadline returns at once: ok
+tsc ticks once per virtual nanosecond: ok
+back-to-back tsc reads advance: ok
+identical work takes identical time: ok
+nanosleep rejects tv_nsec out of range: ok
+nanosleep rejects an unmapped request: ok
+clock_gettime rejects an unmapped result: ok
+unknown clock ids reach the kernel: ok

@@ -21,6 +21,8 @@ EXTRA_DIST = \
 	prctl_get_auxv.stdout.exp \
 	deterministic_rng.vgtest deterministic_rng.stderr.exp \
 	deterministic_rng.stdout.exp \
+	deterministic_time.vgtest deterministic_time.stderr.exp \
+	deterministic_time.stdout.exp \
 	find_debuginfo.vgtest find_debuginfo.stderr.exp find_debuginfo.post.exp \
 	runtime_obj_skip_py.vgtest runtime_obj_skip_py.stderr.exp runtime_obj_skip_py.post.exp \
 	runtime_obj_skip_py.py runtime_obj_skip_py_shim.c \
@@ -46,7 +48,7 @@ EXTRA_DIST = \
 	inline-crossfile.vgtest inline-crossfile.stderr.exp inline-crossfile.stdout.exp inline-crossfile.post.exp \
 	inline-crossfile-helper1.h inline-crossfile-helper2.h filter_inline
 
-check_PROGRAMS = clreq register_desc register_desc_threads find_debuginfo simwork threads inline-samefile inline-crossfile runtime_obj_skip_c runtime_obj_skip_underflow deterministic_rng
+check_PROGRAMS = clreq register_desc register_desc_threads find_debuginfo simwork threads inline-samefile inline-crossfile runtime_obj_skip_c runtime_obj_skip_underflow deterministic_rng deterministic_time
 if HAVE_PR_GET_AUXV
 check_PROGRAMS += prctl_get_auxv
 endif

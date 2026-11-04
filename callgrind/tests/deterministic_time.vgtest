@@ -1,0 +1,3 @@
+prog: deterministic_time
+vgopts: -q --deterministic-time=yes --callgrind-out-file=callgrind.out.deterministic_time
+cleanup: rm -f callgrind.out.deterministic_time
