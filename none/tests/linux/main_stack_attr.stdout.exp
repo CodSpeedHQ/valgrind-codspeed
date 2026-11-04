@@ -1,0 +1,2 @@
+Main thread stack attributes cover SP and match RLIMIT_STACK.
+Main thread stack attributes cover SP and match RLIMIT_STACK.

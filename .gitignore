@@ -1923,6 +1923,7 @@
 /none/tests/linux/clonev
 /none/tests/linux/Makefile
 /none/tests/linux/Makefile.in
+/none/tests/linux/main_stack_attr
 /none/tests/linux/membarrier
 /none/tests/linux/mremap
 /none/tests/linux/mremap2
