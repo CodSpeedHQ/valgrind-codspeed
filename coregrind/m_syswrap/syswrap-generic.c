@@ -59,6 +59,7 @@
 #include "pub_core_tooliface.h"
 #include "pub_core_ume.h"
 #include "pub_core_stacks.h"
+#include "pub_core_vclock.h"
 
 #include "priv_types_n_macros.h"
 #include "priv_syswrap-generic.h"
@@ -1883,6 +1884,37 @@ SysRes ML_(rng_serve_read)(ThreadId tid, Addr buf, SizeT n)
       return VG_(mk_SysRes_Error)(VKI_EFAULT);
    VG_(prng_fill)(&VG_(threads)[tid].prng_state, (void*)buf, n);
    return VG_(mk_SysRes_Success)(n);
+}
+
+SysRes ML_(copy_to_client)(Addr dst, const void* src, SizeT n)
+{
+   if (!VG_(am_is_valid_for_client)(dst, n, VKI_PROT_WRITE))
+      return VG_(mk_SysRes_Error)(VKI_EFAULT);
+   VG_(memcpy)((void*)dst, src, n);
+   return VG_(mk_SysRes_Success)(0);
+}
+
+/* Checks run in kernel order: clock, then the request pointer, then
+   its contents. A completed sleep yields, as a real one would let
+   other threads run. */
+void ML_(vclock_serve_sleep)(SyscallStatus* status, UWord* flags,
+                             Int clockid, Bool absolute, Addr req_addr)
+{
+   const struct vki_timespec* req = (const struct vki_timespec*)req_addr;
+   if (!VG_(vclock_can_sleep)(clockid))
+      return;
+   *flags &= ~(SfMayBlock | SfPostOnFail);
+   if (!ML_(safe_to_deref)(req, sizeof(*req))) {
+      SET_STATUS_Failure(VKI_EFAULT);
+      return;
+   }
+   if (req->tv_sec < 0 || req->tv_nsec < 0 || req->tv_nsec >= 1000000000L) {
+      SET_STATUS_Failure(VKI_EINVAL);
+      return;
+   }
+   VG_(vclock_sleep)(clockid, absolute, req);
+   *flags |= SfYieldAfter;
+   SET_STATUS_Success(0);
 }
 
 /* The kernel truncates the count to 32 bits and copies the vector before
@@ -4623,6 +4655,21 @@ PRE(sys_gettimeofday)
       PRE_timeval_WRITE( "gettimeofday(tv)", (Addr)ARG1 );
    if (ARG2 != 0)
       PRE_MEM_WRITE( "gettimeofday(tz)", ARG2, sizeof(struct vki_timezone) );
+
+   if (VG_(clo_deterministic_time)) {
+      struct vki_timespec ts;
+      struct vki_timeval  tv;
+      struct vki_timezone tz = { 0, 0 };
+      SysRes res = VG_(mk_SysRes_Success)(0);
+      VG_(vclock_gettime)(VKI_CLOCK_REALTIME, &ts);
+      tv.tv_sec  = ts.tv_sec;
+      tv.tv_usec = ts.tv_nsec / 1000;
+      if (ARG1 != 0)
+         res = ML_(copy_to_client)(ARG1, &tv, sizeof(tv));
+      if (ARG2 != 0 && !sr_isError(res))
+         res = ML_(copy_to_client)(ARG2, &tz, sizeof(tz));
+      SET_STATUS_from_SysRes(res);
+   }
 }
 
 POST(sys_gettimeofday)
@@ -4995,6 +5042,9 @@ PRE(sys_nanosleep)
    PRE_MEM_READ( "nanosleep(req)", ARG1, sizeof(struct vki_timespec) );
    if (ARG2 != 0)
       PRE_MEM_WRITE( "nanosleep(rem)", ARG2, sizeof(struct vki_timespec) );
+
+   if (VG_(clo_deterministic_time))
+      ML_(vclock_serve_sleep)(status, flags, VKI_CLOCK_MONOTONIC, False, ARG1);
 }
 
 POST(sys_nanosleep)
@@ -5635,6 +5685,17 @@ PRE(sys_time)
    PRE_REG_READ1(long, "time", int *, t);
    if (ARG1 != 0) {
       PRE_MEM_WRITE( "time(t)", ARG1, sizeof(vki_time_t) );
+   }
+
+   if (VG_(clo_deterministic_time)) {
+      struct vki_timespec ts;
+      vki_time_t t;
+      VG_(vclock_gettime)(VKI_CLOCK_REALTIME, &ts);
+      t = ts.tv_sec;
+      if (ARG1 != 0 && sr_isError(ML_(copy_to_client)(ARG1, &t, sizeof(t))))
+         SET_STATUS_Failure(VKI_EFAULT);
+      else
+         SET_STATUS_Success(t);
    }
 }
 
