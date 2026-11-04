@@ -92,6 +92,13 @@ extern SysRes ML_(rng_serve_proc_read)(ThreadId           tid,
                                        Long               offset,
                                        RngReadKind        read_kind);
 
+/* Copy N bytes into client memory; EFAULT if it is not writable. */
+extern SysRes ML_(copy_to_client) (Addr dst, const void* src, SizeT n);
+/* Complete a sleep on the virtual clock instead of blocking. Leaves
+   the syscall to the kernel for clocks it cannot sleep on. */
+extern void ML_(vclock_serve_sleep) (SyscallStatus* status, UWord* flags,
+                                     Int clockid, Bool absolute, Addr req);
+
 extern void ML_(record_fd_close)               (ThreadId tid, Int fd);
 extern Int  ML_(get_fd_count)                  (void);
 extern void ML_(record_fd_close_range)         (ThreadId tid, Int fd);

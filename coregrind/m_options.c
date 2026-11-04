@@ -125,6 +125,7 @@ const HChar* VG_(clo_trace_children_skip) = NULL;
 const HChar* VG_(clo_trace_children_skip_by_arg) = NULL;
 const HChar* VG_(clo_allow_file_caps) = NULL;
 Bool   VG_(clo_deterministic_rng) = False;
+Bool   VG_(clo_deterministic_time) = False;
 Bool   VG_(clo_child_silent_after_fork) = False;
 const HChar *VG_(clo_log_fname_unexpanded) = NULL;
 const HChar *VG_(clo_xml_fname_unexpanded) = NULL;

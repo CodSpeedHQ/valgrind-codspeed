@@ -129,6 +129,9 @@ extern const HChar* VG_(clo_trace_children_skip_by_arg);
    without those capabilities, since Valgrind loads them itself. */
 extern const HChar* VG_(clo_allow_file_caps);
 extern Bool VG_(clo_deterministic_rng);
+/* Serve clocks from a virtual clock driven by the executed guest
+   instruction count instead of host time. */
+extern Bool VG_(clo_deterministic_time);
 /* After a fork, the child's output can become confusingly
    intermingled with the parent's output.  This is especially
    problematic when VG_(clo_xml) is True.  Setting

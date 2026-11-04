@@ -49,6 +49,8 @@
 #define NULL ((void*)0)
 
 extern UInt (*vex_random32)(void);
+extern const ULong* vex_virtual_tsc;
+extern ULong vex_virtual_tsc_hz;
 
 #if defined(_MSC_VER) // building with MSVC
 # define LIKELY(x)          (x)

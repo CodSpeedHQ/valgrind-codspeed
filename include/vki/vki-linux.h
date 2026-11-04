@@ -304,6 +304,15 @@ struct vki_sysinfo {
 #define VKI_CLOCK_MONOTONIC           1
 #define VKI_CLOCK_PROCESS_CPUTIME_ID  2
 #define VKI_CLOCK_THREAD_CPUTIME_ID   3
+#define VKI_CLOCK_MONOTONIC_RAW       4
+#define VKI_CLOCK_REALTIME_COARSE     5
+#define VKI_CLOCK_MONOTONIC_COARSE    6
+#define VKI_CLOCK_BOOTTIME            7
+#define VKI_CLOCK_REALTIME_ALARM      8
+#define VKI_CLOCK_BOOTTIME_ALARM      9
+#define VKI_CLOCK_TAI                 11
+
+#define VKI_TIMER_ABSTIME             0x01
 
 struct vki_timespec {
 	vki_time_t	tv_sec;		/* seconds */

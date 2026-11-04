@@ -51,6 +51,7 @@
 #include "pub_core_scheduler.h"
 #include "pub_core_signals.h"
 #include "pub_core_stacks.h"
+#include "pub_core_vclock.h"
 #include "pub_core_syscall.h"
 #include "pub_core_syswrap.h"
 #include "pub_core_inner.h"
@@ -3225,6 +3226,12 @@ PRE(sys_clock_gettime)
    PRE_REG_READ2(long, "clock_gettime", 
                  vki_clockid_t, clk_id, struct timespec *, tp);
    PRE_MEM_WRITE( "clock_gettime(tp)", ARG2, sizeof(struct vki_timespec) );
+
+   if (VG_(clo_deterministic_time)) {
+      struct vki_timespec ts;
+      if (VG_(vclock_gettime)(SARG1, &ts))
+         SET_STATUS_from_SysRes(ML_(copy_to_client)(ARG2, &ts, sizeof(ts)));
+   }
 }
 POST(sys_clock_gettime)
 {
@@ -3289,6 +3296,10 @@ PRE(sys_clock_nanosleep)
    PRE_MEM_READ( "clock_nanosleep(rqtp)", ARG3, sizeof(struct vki_timespec) );
    if (ARG4 != 0)
       PRE_MEM_WRITE( "clock_nanosleep(rmtp)", ARG4, sizeof(struct vki_timespec) );
+
+   if (VG_(clo_deterministic_time))
+      ML_(vclock_serve_sleep)(status, flags, SARG1,
+                              (ARG2 & VKI_TIMER_ABSTIME) != 0, ARG3);
 }
 POST(sys_clock_nanosleep)
 {

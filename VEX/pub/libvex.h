@@ -692,6 +692,11 @@ extern void LibVEX_Init (
    The callback runs on the executing guest thread and returns 32 random bits. */
 extern void LibVEX_SetRandom32 ( UInt (*random32)(void) );
 
+/* Install before guest execution. NULL preserves the host counters.
+   TICKS is read on every RDTSC/RDTSCP (amd64) and CNTVCT_EL0 (arm64);
+   CNTFRQ_EL0 then reports HZ. RDTSCP reports TSC_AUX as 0. */
+extern void LibVEX_SetVirtualTSC ( const ULong* ticks, ULong hz );
+
 
 /*-------------------------------------------------------*/
 /*--- Make a translation                              ---*/

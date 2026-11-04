@@ -28,6 +28,32 @@ matching Linux on AArch64.
 Reduce simulated cache-miss variation from argument and environment sizes
 by keeping the Linux initial stack pointer at a fixed offset from the stack top.
 
+### Deterministic time: `--deterministic-time`
+
+**Feature**: Added `--deterministic-time=no|yes` (default `no`). When enabled, every clock the client can read is derived from the number of guest instructions executed so far. The same instruction stream always observes the same time, however long Valgrind takes to run it.
+
+**Motivation**: Runtimes make decisions from elapsed time: benchmark harnesses pick iteration and warmup counts, garbage collectors and schedulers use time-based heuristics, and time-bounded loops run until a deadline. Under Callgrind the host clock runs 20 to 100 times faster relative to the program than it does natively, and it varies from run to run, so all of these turn into instruction-count noise.
+
+**How it works**:
+- A virtual clock advances by 1 ns per executed guest instruction: a 1 GHz CPU retiring one instruction per cycle. Valgrind's own work (translation, syscall wrappers, tool instrumentation) does not advance it.
+- A core instrumentation pass adds the executed instruction count to the clock at every superblock exit and before every TSC read, so a syscall or TSC read always sees the instructions executed before it. It runs after the tool's instrumentation, so tool costs are unchanged.
+- `clock_gettime` serves the realtime clocks (`REALTIME`, `REALTIME_COARSE`, `REALTIME_ALARM`, `TAI`) as a fixed epoch (2024-01-01T00:00:00Z) plus the virtual time, and the other standard clocks (`MONOTONIC`, `MONOTONIC_RAW`, `MONOTONIC_COARSE`, `BOOTTIME`, `BOOTTIME_ALARM`, `PROCESS_CPUTIME_ID`, `THREAD_CPUTIME_ID`) as the virtual time. `gettimeofday` and `time` follow the realtime clock. The vDSO is already disabled under Valgrind, so libc reaches these syscalls.
+- `nanosleep` and `clock_nanosleep` move the virtual clock forward by the requested duration (or up to the absolute deadline) and return at once. Argument errors (`EINVAL`, `EFAULT`) match the kernel.
+- On amd64, `RDTSC` and `RDTSCP` return the virtual time in nanoseconds (a 1 GHz TSC); `RDTSCP` reports `TSC_AUX` as 0. On arm64, `CNTVCT_EL0` returns the virtual time and `CNTFRQ_EL0` reports 1 GHz.
+- A forked child continues from its parent's clock. Under `--trace-children=yes` each exec'd program starts again from zero.
+
+**Usage**:
+```bash
+valgrind --tool=callgrind --deterministic-time=yes ./your_program
+```
+
+**Limitations**:
+- Timeouts on blocking calls (`futex`, `poll`, `epoll_wait`, `select`), interval timers (`setitimer`, `timer_create`, `timerfd`, `alarm`), `getrusage` and `times` still use host time.
+- The clock is global to the process. In multithreaded programs the thread interleaving still depends on the host, so time observed by one thread can vary with how much work other threads did first. A served sleep yields to other threads but does not block.
+- `CPUID` still reports the host TSC frequency on amd64. Code that converts `RDTSC` deltas with it, instead of calibrating against `clock_gettime`, gets a scaled but still deterministic result.
+- `clock_gettime` on dynamic clock ids (from `clock_getcpuclockid`) reaches the kernel.
+- The epoch and the rate are fixed; there is no option to change them.
+
 ### Deterministic randomness: `--deterministic-rng`
 
 **Feature**: Added `--deterministic-rng=no|yes` (default `no`). When enabled, randomness the client reads from the kernel or the CPU comes from a fixed-seed PRNG, so it is identical across runs.
