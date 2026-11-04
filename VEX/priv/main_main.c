@@ -220,6 +220,16 @@ void LibVEX_SetRandom32 ( UInt (*random32)(void) )
    vex_random32 = random32;
 }
 
+const ULong* vex_virtual_tsc = NULL;
+ULong vex_virtual_tsc_hz = 0;
+
+void LibVEX_SetVirtualTSC ( const ULong* ticks, ULong hz )
+{
+   vassert(vex_initdone);
+   vex_virtual_tsc    = ticks;
+   vex_virtual_tsc_hz = hz;
+}
+
 
 /* Exported to library client. */
 

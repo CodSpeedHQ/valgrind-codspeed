@@ -2285,6 +2285,8 @@ UInt x86g_calculate_aad_aam ( UInt flags_and_AX, UInt opcode )
 /* Horrible hack.  On non-x86 platforms, return 1. */
 ULong x86g_dirtyhelper_RDTSC ( void )
 {
+   if (vex_virtual_tsc)
+      return *vex_virtual_tsc;
 #  if defined(__i386__)
    ULong res;
    __asm__ __volatile__("rdtsc" : "=A" (res));

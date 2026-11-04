@@ -3859,6 +3859,8 @@ ULong amd64g_calculate_pclmul(ULong a, ULong b, ULong which)
 /* Horrible hack.  On non-amd64 platforms, return 1. */
 ULong amd64g_dirtyhelper_RDTSC ( void )
 {
+   if (vex_virtual_tsc)
+      return *vex_virtual_tsc;
 #  if defined(__x86_64__)
    UInt  eax, edx;
    __asm__ __volatile__("rdtsc" : "=a" (eax), "=d" (edx));
@@ -3877,6 +3879,13 @@ ULong amd64g_dirtyhelper_RDTSC ( void )
    on amd64. */
 void amd64g_dirtyhelper_RDTSCP ( VexGuestAMD64State* st )
 {
+   if (vex_virtual_tsc) {
+      ULong tsc = *vex_virtual_tsc;
+      st->guest_RAX = tsc & 0xFFFFFFFFULL;
+      st->guest_RCX = 0;
+      st->guest_RDX = tsc >> 32;
+      return;
+   }
 #  if defined(__x86_64__)
    UInt eax, ecx, edx;
    __asm__ __volatile__("rdtscp" : "=a" (eax), "=d" (edx), "=c" (ecx));
