@@ -881,12 +881,21 @@ void CLG_(setup_bbcc)(BB* bb)
     }
 
     idx = level -1;
-    if (bbcc->rec_array[idx])
-      bbcc = bbcc->rec_array[idx];
-    else
-      bbcc = clone_bbcc(bbcc, CLG_(current_state).cxt, idx);
+    /* Every BBCC satisfies rec_array[rec_index] == itself (see clone_bbcc
+     * and the rec_array initializations above), so when the wanted level
+     * already is this BBCC's own one, the lookup below would just yield
+     * `bbcc` again. Skipping it avoids dereferencing rec_array, which lives
+     * in a separate allocation and is a cache miss on the hot path taken by
+     * every basic block execution (--separate-recs defaults to 2, so this
+     * block runs unconditionally). */
+    if (idx != bbcc->rec_index) {
+      if (bbcc->rec_array[idx])
+	bbcc = bbcc->rec_array[idx];
+      else
+	bbcc = clone_bbcc(bbcc, CLG_(current_state).cxt, idx);
 
-    CLG_ASSERT(bbcc->rec_array[bbcc->rec_index] == bbcc);
+      CLG_ASSERT(bbcc->rec_array[bbcc->rec_index] == bbcc);
+    }
   }
 
   if (delayed_push) {
