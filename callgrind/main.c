@@ -1130,11 +1130,9 @@ IRSB* CLG_(instrument)( VgCallbackClosure* closure,
         // Classify supported rep-prefixed bulk copies (rep movs/rep stos) for
         // the REP bulk cost model. The decision is static per instruction.
         if (CLG_(clo).rep_bulk_cost && !clgs.seen_before) {
-            ClgRepBulkInfo ri;
-            clg_rep_bulk_classify((const unsigned char*)cia, isize, &ri);
-            curr_inode->rep_bulk_op = ri.op;
-            curr_inode->rep_elem_width = ri.elem_width;
-            if (ri.op != CLG_REP_OP_NONE) {
+            curr_inode->rep_bulk_op = clg_rep_bulk_classify(
+                (const UChar*)cia, isize, &curr_inode->rep_elem_width);
+            if (curr_inode->rep_bulk_op != CLG_REP_OP_NONE) {
                 /* The calibrated bulk curve replaces this instruction's
                  * static per-element cycle estimate completely: drop it from
                  * both the dump-time charge and the inclusive prefix sums. */

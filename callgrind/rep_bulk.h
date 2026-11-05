@@ -26,11 +26,6 @@ typedef enum {
    CLG_REP_OP_STOS = 2   /* rep stos{b,w,d,q}: one write per element */
 } ClgRepBulkOp;
 
-typedef struct {
-   unsigned char op;         /* ClgRepBulkOp                            */
-   unsigned char elem_width; /* element size in bytes (1,2,4,8), 0 if none */
-} ClgRepBulkInfo;
-
 /* From the guest DF flag, which is constant during an instruction. */
 #define CLG_REP_DIR_FORWARD  0
 #define CLG_REP_DIR_BACKWARD 1
@@ -73,9 +68,9 @@ ULong clg_rep_bulk_marginal(unsigned op, unsigned elem_width,
                             ULong remaining_bytes, ULong elem_bytes);
 
 /* Classify the amd64 guest instruction in [bytes, bytes+len) by its
- * encoding (no Capstone needed). Always initialises *out; out->op is
- * CLG_REP_OP_NONE unless it is a rep-prefixed MOVS or STOS. */
-void clg_rep_bulk_classify(const unsigned char* bytes, unsigned len,
-                           ClgRepBulkInfo* out);
+ * encoding. Returns CLG_REP_OP_NONE unless it is a rep-prefixed MOVS or
+ * STOS; otherwise also stores the element size (1, 2, 4 or 8). */
+ClgRepBulkOp clg_rep_bulk_classify(const UChar* bytes, UInt len,
+                                   UChar* elem_width);
 
 #endif /* CLG_REP_BULK_H */

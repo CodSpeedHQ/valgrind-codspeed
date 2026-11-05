@@ -89,70 +89,30 @@ ULong clg_rep_bulk_marginal(unsigned op, unsigned elem_width,
    return cost_at(c, remaining_bytes) - cost_at(c, remaining_bytes - elem_bytes);
 }
 
-/* Prefixes followed by A4/A5/AA/AB; REX must directly precede the opcode. */
-void clg_rep_bulk_classify(const unsigned char* bytes, unsigned len,
-                           ClgRepBulkInfo* out)
+/* Prefixes, then A4/A5 (MOVS) or AA/AB (STOS) as the last byte; REX must
+ * directly precede the opcode. */
+ClgRepBulkOp clg_rep_bulk_classify(const UChar* bytes, UInt len,
+                                   UChar* elem_width)
 {
-   out->op = CLG_REP_OP_NONE;
-   out->elem_width = 0;
-#if defined(VGA_amd64)
-   unsigned i = 0;
-   int      rep = 0, opsz16 = 0, addr32p = 0, rex_w = 0;
+   UChar opc = bytes[len - 1];
+   Bool  rep = False, opsz16 = False, rex_w = False;
+   UInt  i;
 
-   if (!bytes || len < 2 || len > 15)
-      return;
-
-   while (i < len) {
-      unsigned char c = bytes[i];
-      if (c == 0xF3 && !rep) {
-         rep = 1;
-         i++;
-         continue;
+   for (i = 0; i + 1 < len; i++) {
+      switch (bytes[i]) {
+      case 0xF3: rep = True; break;
+      case 0x66: opsz16 = True; break;
+      case 0x67: break;
+      default:
+         if ((bytes[i] & 0xF0) != 0x40 || i + 2 != len)
+            return CLG_REP_OP_NONE;
+         rex_w = (bytes[i] & 0x08) != 0;
       }
-      if (c == 0xF2)
-         return; /* REPNE: never a supported bulk copy */
-      if (c == 0x66 && !opsz16) {
-         opsz16 = 1;
-         i++;
-         continue;
-      }
-      if (c == 0x67 && !addr32p) {
-         addr32p = 1;
-         i++;
-         continue;
-      }
-      if (c >= 0x40 && c <= 0x4F) {
-         rex_w = (c & 0x08) != 0;
-         i++;
-      }
-      break;
    }
 
-   /* Exactly the opcode must follow the prefix run: no operands, no
-    * trailing bytes (the IMark length always covers the whole insn). */
-   if (!rep || i + 1 != len)
-      return;
-
-   switch (bytes[i]) {
-   case 0xA4: /* movsb */
-      out->op = CLG_REP_OP_MOVS;
-      out->elem_width = 1;
-      break;
-   case 0xA5: /* movsw/movsd/movsq */
-      out->op = CLG_REP_OP_MOVS;
-      out->elem_width = rex_w ? 8 : (opsz16 ? 2 : 4);
-      break;
-   case 0xAA: /* stosb */
-      out->op = CLG_REP_OP_STOS;
-      out->elem_width = 1;
-      break;
-   case 0xAB: /* stosw/stosd/stosq */
-      out->op = CLG_REP_OP_STOS;
-      out->elem_width = rex_w ? 8 : (opsz16 ? 2 : 4);
-      break;
-   }
-#else
-   (void)bytes;
-   (void)len;
-#endif
+   if (!rep || ((opc & ~1) != 0xA4 && (opc & ~1) != 0xAA))
+      return CLG_REP_OP_NONE;
+   /* Even opcodes copy bytes; odd ones use the operand size. */
+   *elem_width = (opc & 1) == 0 ? 1 : rex_w ? 8 : opsz16 ? 2 : 4;
+   return (opc & ~1) == 0xA4 ? CLG_REP_OP_MOVS : CLG_REP_OP_STOS;
 }
