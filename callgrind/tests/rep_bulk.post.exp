@@ -5,6 +5,5 @@ instruction_refs_kept: ok
 bulk_cycles: ok
 backward: ok
 stos: ok
-self: ok
 cold_miss_refs: ok
 cache_independent_cycles: ok

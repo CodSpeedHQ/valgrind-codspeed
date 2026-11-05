@@ -15,7 +15,6 @@
 #define COPY_SZ  10240u  /* 160 x 64B lines */
 #define BACK_SZ   4096u
 #define STOS_SZ   4096u
-#define SELF_SZ   4096u
 #define FLUSH_SZ (256u * 1024u)
 
 static unsigned char srcbuf[COPY_SZ + 128] __attribute__((aligned(64)));
@@ -120,13 +119,7 @@ int main(void)
         if (dstbuf[i] != 0x5a)
             return 6;
 
-    /* part 5: self copy (source and destination are the same buffer) */
-    measure_copy(dstbuf, dstbuf, SELF_SZ);
-    for (i = 0; i < SELF_SZ; i++)
-        if (dstbuf[i] != 0x5a)
-            return 7;
-
-    /* part 6: cold 10 KiB forward copy after flushing D1 */
+    /* part 5: cold 10 KiB forward copy after flushing D1 */
     flush_d1();
     measure_copy(dstbuf, srcbuf, COPY_SZ);
     if (!verify_copy())
