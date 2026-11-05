@@ -37,6 +37,13 @@ matching Linux on AArch64.
 
 ## Features
 
+### REP bulk cost model for `rep movs` / `rep stos`
+
+Callgrind now prices amd64 `rep movs` and `rep stos` from a calibrated
+hot-copy curve when cache simulation and `--cycle-estimation=yes` are both
+active: `Ct`/`Cl` carry the curve cost, and only data L1 misses are reported
+as `Dr`/`Dw`. `--rep-bulk-cost=no` restores the per-element model.
+
 ### Fixed Linux startup stack layout
 
 Reduce simulated cache-miss variation from argument and environment sizes

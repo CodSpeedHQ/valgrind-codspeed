@@ -441,6 +441,9 @@ void CLG_(init_exec_state)(exec_state* es)
   es->jmps_passed = 0;
   es->bbcc = 0;
   es->nonskipped = 0;
+  es->rep_next_dst = 0;
+  es->rep_next_rem = 0;
+  es->rep_align = 0;
 }
 
 
@@ -540,6 +543,9 @@ exec_state* exec_state_save(void)
   es->jmps_passed = CLG_(current_state).jmps_passed;
   es->bbcc        = CLG_(current_state).bbcc;
   es->nonskipped  = CLG_(current_state).nonskipped;
+  es->rep_next_dst = CLG_(current_state).rep_next_dst;
+  es->rep_next_rem = CLG_(current_state).rep_next_rem;
+  es->rep_align   = CLG_(current_state).rep_align;
   CLG_ASSERT(es->cost == CLG_(current_state).cost);
 
   CLG_DEBUGIF(1) {
@@ -565,6 +571,9 @@ exec_state* exec_state_restore(void)
   CLG_(current_state).jmps_passed = es->jmps_passed;
   CLG_(current_state).bbcc    = es->bbcc;
   CLG_(current_state).nonskipped = es->nonskipped;
+  CLG_(current_state).rep_next_dst = es->rep_next_dst;
+  CLG_(current_state).rep_next_rem = es->rep_next_rem;
+  CLG_(current_state).rep_align   = es->rep_align;
   CLG_(current_state).cost    = es->cost;
   CLG_(current_state).sig     = es->sig;
     

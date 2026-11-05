@@ -40,6 +40,15 @@
 #include "cg_branchpred.c"
 
 #include "cycledecode.h"
+#include "rep_bulk.h"
+
+#if defined(VGA_amd64)
+/* REP bulk cost model: VEX translates rep movs/stos on amd64 as one element
+ * per BB execution that jumps back to the instruction, and decrements RCX
+ * after its IMark. */
+#include "libvex_guest_amd64.h"
+#define CLG_GUEST_OFF(reg) offsetof(VexGuestAMD64State, guest_##reg)
+#endif
 
 /*------------------------------------------------------------*/
 /*--- Global variables                                     ---*/
@@ -397,6 +406,11 @@ static void flushEvents ( ClgState* clgs )
 	       // Ir event always is first for a guest instruction
 	       CLG_ASSERT(ev->inode->eventset == 0);
 	       ev->inode->eventset = CLG_(sets).base;
+	       /* REP bulk model: REP instructions carry per-instruction Ct/Cl
+	        * slots, filled at runtime from the calibrated bulk curve. */
+	       if (ev->inode->rep_bulk_op)
+		   ev->inode->eventset =
+		       CLG_(add_event_group)(ev->inode->eventset, EG_CYCLES);
 	       break;
 	   case Ev_Dr:
                // extend event set by Dr counters
@@ -597,6 +611,31 @@ static void flushEvents ( ClgState* clgs )
    clgs->events_used = 0;
 }
 
+/* REP bulk cost model: charge the element about to execute. At the IMark,
+ * before VEX's decrement, RCX counts the elements still to go. STOS has no
+ * source and passes RDI for both pointers. */
+static void addRepBulkCall ( ClgState* clgs, InstrInfo* inode )
+{
+#if defined(VGA_amd64)
+   Int     offs[4] = { CLG_GUEST_OFF(RCX), CLG_GUEST_OFF(RSI),
+                       CLG_GUEST_OFF(RDI), CLG_GUEST_OFF(DFLAG) };
+   IRExpr* args[4];
+   Int     i;
+
+   if (inode->rep_bulk_op == CLG_REP_OP_STOS)
+      offs[1] = CLG_GUEST_OFF(RDI);
+   for (i = 0; i < 4; i++) {
+      IRTemp t = newIRTemp(clgs->sbOut->tyenv, Ity_I64);
+      addStmtToIRSB(clgs->sbOut, IRStmt_WrTmp(t, IRExpr_Get(offs[i], Ity_I64)));
+      args[i] = IRExpr_RdTmp(t);
+   }
+   addStmtToIRSB(clgs->sbOut, IRStmt_Dirty(unsafeIRDirty_0_N(
+      0, "log_rep_bulk", VG_(fnptr_to_fnentry)(&CLG_(log_rep_bulk)),
+      mkIRExprVec_5(mkIRExpr_HWord((HWord)inode),
+                    args[0], args[1], args[2], args[3]))));
+#endif
+}
+
 static void addEvent_Ir ( ClgState* clgs, InstrInfo* inode )
 {
    Event* evt;
@@ -795,6 +834,8 @@ InstrInfo* next_InstrInfo ( ClgState* clgs, UInt instr_size )
        ii->ct_incl = 0;
        ii->cl_cost = 0;
        ii->cl_incl = 0;
+       ii->rep_bulk_op = 0;
+       ii->rep_elem_width = 0;
    }
 
    clgs->ii_index++;
@@ -1046,9 +1087,18 @@ IRSB* CLG_(instrument)( VgCallbackClosure* closure,
 	    // also use it.
 	    curr_inode = next_InstrInfo (&clgs, isize);
 
+        // Classify rep movs/stos for the REP bulk cost model. Their bulk
+        // curve replaces the per-instruction cycle estimate below.
+        if (CLG_(clo).rep_bulk_cost && !clgs.seen_before)
+            curr_inode->rep_bulk_op = clg_rep_bulk_classify(
+                (const UChar*)cia, isize, &curr_inode->rep_elem_width);
+        if (curr_inode->rep_bulk_op)
+            addRepBulkCall(&clgs, curr_inode);
+
         // Estimate this instruction's cycle cost by decoding the real
         // guest bytes. Only on first translation; values persist in the BB.
-        if (CLG_(clo).cycle_estimation && !clgs.seen_before) {
+        if (CLG_(clo).cycle_estimation && !clgs.seen_before
+            && !curr_inode->rep_bulk_op) {
             unsigned ct, cl;
             unsigned len = st->Ist.IMark.len ? st->Ist.IMark.len : isize;
             clg_cycle_cost((const unsigned char*)cia, len, &ct, &cl);
