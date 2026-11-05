@@ -56,7 +56,10 @@ if ($mode eq 'on') {
     check('stos',
           val(4, 'Ct') > val(2, 'Ct')
           && delta(4, 'Dr') == 0 && delta(4, 'Dw') == 0);
-    check('cold_miss_refs', cold_misses(qw(Dr Dw D1mr D1mw)));
+    # L1-cold but LL-resident lines stream at near-hit cost: no refs. D1
+    # misses are not compared: flush_d1 also evicts the wrapper's stack lines.
+    check('ll_resident_refs_suppressed',
+          !grep { delta(5, $_) != 0 } qw(Dr Dw DLmr DLmw));
     check('cache_independent_cycles',
           val(1, 'Ct') == val(5, 'Ct') && val(1, 'Cl') == val(5, 'Cl'));
 } else {

@@ -1182,8 +1182,10 @@ static void log_1I1Dr(InstrInfo* ii, Addr data_addr, Word data_size)
        
 	inc_costs(IrRes, cost_Ir, 
 		  CLG_(current_state).cost + fullOffset(EG_IR) );
-	/* REP bulk model: keep data misses, the curve replaces L1-hit refs. */
-	if (!ii->rep_bulk_op || DrRes != L1_Hit)
+	/* REP bulk model: the curve replaces L1-hit refs, and an L1 miss that
+	 * hits LL streams at near-hit cost in a REP copy, so only accesses
+	 * that miss LL are reported. */
+	if (!ii->rep_bulk_op || DrRes == MemAccess)
 	    inc_costs(DrRes, cost_Dr,
 		      CLG_(current_state).cost + fullOffset(EG_DR) );
     }
@@ -1212,7 +1214,7 @@ static void log_0I1Dr(InstrInfo* ii, Addr data_addr, Word data_size)
 	else
             cost_Dr = CLG_(cost_base) + ii->cost_offset + ii->eventset->offset[EG_DR];
 
-	if (!ii->rep_bulk_op || DrRes != L1_Hit)
+	if (!ii->rep_bulk_op || DrRes == MemAccess)
 	    inc_costs(DrRes, cost_Dr,
 		      CLG_(current_state).cost + fullOffset(EG_DR) );
     }
@@ -1248,7 +1250,7 @@ static void log_1I1Dw(InstrInfo* ii, Addr data_addr, Word data_size)
        
 	inc_costs(IrRes, cost_Ir,
 		  CLG_(current_state).cost + fullOffset(EG_IR) );
-	if (!ii->rep_bulk_op || DwRes != L1_Hit)
+	if (!ii->rep_bulk_op || DwRes == MemAccess)
 	    inc_costs(DwRes, cost_Dw,
 		      CLG_(current_state).cost + fullOffset(EG_DW) );
     }
@@ -1274,7 +1276,7 @@ static void log_0I1Dw(InstrInfo* ii, Addr data_addr, Word data_size)
 	else
             cost_Dw = CLG_(cost_base) + ii->cost_offset + ii->eventset->offset[EG_DW];
        
-	if (!ii->rep_bulk_op || DwRes != L1_Hit)
+	if (!ii->rep_bulk_op || DwRes == MemAccess)
 	    inc_costs(DwRes, cost_Dw,
 		      CLG_(current_state).cost + fullOffset(EG_DW) );
     }
