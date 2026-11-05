@@ -701,18 +701,10 @@ struct cachesim_if
     void (*log_0I1Dr)(InstrInfo*, Addr, Word) VG_REGPARM(3);
     void (*log_0I1Dw)(InstrInfo*, Addr, Word) VG_REGPARM(3);
 
-    /* REP bulk cost model: called once per executed element of a supported
-     * rep-prefixed bulk copy. Args: inode, repeat count after the decrement
-     * of this element, source address (dst if none), destination address,
-     * guest DF flag. Zero when the model is off. Uses the ordinary amd64
-     * calling convention (regparms=0), not a register-parm ABI. */
-    void (*log_rep_bulk)(InstrInfo*, ULong, Addr, Addr, Word);
-
     // function names of helpers (for debugging generated code)
     const HChar *log_1I0D_name, *log_2I0D_name, *log_3I0D_name;
     const HChar *log_1I1Dr_name, *log_1I1Dw_name;
     const HChar *log_0I1Dr_name, *log_0I1Dw_name;
-    const HChar *log_rep_bulk_name;
 };
 
 // Event groups
@@ -749,6 +741,10 @@ void CLG_(print_debug_usage)(void);
 
 /* from sim.c */
 void CLG_(init_eventsets)(void);
+/* REP bulk cost model: called once per executed element of a classified
+ * REP instruction. Args: inode, repeat count after the decrement of this
+ * element, source address (dst if none), destination address, guest DF. */
+void CLG_(log_rep_bulk)(InstrInfo*, ULong, Addr, Addr, Word);
 
 /* from main.c */
 Bool CLG_(get_debug_info)(Addr, const HChar **dirname,

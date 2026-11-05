@@ -616,7 +616,7 @@ static void flushEvents ( ClgState* clgs )
     * *after* VEX's decrement for this element (VEX decrements before the
     * access), so the helper adds 1 back. */
 #if defined(VGA_amd64)
-   if (CLG_(cachesim).log_rep_bulk) {
+   if (CLG_(clo).rep_bulk_cost) {
       InstrInfo* rii = 0;
       IRExpr*    src = 0;
       IRExpr*    dst = 0;
@@ -652,8 +652,8 @@ static void flushEvents ( ClgState* clgs )
              dflag_tmp, IRExpr_Get(CLG_REP_DFLAG_OFF, Ity_I64)));
 
          di = unsafeIRDirty_0_N(
-             0, CLG_(cachesim).log_rep_bulk_name,
-             VG_(fnptr_to_fnentry)(CLG_(cachesim).log_rep_bulk),
+             0, "log_rep_bulk",
+             VG_(fnptr_to_fnentry)(&CLG_(log_rep_bulk)),
              mkIRExprVec_5( mkIRExpr_HWord((HWord)rii),
                             IRExpr_RdTmp(count_tmp),
                             src ? src : dst, dst,

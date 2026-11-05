@@ -1300,11 +1300,10 @@ static unsigned rep_align_class(Addr src, Addr dst)
     return CLG_REP_ALIGN_OTHER;
 }
 
-/* Called once per executed element of a supported rep-prefixed bulk copy;
- * `rem_after` is the repeat count after VEX decremented it. The curve delta
+/* `rem_after` is the repeat count after VEX decremented it. The curve delta
  * is charged to both Ct and Cl, so the consumer's sqrt(Ct*Cl) recovers it. */
-static void log_rep_bulk(InstrInfo* ii, ULong rem_after, Addr src, Addr dst,
-                         Word dflag)
+void CLG_(log_rep_bulk)(InstrInfo* ii, ULong rem_after, Addr src, Addr dst,
+                        Word dflag)
 {
     exec_state* es = &CLG_(current_state);
     unsigned    op = ii->rep_bulk_op;
@@ -1450,11 +1449,6 @@ static void cachesim_post_clo_init(void)
   CLG_(cachesim).log_0I1Dw = log_0I1Dw;
   CLG_(cachesim).log_0I1Dr_name = "log_0I1Dr";
   CLG_(cachesim).log_0I1Dw_name = "log_0I1Dw";
-
-  if (CLG_(clo).rep_bulk_cost) {
-     CLG_(cachesim).log_rep_bulk = log_rep_bulk;
-     CLG_(cachesim).log_rep_bulk_name = "log_rep_bulk";
-  }
 
   if (clo_collect_cacheuse) {
 
