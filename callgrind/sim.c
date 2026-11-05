@@ -1363,25 +1363,16 @@ static void cachesim_post_clo_init(void)
    * the per-instruction cycle model it replaces, and is currently amd64-only
    * because it reads the repeat counter and DF from the guest state. In any
    * other mode it stays inert, so prior behavior is unchanged. */
-  if (CLG_(clo).rep_bulk_cost) {
-     Bool usable = CLG_(clo).simulate_cache && CLG_(clo).cycle_estimation
-                   && !clo_simulate_writeback && !clo_collect_cacheuse;
-#if !defined(VGA_amd64)
-     usable = False;
+#if defined(VGA_amd64)
+  CLG_(clo).rep_bulk_cost = CLG_(clo).rep_bulk_cost
+                            && CLG_(clo).simulate_cache
+                            && CLG_(clo).cycle_estimation
+                            && !clo_simulate_writeback && !clo_collect_cacheuse;
+#else
+  CLG_(clo).rep_bulk_cost = False;
 #endif
-     if (!usable) {
-        CLG_(clo).rep_bulk_cost = False;
-     } else {
-        UInt bad = clg_rep_bulk_init();
-        if (bad > 0) {
-           VG_(message)(Vg_UserMsg,
-                        "--rep-bulk-cost: calibrated REP bulk table rejected "
-                        "(%u problem(s)); keeping the per-element model.\n",
-                        bad);
-           CLG_(clo).rep_bulk_cost = False;
-        }
-     }
-  }
+  if (CLG_(clo).rep_bulk_cost)
+     clg_rep_bulk_init();
 
   /* Initialize access handlers */
   if (!CLG_(clo).simulate_cache) {

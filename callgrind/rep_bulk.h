@@ -59,10 +59,9 @@ typedef struct {
    UInt                   npts;
 } ClgRepBulkCurve;
 
-/* Build the lookup index and check the table. Returns the number of table
- * problems (0 == clean); the caller reports them. Call once at startup;
- * clg_rep_bulk_marginal is only valid after it returned 0. */
-UInt clg_rep_bulk_init(void);
+/* Assert that the generated table has every key in index order. Call once
+ * at startup before clg_rep_bulk_marginal. */
+void clg_rep_bulk_init(void);
 
 /* Marginal bulk cost of the element at `remaining_bytes` (bytes still to
  * execute before this element, a nonzero multiple of elem_bytes), in
