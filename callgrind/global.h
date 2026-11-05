@@ -128,6 +128,7 @@ struct _CommandLineOptions {
   Bool simulate_cache;      /* Call into cache simulator ? */
   Bool simulate_branch;     /* Call into branch prediction simulator ? */
   Bool cycle_estimation;    /* Estimate per-instruction cycles (Ct/Cl) ? */
+  Bool rep_bulk_cost;       /* Replace per-element REP cost by bulk curve ? */
 
   /* Call graph generation */
   Bool pop_on_jump;       /* Handle a jump between functions as ret+call */
@@ -279,6 +280,11 @@ struct _InstrInfo {
   UInt ct_incl;
   UInt cl_cost;
   UInt cl_incl;
+  /* REP bulk cost model classification (see rep_bulk.h). Only filled on
+   * first translation and only when the model is active; rep_bulk_op == 0
+   * means the instruction is not a supported rep-prefixed bulk copy. */
+  UChar rep_bulk_op;
+  UChar rep_elem_width;
 };
 
 
@@ -528,6 +534,14 @@ struct _exec_state {
   BBCC* nonskipped;
 
   Int call_stack_bottom; /* Index into fn_stack */
+
+  /* REP bulk cost model: the alignment class is latched once per REP
+   * operation from its first element, and the expected remaining count and
+   * destination detect the next operation. Saved/restored on thread and
+   * signal switches so an interrupted REP keeps its class. */
+  Addr       rep_next_dst; /* expected destination of the next element */
+  ULong      rep_next_rem; /* expected remaining count after last element */
+  UChar      rep_align;    /* CLG_REP_ALIGN_* latched at operation start */
 };
 
 /* Global state structures */
@@ -727,6 +741,10 @@ void CLG_(print_debug_usage)(void);
 
 /* from sim.c */
 void CLG_(init_eventsets)(void);
+/* REP bulk cost model: called at the IMark of each execution of a classified
+ * REP instruction. Args: inode, repeat count before VEX's decrement, source
+ * address (dst for STOS), destination address, guest DF. */
+void CLG_(log_rep_bulk)(InstrInfo*, ULong, Addr, Addr, Word);
 
 /* from main.c */
 Bool CLG_(get_debug_info)(Addr, const HChar **dirname,

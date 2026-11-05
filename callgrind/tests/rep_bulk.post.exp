@@ -1,0 +1,9 @@
+events: ok
+one_byte_bulk_cost: ok
+hot_lines_suppressed: ok
+instruction_refs_kept: ok
+bulk_cycles: ok
+backward: ok
+stos: ok
+cold_miss_refs: ok
+cache_independent_cycles: ok

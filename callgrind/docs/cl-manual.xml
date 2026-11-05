@@ -995,6 +995,29 @@ Also see <xref linkend="cl-manual.cycles"/>.</para>
     </listitem>
   </varlistentry>
 
+  <varlistentry id="clopt.rep-bulk-cost" xreflabel="--rep-bulk-cost">
+    <term>
+      <option><![CDATA[--rep-bulk-cost=<yes|no> [default: no] ]]></option>
+    </term>
+    <listitem>
+      <para>Model amd64 <computeroutput>rep movs</computeroutput> and
+      <computeroutput>rep stos</computeroutput> with a calibrated bulk cost
+      curve instead of the per-element model. Active only when cache
+      simulation and <option>--cycle-estimation=yes</option> are both
+      enabled, and not with <option>--simulate-wb=yes</option>,
+      <option>--cacheuse=yes</option> or non-amd64 guests.</para>
+      <para>For a modeled instruction, "Ct" and "Cl" both carry the curve
+      cost, and only data accesses that miss in L1 are reported as "Dr"/"Dw"
+      (so Dr equals D1mr and Dw equals D1mw); instruction-side counters and
+      the cache simulation are unchanged. <option>--rep-bulk-cost=no</option>
+      reproduces the per-element model exactly.</para>
+      <para>The curve was measured on disjoint, cache-resident buffers up to
+      16 KiB (MOVS) and 32 KiB (STOS); larger copies extend the last measured
+      slope. Overlapping or cache-miss-heavy copies are outside the
+      calibrated domain.</para>
+    </listitem>
+  </varlistentry>
+
   <varlistentry id="clopt.branch-sim" xreflabel="--branch-sim">
     <term>
       <option><![CDATA[--branch-sim=<yes|no> [default: no] ]]></option>
