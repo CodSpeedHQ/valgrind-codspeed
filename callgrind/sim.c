@@ -1300,35 +1300,38 @@ static unsigned rep_align_class(Addr src, Addr dst)
     return CLG_REP_ALIGN_OTHER;
 }
 
-/* `rem_after` is the repeat count after VEX decremented it. The curve delta
- * is charged to both Ct and Cl, so the consumer's sqrt(Ct*Cl) recovers it. */
-void CLG_(log_rep_bulk)(InstrInfo* ii, ULong rem_after, Addr src, Addr dst,
+/* `rem` is the repeat count before VEX decrements it, so 0 means the
+ * instruction finishes without another element. The curve delta is charged
+ * to both Ct and Cl, so the consumer's sqrt(Ct*Cl) recovers it. */
+void CLG_(log_rep_bulk)(InstrInfo* ii, ULong rem, Addr src, Addr dst,
                         Word dflag)
 {
     exec_state* es = &CLG_(current_state);
     unsigned    op = ii->rep_bulk_op;
     unsigned    width = ii->rep_elem_width;
-    ULong       rem_before = rem_after + 1;
     unsigned    dir = ((Long)dflag < 0) ? CLG_REP_DIR_BACKWARD
                                        : CLG_REP_DIR_FORWARD;
     ULong       delta;
     ULong *     cost_C, *global_C;
+
+    if (rem == 0)
+        return;
 
     /* The alignment class is latched from the operation's first element, so
      * address changes between elements cannot switch curves. The next
      * element continues iff it reports the count and destination expected
      * after the previous one; the instruction site cannot be compared since
      * VEX translates the first element as part of the preceding block. */
-    if (es->rep_next_rem != rem_before || es->rep_next_dst != dst)
+    if (es->rep_next_rem != rem || es->rep_next_dst != dst)
         es->rep_align = rep_align_class(src, dst);
-    es->rep_next_rem = rem_before - 1;
+    es->rep_next_rem = rem - 1;
     es->rep_next_dst = dir == CLG_REP_DIR_BACKWARD ? dst - width : dst + width;
 
     if (!es->collect)
         return;
 
     delta = clg_rep_bulk_marginal(op, width, dir, es->rep_align,
-                                  rem_before * (ULong)width, (ULong)width);
+                                  rem * (ULong)width, (ULong)width);
 
     if (es->nonskipped)
         cost_C = es->nonskipped->skipped + fullOffset(EG_CYCLES);

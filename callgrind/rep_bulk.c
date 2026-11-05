@@ -90,7 +90,8 @@ ULong clg_rep_bulk_marginal(unsigned op, unsigned elem_width,
 }
 
 /* Prefixes, then A4/A5 (MOVS) or AA/AB (STOS) as the last byte; REX must
- * directly precede the opcode. */
+ * directly precede the opcode. The 67 prefix (ECX/ESI/EDI) is not modeled:
+ * the helper reads the full 64-bit registers. */
 ClgRepBulkOp clg_rep_bulk_classify(const UChar* bytes, UInt len,
                                    UChar* elem_width)
 {
@@ -102,7 +103,6 @@ ClgRepBulkOp clg_rep_bulk_classify(const UChar* bytes, UInt len,
       switch (bytes[i]) {
       case 0xF3: rep = True; break;
       case 0x66: opsz16 = True; break;
-      case 0x67: break;
       default:
          if ((bytes[i] & 0xF0) != 0x40 || i + 2 != len)
             return CLG_REP_OP_NONE;

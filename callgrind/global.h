@@ -741,9 +741,9 @@ void CLG_(print_debug_usage)(void);
 
 /* from sim.c */
 void CLG_(init_eventsets)(void);
-/* REP bulk cost model: called once per executed element of a classified
- * REP instruction. Args: inode, repeat count after the decrement of this
- * element, source address (dst if none), destination address, guest DF. */
+/* REP bulk cost model: called at the IMark of each execution of a classified
+ * REP instruction. Args: inode, repeat count before VEX's decrement, source
+ * address (dst for STOS), destination address, guest DF. */
 void CLG_(log_rep_bulk)(InstrInfo*, ULong, Addr, Addr, Word);
 
 /* from main.c */
