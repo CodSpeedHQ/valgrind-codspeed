@@ -1117,28 +1117,21 @@ IRSB* CLG_(instrument)( VgCallbackClosure* closure,
 	    // also use it.
 	    curr_inode = next_InstrInfo (&clgs, isize);
 
+        // Classify rep movs/stos for the REP bulk cost model. Their bulk
+        // curve replaces the per-instruction cycle estimate below.
+        if (CLG_(clo).rep_bulk_cost && !clgs.seen_before)
+            curr_inode->rep_bulk_op = clg_rep_bulk_classify(
+                (const UChar*)cia, isize, &curr_inode->rep_elem_width);
+
         // Estimate this instruction's cycle cost by decoding the real
         // guest bytes. Only on first translation; values persist in the BB.
-        if (CLG_(clo).cycle_estimation && !clgs.seen_before) {
+        if (CLG_(clo).cycle_estimation && !clgs.seen_before
+            && !curr_inode->rep_bulk_op) {
             unsigned ct, cl;
             unsigned len = st->Ist.IMark.len ? st->Ist.IMark.len : isize;
             clg_cycle_cost((const unsigned char*)cia, len, &ct, &cl);
             curr_inode->ct_cost = ct;
             curr_inode->cl_cost = cl;
-        }
-
-        // Classify supported rep-prefixed bulk copies (rep movs/rep stos) for
-        // the REP bulk cost model. The decision is static per instruction.
-        if (CLG_(clo).rep_bulk_cost && !clgs.seen_before) {
-            curr_inode->rep_bulk_op = clg_rep_bulk_classify(
-                (const UChar*)cia, isize, &curr_inode->rep_elem_width);
-            if (curr_inode->rep_bulk_op != CLG_REP_OP_NONE) {
-                /* The calibrated bulk curve replaces this instruction's
-                 * static per-element cycle estimate completely: drop it from
-                 * both the dump-time charge and the inclusive prefix sums. */
-                curr_inode->ct_cost = 0;
-                curr_inode->cl_cost = 0;
-            }
         }
         addEvent_Ir( &clgs, curr_inode );
 	    break;
