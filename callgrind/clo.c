@@ -568,6 +568,7 @@ Bool CLG_(process_cmd_line_option)(const HChar* arg)
    else if VG_BOOL_CLO(arg, "--branch-sim",      CLG_(clo).simulate_branch) {}
 
    else if VG_BOOL_CLO(arg, "--cycle-estimation", CLG_(clo).cycle_estimation) {}
+   else if VG_BOOL_CLO(arg, "--rep-bulk-cost",    CLG_(clo).rep_bulk_cost) {}
    else {
        Bool isCachesimOption = (*CLG_(cachesim).parse_opt)(arg);
 
@@ -617,6 +618,8 @@ void CLG_(print_usage)(void)
 "    --collect-jumps=no|yes    Collect jumps? [no]\n"
 "    --collect-bus=no|yes      Collect global bus events? [no]\n"
 "    --cycle-estimation=no|yes Estimate per-instruction cycles (Ct/Cl)? [no]\n"
+"    --rep-bulk-cost=no|yes    Calibrated rep movs/stos cost, needs cache\n"
+"                              sim and --cycle-estimation=yes [yes]\n"
 #if CLG_EXPERIMENTAL
 "    --collect-alloc=no|yes    Collect memory allocation info? [no]\n"
 #endif
@@ -704,6 +707,7 @@ void CLG_(set_clo_defaults)(void)
   CLG_(clo).simulate_cache = False;
   CLG_(clo).simulate_branch = False;
   CLG_(clo).cycle_estimation = False;
+  CLG_(clo).rep_bulk_cost = True;
 
   /* Call graph */
   CLG_(clo).pop_on_jump = False;

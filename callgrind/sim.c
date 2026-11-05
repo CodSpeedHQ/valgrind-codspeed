@@ -29,6 +29,7 @@
 */
 
 #include "global.h"
+#include "rep_bulk.h"
 
 
 /* Notes:
@@ -1181,8 +1182,10 @@ static void log_1I1Dr(InstrInfo* ii, Addr data_addr, Word data_size)
        
 	inc_costs(IrRes, cost_Ir, 
 		  CLG_(current_state).cost + fullOffset(EG_IR) );
-	inc_costs(DrRes, cost_Dr,
-		  CLG_(current_state).cost + fullOffset(EG_DR) );
+	/* REP bulk model: keep data misses, the curve replaces L1-hit refs. */
+	if (!ii->rep_bulk_op || DrRes != L1_Hit)
+	    inc_costs(DrRes, cost_Dr,
+		      CLG_(current_state).cost + fullOffset(EG_DR) );
     }
 }
 
@@ -1209,8 +1212,9 @@ static void log_0I1Dr(InstrInfo* ii, Addr data_addr, Word data_size)
 	else
             cost_Dr = CLG_(cost_base) + ii->cost_offset + ii->eventset->offset[EG_DR];
 
-	inc_costs(DrRes, cost_Dr,
-		  CLG_(current_state).cost + fullOffset(EG_DR) );
+	if (!ii->rep_bulk_op || DrRes != L1_Hit)
+	    inc_costs(DrRes, cost_Dr,
+		      CLG_(current_state).cost + fullOffset(EG_DR) );
     }
 }
 
@@ -1244,8 +1248,9 @@ static void log_1I1Dw(InstrInfo* ii, Addr data_addr, Word data_size)
        
 	inc_costs(IrRes, cost_Ir,
 		  CLG_(current_state).cost + fullOffset(EG_IR) );
-	inc_costs(DwRes, cost_Dw,
-		  CLG_(current_state).cost + fullOffset(EG_DW) );
+	if (!ii->rep_bulk_op || DwRes != L1_Hit)
+	    inc_costs(DwRes, cost_Dw,
+		      CLG_(current_state).cost + fullOffset(EG_DW) );
     }
 }
 
@@ -1269,11 +1274,75 @@ static void log_0I1Dw(InstrInfo* ii, Addr data_addr, Word data_size)
 	else
             cost_Dw = CLG_(cost_base) + ii->cost_offset + ii->eventset->offset[EG_DW];
        
-	inc_costs(DwRes, cost_Dw,
-		  CLG_(current_state).cost + fullOffset(EG_DW) );
+	if (!ii->rep_bulk_op || DwRes != L1_Hit)
+	    inc_costs(DwRes, cost_Dw,
+		      CLG_(current_state).cost + fullOffset(EG_DW) );
     }
 }
 
+
+
+/*------------------------------------------------------------*/
+/*--- REP bulk cost model helper                           ---*/
+/*------------------------------------------------------------*/
+
+/* Alignment class from the pointers of the operation's first element (see
+ * rep_bulk.h). STOS and merged read-modify events pass src == dst. */
+static unsigned rep_align_class(Addr src, Addr dst)
+{
+    UInt so = (UInt)(src & 63);
+    UInt dofs = (UInt)(dst & 63);
+
+    if (so == 0 && dofs == 0)
+        return CLG_REP_ALIGN_ALIGNED;
+    if (so == 8 && dofs == 8)
+        return CLG_REP_ALIGN_SAME_UNALIGN;
+    return CLG_REP_ALIGN_OTHER;
+}
+
+/* Called once per executed element of a supported rep-prefixed bulk copy;
+ * `rem_after` is the repeat count after VEX decremented it. The curve delta
+ * is charged to both Ct and Cl, so the consumer's sqrt(Ct*Cl) recovers it. */
+static void log_rep_bulk(InstrInfo* ii, ULong rem_after, Addr src, Addr dst,
+                         Word dflag)
+{
+    exec_state* es = &CLG_(current_state);
+    unsigned    op = ii->rep_bulk_op;
+    unsigned    width = ii->rep_elem_width;
+    ULong       rem_before = rem_after + 1;
+    unsigned    dir = ((Long)dflag < 0) ? CLG_REP_DIR_BACKWARD
+                                       : CLG_REP_DIR_FORWARD;
+    ULong       delta;
+    ULong *     cost_C, *global_C;
+
+    /* The alignment class is latched from the operation's first element, so
+     * address changes between elements cannot switch curves. The next
+     * element continues iff it reports the count and destination expected
+     * after the previous one; the instruction site cannot be compared since
+     * VEX translates the first element as part of the preceding block. */
+    if (es->rep_next_rem != rem_before || es->rep_next_dst != dst)
+        es->rep_align = rep_align_class(src, dst);
+    es->rep_next_rem = rem_before - 1;
+    es->rep_next_dst = dir == CLG_REP_DIR_BACKWARD ? dst - width : dst + width;
+
+    if (!es->collect)
+        return;
+
+    delta = clg_rep_bulk_marginal(op, width, dir, es->rep_align,
+                                  rem_before * (ULong)width, (ULong)width);
+
+    if (es->nonskipped)
+        cost_C = es->nonskipped->skipped + fullOffset(EG_CYCLES);
+    else
+        cost_C = CLG_(cost_base) + ii->cost_offset
+                 + ii->eventset->offset[EG_CYCLES];
+    global_C = es->cost + fullOffset(EG_CYCLES);
+
+    cost_C[0] += delta;
+    cost_C[1] += delta;
+    global_C[0] += delta;
+    global_C[1] += delta;
+}
 
 
 /*------------------------------------------------------------*/
@@ -1289,6 +1358,30 @@ static void cachesim_post_clo_init(void)
 {
   /* Cache configurations. */
   cache_t  I1c, D1c, LLc;
+
+  /* REP bulk cost model (on by default). It needs real cache simulation and
+   * the per-instruction cycle model it replaces, and is currently amd64-only
+   * because it reads the repeat counter and DF from the guest state. In any
+   * other mode it stays inert, so prior behavior is unchanged. */
+  if (CLG_(clo).rep_bulk_cost) {
+     Bool usable = CLG_(clo).simulate_cache && CLG_(clo).cycle_estimation
+                   && !clo_simulate_writeback && !clo_collect_cacheuse;
+#if !defined(VGA_amd64)
+     usable = False;
+#endif
+     if (!usable) {
+        CLG_(clo).rep_bulk_cost = False;
+     } else {
+        UInt bad = clg_rep_bulk_init();
+        if (bad > 0) {
+           VG_(message)(Vg_UserMsg,
+                        "--rep-bulk-cost: calibrated REP bulk table rejected "
+                        "(%u problem(s)); keeping the per-element model.\n",
+                        bad);
+           CLG_(clo).rep_bulk_cost = False;
+        }
+     }
+  }
 
   /* Initialize access handlers */
   if (!CLG_(clo).simulate_cache) {
@@ -1366,6 +1459,11 @@ static void cachesim_post_clo_init(void)
   CLG_(cachesim).log_0I1Dw = log_0I1Dw;
   CLG_(cachesim).log_0I1Dr_name = "log_0I1Dr";
   CLG_(cachesim).log_0I1Dw_name = "log_0I1Dw";
+
+  if (CLG_(clo).rep_bulk_cost) {
+     CLG_(cachesim).log_rep_bulk = log_rep_bulk;
+     CLG_(cachesim).log_rep_bulk_name = "log_rep_bulk";
+  }
 
   if (clo_collect_cacheuse) {
 

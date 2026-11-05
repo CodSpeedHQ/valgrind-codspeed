@@ -44,9 +44,12 @@ EXTRA_DIST = \
 	find-source.vgtest find-source.stderr.exp find-source.post.exp \
 	inline-samefile.vgtest inline-samefile.stderr.exp inline-samefile.stdout.exp inline-samefile.post.exp \
 	inline-crossfile.vgtest inline-crossfile.stderr.exp inline-crossfile.stdout.exp inline-crossfile.post.exp \
-	inline-crossfile-helper1.h inline-crossfile-helper2.h filter_inline
+	inline-crossfile-helper1.h inline-crossfile-helper2.h filter_inline \
+	rep_bulk.c rep_bulk.vgtest rep_bulk_legacy.vgtest \
+	rep_bulk.post.exp rep_bulk_legacy.post.exp rep_bulk_check.pl \
+	rep_bulk.stderr.exp rep_bulk_legacy.stderr.exp
 
-check_PROGRAMS = clreq register_desc register_desc_threads find_debuginfo simwork threads inline-samefile inline-crossfile runtime_obj_skip_c runtime_obj_skip_underflow deterministic_rng
+check_PROGRAMS = clreq register_desc register_desc_threads find_debuginfo simwork threads inline-samefile inline-crossfile runtime_obj_skip_c runtime_obj_skip_underflow deterministic_rng rep_bulk
 if HAVE_PR_GET_AUXV
 check_PROGRAMS += prctl_get_auxv
 endif
@@ -57,6 +60,10 @@ AM_CXXFLAGS += $(AM_FLAG_M3264_PRI)
 # Inline tests need -O2 to enable inlining and -g for debug info
 inline_samefile_CFLAGS = $(AM_CFLAGS) -O2 -g
 inline_crossfile_CFLAGS = $(AM_CFLAGS) -O2 -g
+
+# Keep the measured part free of avoidable stack traffic: inline asm cases
+# with the pointers already in registers.
+rep_bulk_CFLAGS = $(AM_CFLAGS) -O2
 
 threads_LDADD = -lpthread
 deterministic_rng_LDADD = -lpthread

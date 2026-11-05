@@ -1,0 +1,5 @@
+prereq: rm -f callgrind.rep_bulk.out* && test "$(uname -m)" = x86_64
+prog: rep_bulk
+vgopts: -q --combine-dumps=yes --cache-sim=yes --cycle-estimation=yes --rep-bulk-cost=no --I1=32768,8,64 --D1=32768,8,64 --LL=8388608,16,64 --callgrind-out-file=callgrind.rep_bulk.out
+post: perl ./rep_bulk_check.pl callgrind.rep_bulk.out off
+cleanup: rm -f callgrind.rep_bulk.out callgrind.rep_bulk.out.*

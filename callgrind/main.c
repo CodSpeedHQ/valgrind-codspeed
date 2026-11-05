@@ -40,6 +40,17 @@
 #include "cg_branchpred.c"
 
 #include "cycledecode.h"
+#include "rep_bulk.h"
+
+#if defined(VGA_amd64)
+/* REP bulk cost model: read the repeat counter and DF from the guest state.
+ * VEX translates rep movs/stos on amd64 as one element per BB execution with
+ * an unconditional jump back to the instruction, and uses RCX (or ECX with a
+ * 67 prefix) as the repeat counter, decremented before the element access. */
+#include "libvex_guest_amd64.h"
+#define CLG_REP_COUNT_OFF offsetof(VexGuestAMD64State, guest_RCX)
+#define CLG_REP_DFLAG_OFF offsetof(VexGuestAMD64State, guest_DFLAG)
+#endif
 
 /*------------------------------------------------------------*/
 /*--- Global variables                                     ---*/
@@ -397,6 +408,11 @@ static void flushEvents ( ClgState* clgs )
 	       // Ir event always is first for a guest instruction
 	       CLG_ASSERT(ev->inode->eventset == 0);
 	       ev->inode->eventset = CLG_(sets).base;
+	       /* REP bulk model: REP instructions carry per-instruction Ct/Cl
+	        * slots, filled at runtime from the calibrated bulk curve. */
+	       if (ev->inode->rep_bulk_op)
+		   ev->inode->eventset =
+		       CLG_(add_event_group)(ev->inode->eventset, EG_CYCLES);
 	       break;
 	   case Ev_Dr:
                // extend event set by Dr counters
@@ -593,6 +609,59 @@ static void flushEvents ( ClgState* clgs )
 			      argv );
       addStmtToIRSB( clgs->sbOut, IRStmt_Dirty(di) );
    }
+
+   /* REP bulk cost model: charge one calibrated bulk delta per executed
+    * element. Emitted after the normal memory helpers; the cache simulation
+    * is unchanged. `Get(RCX)` is the repeat count
+    * *after* VEX's decrement for this element (VEX decrements before the
+    * access), so the helper adds 1 back. */
+#if defined(VGA_amd64)
+   if (CLG_(cachesim).log_rep_bulk) {
+      InstrInfo* rii = 0;
+      IRExpr*    src = 0;
+      IRExpr*    dst = 0;
+      Int        j;
+
+      for (j = clgs->events_used - 1; j >= 0; j--) {
+         Event* e = &clgs->events[j];
+         if (e->tag != Ev_Dr && e->tag != Ev_Dw && e->tag != Ev_Dm)
+            continue;
+         if (!rii)
+            rii = e->inode;
+         if (e->inode != rii)
+            continue;
+         if (e->tag == Ev_Dr) {
+            if (!src)
+               src = e->Ev.Dr.ea;
+         } else {
+            if (!dst)
+               dst = get_Event_dea(e);
+         }
+      }
+
+      if (rii && rii->rep_bulk_op && dst) {
+         /* The two addresses only classify alignment once per operation;
+          * STOS and merged read-modify events have no separate source.
+          * A 67-prefixed REP needs no mask: VEX writes the decremented ECX
+          * zero-extended into RCX before the element's access. */
+         IRTemp count_tmp = newIRTemp(clgs->sbOut->tyenv, Ity_I64);
+         IRTemp dflag_tmp = newIRTemp(clgs->sbOut->tyenv, Ity_I64);
+         addStmtToIRSB(clgs->sbOut, IRStmt_WrTmp(
+             count_tmp, IRExpr_Get(CLG_REP_COUNT_OFF, Ity_I64)));
+         addStmtToIRSB(clgs->sbOut, IRStmt_WrTmp(
+             dflag_tmp, IRExpr_Get(CLG_REP_DFLAG_OFF, Ity_I64)));
+
+         di = unsafeIRDirty_0_N(
+             0, CLG_(cachesim).log_rep_bulk_name,
+             VG_(fnptr_to_fnentry)(CLG_(cachesim).log_rep_bulk),
+             mkIRExprVec_5( mkIRExpr_HWord((HWord)rii),
+                            IRExpr_RdTmp(count_tmp),
+                            src ? src : dst, dst,
+                            IRExpr_RdTmp(dflag_tmp) ) );
+         addStmtToIRSB( clgs->sbOut, IRStmt_Dirty(di) );
+      }
+   }
+#endif
 
    clgs->events_used = 0;
 }
@@ -795,6 +864,8 @@ InstrInfo* next_InstrInfo ( ClgState* clgs, UInt instr_size )
        ii->ct_incl = 0;
        ii->cl_cost = 0;
        ii->cl_incl = 0;
+       ii->rep_bulk_op = 0;
+       ii->rep_elem_width = 0;
    }
 
    clgs->ii_index++;
@@ -1054,6 +1125,22 @@ IRSB* CLG_(instrument)( VgCallbackClosure* closure,
             clg_cycle_cost((const unsigned char*)cia, len, &ct, &cl);
             curr_inode->ct_cost = ct;
             curr_inode->cl_cost = cl;
+        }
+
+        // Classify supported rep-prefixed bulk copies (rep movs/rep stos) for
+        // the REP bulk cost model. The decision is static per instruction.
+        if (CLG_(clo).rep_bulk_cost && !clgs.seen_before) {
+            ClgRepBulkInfo ri;
+            clg_rep_bulk_classify((const unsigned char*)cia, isize, &ri);
+            curr_inode->rep_bulk_op = ri.op;
+            curr_inode->rep_elem_width = ri.elem_width;
+            if (ri.op != CLG_REP_OP_NONE) {
+                /* The calibrated bulk curve replaces this instruction's
+                 * static per-element cycle estimate completely: drop it from
+                 * both the dump-time charge and the inclusive prefix sums. */
+                curr_inode->ct_cost = 0;
+                curr_inode->cl_cost = 0;
+            }
         }
         addEvent_Ir( &clgs, curr_inode );
 	    break;
