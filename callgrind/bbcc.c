@@ -571,6 +571,7 @@ void CLG_(setup_bbcc)(BB* bb)
   Bool isConditionalJump;
   Int passed = 0, csp;
   Bool ret_without_call = False;
+  Bool ret_below_frame = False;
   Int popcount_on_return = 1;
 
   CLG_DEBUG(3,"+ setup_bbcc(BB %#lx)\n", bb_addr(bb));
@@ -664,11 +665,19 @@ void CLG_(setup_bbcc)(BB* bb)
        * - SP has the same value as when reaching the current function
        *   and the address of this BB is the return address of last call
        *   (we even allow to leave multiple frames if the SP stays the
-       *    same and we find a matching return address)
-       * The latter condition is needed because on PPC, SP can stay
-       * the same over CALL=b(c)l / RET=b(c)lr boundaries
+       *    same and we find a matching return address), or
+       * - SP is still below the current stack frame and the address of
+       *   this BB is the return address of last call
+       * The second condition is needed because on PPC, SP can stay
+       * the same over CALL=b(c)l / RET=b(c)lr boundaries.
+       * The third one is needed for callees that leave data on the stack
+       * for their caller, e.g. V8's Sparkplug prologue, which builds its
+       * caller's frame and returns on top of it.
        */
-      if (sp < top_ce->sp) popcount_on_return = 0;
+      if (sp < top_ce->sp) {
+	  if (top_ce->ret_addr == bb_addr(bb)) ret_below_frame = True;
+	  else popcount_on_return = 0;
+      }
       else if (top_ce->sp == sp) {
 	  while(1) {
 	      if (top_ce->ret_addr == bb_addr(bb)) break;
@@ -787,6 +796,10 @@ void CLG_(setup_bbcc)(BB* bb)
        */	
       handleUnderflow(bb);
       CLG_(pop_call_stack)();
+    }
+    else if (ret_below_frame) {
+	/* SP-based unwinding never pops a frame SP is still below. */
+	CLG_(pop_call_stack)();
     }
     else {
 	CLG_ASSERT(popcount_on_return >0);

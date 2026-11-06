@@ -4,7 +4,7 @@ include $(top_srcdir)/Makefile.tool-tests.am
 SUBDIRS = .
 DIST_SUBDIRS = .
 
-dist_noinst_SCRIPTS = filter_stderr filter_inline make_capped_true
+dist_noinst_SCRIPTS = filter_stderr filter_inline make_capped_true print_calls
 
 EXTRA_DIST = \
 	ann1.post.exp ann1.stderr.exp ann1.vgtest \
@@ -28,6 +28,11 @@ EXTRA_DIST = \
 	runtime_obj_skip_c.c runtime_obj_skip_c_lib.c \
 	runtime_obj_skip_underflow.vgtest runtime_obj_skip_underflow.stderr.exp runtime_obj_skip_underflow.post.exp \
 	runtime_obj_skip_underflow.c runtime_obj_skip_underflow_lib.c \
+	ret_below_frame.vgtest ret_below_frame.stderr.exp ret_below_frame.stdout.exp \
+	ret_below_frame.post.exp \
+	ret_below_frame_node.vgtest ret_below_frame_node.stderr.exp \
+	ret_below_frame_node.stdout.exp ret_below_frame_node.post.exp \
+	ret_below_frame_node.js \
 	bug497723.stderr.exp bug497723.post.exp bug497723.vgtest \
 	simwork1.vgtest simwork1.stdout.exp simwork1.stderr.exp \
 	simwork2.vgtest simwork2.stdout.exp simwork2.stderr.exp \
@@ -46,7 +51,7 @@ EXTRA_DIST = \
 	inline-crossfile.vgtest inline-crossfile.stderr.exp inline-crossfile.stdout.exp inline-crossfile.post.exp \
 	inline-crossfile-helper1.h inline-crossfile-helper2.h filter_inline
 
-check_PROGRAMS = clreq register_desc register_desc_threads find_debuginfo simwork threads inline-samefile inline-crossfile runtime_obj_skip_c runtime_obj_skip_underflow deterministic_rng
+check_PROGRAMS = clreq register_desc register_desc_threads find_debuginfo simwork threads inline-samefile inline-crossfile runtime_obj_skip_c runtime_obj_skip_underflow deterministic_rng ret_below_frame
 if HAVE_PR_GET_AUXV
 check_PROGRAMS += prctl_get_auxv
 endif

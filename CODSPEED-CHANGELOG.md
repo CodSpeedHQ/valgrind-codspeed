@@ -4,6 +4,19 @@ This file documents changes made to Valgrind for CodSpeed integration, beyond th
 
 ## Fixes
 
+### Callgrind: end a call when it returns with SP below its frame
+
+Callgrind treated a `ret` as a return only when SP moved back above the
+frame of the call. A function that returns with SP lower than it was called
+with, because it builds a stack frame for its caller, was therefore recorded
+as calling back into its caller, and everything the caller did afterwards
+appeared under it. V8's Sparkplug prologue (`Builtins_BaselineOutOfLinePrologue`)
+works this way, so with the node binary instrumented, every JS function's
+callees were attributed to the shared prologue.
+
+A `ret` to the return address recorded for the innermost call now ends that
+call even when SP is still below its frame.
+
 ### Linux: glibc reports the main thread stack size correctly again
 
 `pthread_getattr_np` reports the main thread's stack size as `RLIMIT_STACK`
