@@ -1,0 +1,5 @@
+#! /bin/sh
+
+# Print each "caller -> callee" pair of a callgrind output file written with
+# --compress-strings=no, once, sorted.
+awk '/^fn=/ { fn = substr($0, 4) } /^cfn=/ { print fn " -> " substr($0, 5) }' "$1" | sort -u
