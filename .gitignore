@@ -170,6 +170,7 @@
 /callgrind/tests/prctl_get_auxv
 /callgrind/tests/deterministic_rng
 /callgrind/tests/ret_below_frame
+/callgrind/tests/pop_ra_tail_jump
 /callgrind/tests/*.so
 /callgrind/tests/out_dbg
 /callgrind/tests/test-suite-overall.log

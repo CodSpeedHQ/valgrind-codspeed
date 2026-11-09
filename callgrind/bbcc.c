@@ -572,7 +572,7 @@ void CLG_(setup_bbcc)(BB* bb)
   Int passed = 0, csp;
   Bool ret_without_call = False;
   Bool ret_below_frame = False;
-  Bool popped_on_jump = False;
+  Bool jump_keeps_sp = False;
   Int popcount_on_return = 1;
 
   CLG_DEBUG(3,"+ setup_bbcc(BB %#lx)\n", bb_addr(bb));
@@ -727,10 +727,19 @@ void CLG_(setup_bbcc)(BB* bb)
 		  bb->fn->name, bb->obj->name,
 		  ret_without_call?" (RET w/o CALL)":"");
 
+	fn_node* jumping_fn = CLG_(get_fn_node)(last_bb);
+
+	if (jumping_fn->pop_on_jump &&
+	    jumping_fn == CLG_(current_state).frameless_fn) {
+	    /* The jumping function has no frame left to replace: the top frame
+	     * is its caller's, so the jump nests there at the current SP. */
+	    CLG_DEBUG(1,"     Nest frameless jump!\n");
+	    jump_keeps_sp = True;
+	}
 	/* Entries without a jcc (skipped frames, frames seeded from the native
 	 * stack at START) have no call to replace, so the jump nests instead. */
-	if (CLG_(get_fn_node)(last_bb)->pop_on_jump && (csp>0) &&
-	    CLG_(current_call_stack).entry[csp-1].jcc) {
+	else if (jumping_fn->pop_on_jump && (csp>0) &&
+		 CLG_(current_call_stack).entry[csp-1].jcc) {
 
 	    call_entry* top_ce = &(CLG_(current_call_stack).entry[csp-1]);
 
@@ -741,7 +750,7 @@ void CLG_(setup_bbcc)(BB* bb)
 	    sp = top_ce->sp;
 	    passed = top_ce->jcc->jmp;
 	    CLG_(pop_call_stack)();
-	    popped_on_jump = True;
+	    jump_keeps_sp = True;
 	}
 
 	jmpkind = jk_Call;
@@ -785,7 +794,8 @@ void CLG_(setup_bbcc)(BB* bb)
   /* Handle CALL/RET and update context to get correct BBCC */
   
   if (jmpkind == jk_Return) {
-    
+    CLG_(current_state).frameless_fn = 0;
+
     if ((csp == 0) || 
 	((CLG_(current_fn_stack).top > CLG_(current_fn_stack).bottom) &&
 	 ( *(CLG_(current_fn_stack).top-1)==0)) ) {
@@ -806,17 +816,25 @@ void CLG_(setup_bbcc)(BB* bb)
     }
   }
   else {
+    csp = CLG_(current_call_stack).sp;
+    fn_node* top_fn = (csp>0 && CLG_(current_call_stack).entry[csp-1].jcc) ?
+      CLG_(current_call_stack).entry[csp-1].jcc->to->cxt->fn[0] : 0;
     Int unwind_count = CLG_(unwind_call_stack)(sp, 0);
     if (unwind_count > 0) {
       /* if unwinding was done, this actually is a return */
       jmpkind = jk_Return;
+      /* Unless the code still runs in the unwound callee: it popped its
+       * return address and keeps running on its caller's frame. */
+      CLG_(current_state).frameless_fn =
+	(top_fn == CLG_(get_fn_node)(bb)) ? top_fn : 0;
     }
     
     if (jmpkind == jk_Call) {
       delayed_push = True;
+      CLG_(current_state).frameless_fn = 0;
 
       csp = CLG_(current_call_stack).sp;
-      if (call_emulation && csp>0 && !popped_on_jump)
+      if (call_emulation && csp>0 && !jump_keeps_sp)
 	sp = CLG_(current_call_stack).entry[csp-1].sp;	
 
     }

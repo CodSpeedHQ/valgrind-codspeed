@@ -38,6 +38,8 @@ EXTRA_DIST = \
 	separate_callers_all_node.js separate_callers_all_node.post \
 	pop_on_jump_node.vgtest pop_on_jump_node.stderr.exp \
 	pop_on_jump_node.stdout.exp pop_on_jump_node.post.exp \
+	pop_ra_tail_jump.vgtest pop_ra_tail_jump.stderr.exp \
+	pop_ra_tail_jump.stdout.exp pop_ra_tail_jump.post.exp \
 	bug497723.stderr.exp bug497723.post.exp bug497723.vgtest \
 	simwork1.vgtest simwork1.stdout.exp simwork1.stderr.exp \
 	simwork2.vgtest simwork2.stdout.exp simwork2.stderr.exp \
@@ -56,7 +58,7 @@ EXTRA_DIST = \
 	inline-crossfile.vgtest inline-crossfile.stderr.exp inline-crossfile.stdout.exp inline-crossfile.post.exp \
 	inline-crossfile-helper1.h inline-crossfile-helper2.h filter_inline
 
-check_PROGRAMS = clreq register_desc register_desc_threads find_debuginfo simwork threads inline-samefile inline-crossfile runtime_obj_skip_c runtime_obj_skip_underflow deterministic_rng ret_below_frame
+check_PROGRAMS = clreq register_desc register_desc_threads find_debuginfo simwork threads inline-samefile inline-crossfile runtime_obj_skip_c runtime_obj_skip_underflow deterministic_rng ret_below_frame pop_ra_tail_jump
 if HAVE_PR_GET_AUXV
 check_PROGRAMS += prctl_get_auxv
 endif

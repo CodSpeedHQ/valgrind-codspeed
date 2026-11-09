@@ -1,0 +1,4 @@
+caller -> push_arg_then_jump
+caller -> target
+main -> caller
+target -> leaf

@@ -25,6 +25,14 @@ below instead of the replaced one, so its return was often not recognized,
 and the caller was recorded as called again from the jump target. In node,
 OpenSSL's `OPENSSL_LH_doall` showed up 179 times nested in one call chain.
 
+### Callgrind: `--pop-on-jump` keeps the caller of a callee that popped its return address
+
+A callee that pops its return address and then tail-jumps (V8's
+`Builtins_InterpreterPushUndefinedAndArgsThenCall` does this for every JS
+call from Ignition bytecode) has its frame ended by the SP rise. Its jump
+then replaced the caller's frame instead, so the jump target was recorded
+under the caller's caller. The jump target now nests under the caller.
+
 ### Linux: glibc reports the main thread stack size correctly again
 
 `pthread_getattr_np` reports the main thread's stack size as `RLIMIT_STACK`
