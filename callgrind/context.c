@@ -160,22 +160,39 @@ static Bool is_cxt(UWord hash, fn_node** fn, Context* cxt)
     return True;
 }
 
+/* Number of functions in the context of the top of a function stack.
+ *
+ * With --separate-callers=all, a function is separated by its whole call
+ * chain. Runtime code like V8's builtins and trampolines sits between most
+ * pairs of JS functions; keeping one node per builtin joins every JS caller
+ * to every JS callee through it, which merges unrelated call chains and forms
+ * false cycles. */
+static UInt cxt_size(fn_node** fn)
+{
+    Int size = (*fn)->separate_callers + 1;
+    if (size <= 0) size = -size + 1;
+
+    if (!CLG_(clo).separate_callers_all) return size;
+
+    for (size = 0; *fn != 0; fn--) size++;
+    return size;
+}
+
 /**
  * Allocate new Context structure
  */
-static Context* new_cxt(fn_node** fn)
+static Context* new_cxt(fn_node** fn, UInt size)
 {
     Context* cxt;
     UInt idx, offset;
     UWord hash;
-    int size, recs;
+    int recs;
     fn_node* top_fn;
 
     CLG_ASSERT(fn);
     top_fn = *fn;
     if (top_fn == 0) return 0;
 
-    size = top_fn->separate_callers +1;
     recs = top_fn->separate_recursions;
     if (recs<1) recs=1;
 
@@ -231,8 +248,7 @@ Context* CLG_(get_cxt)(fn_node** fn)
 
     CLG_ASSERT(fn != 0);
     if (*fn == 0) return 0;
-    size = (*fn)->separate_callers+1;
-    if (size<=0) { size = -size+1; }
+    size = cxt_size(fn);
 
     CLG_DEBUG(5, "+ get_cxt(fn '%s'): size %u\n",
                 (*fn)->name, size);
@@ -255,7 +271,7 @@ Context* CLG_(get_cxt)(fn_node** fn)
     }
 
     if (!cxt)
-        cxt = new_cxt(fn);
+        cxt = new_cxt(fn, size);
 
     (*fn)->last_cxt = cxt;
 

@@ -572,6 +572,7 @@ void CLG_(setup_bbcc)(BB* bb)
   Int passed = 0, csp;
   Bool ret_without_call = False;
   Bool ret_below_frame = False;
+  Bool popped_on_jump = False;
   Int popcount_on_return = 1;
 
   CLG_DEBUG(3,"+ setup_bbcc(BB %#lx)\n", bb_addr(bb));
@@ -726,23 +727,21 @@ void CLG_(setup_bbcc)(BB* bb)
 		  bb->fn->name, bb->obj->name,
 		  ret_without_call?" (RET w/o CALL)":"");
 
-	if (CLG_(get_fn_node)(last_bb)->pop_on_jump && (csp>0)) {
+	/* Entries without a jcc (skipped frames, frames seeded from the native
+	 * stack at START) have no call to replace, so the jump nests instead. */
+	if (CLG_(get_fn_node)(last_bb)->pop_on_jump && (csp>0) &&
+	    CLG_(current_call_stack).entry[csp-1].jcc) {
 
 	    call_entry* top_ce = &(CLG_(current_call_stack).entry[csp-1]);
-	    
-	    if (top_ce->jcc) {
 
-		CLG_DEBUG(1,"     Pop on Jump!\n");
+	    CLG_DEBUG(1,"     Pop on Jump!\n");
 
-		/* change source for delayed push */
-		CLG_(current_state).bbcc = top_ce->jcc->from;
-		sp = top_ce->sp;
-		passed = top_ce->jcc->jmp;
-		CLG_(pop_call_stack)();
-	    }
-	    else {
-		CLG_ASSERT(CLG_(current_state).nonskipped != 0);
-	    }
+	    /* change source for delayed push */
+	    CLG_(current_state).bbcc = top_ce->jcc->from;
+	    sp = top_ce->sp;
+	    passed = top_ce->jcc->jmp;
+	    CLG_(pop_call_stack)();
+	    popped_on_jump = True;
 	}
 
 	jmpkind = jk_Call;
@@ -817,7 +816,7 @@ void CLG_(setup_bbcc)(BB* bb)
       delayed_push = True;
 
       csp = CLG_(current_call_stack).sp;
-      if (call_emulation && csp>0)
+      if (call_emulation && csp>0 && !popped_on_jump)
 	sp = CLG_(current_call_stack).entry[csp-1].sp;	
 
     }

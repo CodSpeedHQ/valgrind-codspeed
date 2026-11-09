@@ -875,11 +875,13 @@ Also see <xref linkend="cl-manual.cycles"/>.</para>
 
   <varlistentry id="opt.separate-callers" xreflabel="--separate-callers">
     <term>
-      <option><![CDATA[--separate-callers=<callers> [default: 0] ]]></option>
+      <option><![CDATA[--separate-callers=<callers>|all [default: 0] ]]></option>
     </term>
     <listitem>
       <para>Separate contexts by at most &lt;callers&gt; functions in the
-      call chain. See <xref linkend="cl-manual.cycles"/>.</para>
+      call chain. With <option>all</option>, every function is separated by
+      its whole call chain, so each distinct stack gets its own context.
+      See <xref linkend="cl-manual.cycles"/>.</para>
     </listitem>
   </varlistentry>
 

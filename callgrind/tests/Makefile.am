@@ -33,6 +33,11 @@ EXTRA_DIST = \
 	ret_below_frame_node.vgtest ret_below_frame_node.stderr.exp \
 	ret_below_frame_node.stdout.exp ret_below_frame_node.post.exp \
 	ret_below_frame_node.js \
+	separate_callers_all_node.vgtest separate_callers_all_node.stderr.exp \
+	separate_callers_all_node.stdout.exp separate_callers_all_node.post.exp \
+	separate_callers_all_node.js separate_callers_all_node.post \
+	pop_on_jump_node.vgtest pop_on_jump_node.stderr.exp \
+	pop_on_jump_node.stdout.exp pop_on_jump_node.post.exp \
 	bug497723.stderr.exp bug497723.post.exp bug497723.vgtest \
 	simwork1.vgtest simwork1.stdout.exp simwork1.stderr.exp \
 	simwork2.vgtest simwork2.stdout.exp simwork2.stderr.exp \
