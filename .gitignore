@@ -169,6 +169,7 @@
 /callgrind/tests/runtime_obj_skip_underflow
 /callgrind/tests/prctl_get_auxv
 /callgrind/tests/deterministic_rng
+/callgrind/tests/deterministic_time
 /callgrind/tests/*.so
 /callgrind/tests/out_dbg
 /callgrind/tests/test-suite-overall.log

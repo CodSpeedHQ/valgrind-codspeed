@@ -795,6 +795,8 @@ ULong arm64g_dirtyhelper_MRS_DCZID_EL0 ( void )
 /* Horrible hack.  On non-arm64 platforms, return 0. */
 ULong arm64g_dirtyhelper_MRS_CNTVCT_EL0 ( void )
 {
+   if (vex_virtual_tsc)
+      return *vex_virtual_tsc;
 #  if defined(__aarch64__) && !defined(__arm__)
    ULong w = 0x5555555555555555ULL; /* overwritten */
    __asm__ __volatile__("mrs %0, cntvct_el0" : "=r"(w));
@@ -810,6 +812,8 @@ ULong arm64g_dirtyhelper_MRS_CNTVCT_EL0 ( void )
 /* Horrible hack.  On non-arm64 platforms, return 0. */
 ULong arm64g_dirtyhelper_MRS_CNTFRQ_EL0 ( void )
 {
+   if (vex_virtual_tsc)
+      return vex_virtual_tsc_hz;
 #  if defined(__aarch64__) && !defined(__arm__)
    ULong w = 0x5555555555555555ULL; /* overwritten */
    __asm__ __volatile__("mrs %0, cntfrq_el0" : "=r"(w));
