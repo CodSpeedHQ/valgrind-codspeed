@@ -1,3 +1,9 @@
+valgrind (1:3.26.0-0codspeed13) UNRELEASED; urgency=medium
+
+  * fix(initimg): keep glibc's reported main stack size near RLIMIT_STACK (#62)
+
+ -- Adrien Cacciaguerra <adrien@codspeed.io>  Mon, 09 Nov 2026 15:59:57 +0000
+
 valgrind (1:3.26.0-0codspeed12) UNRELEASED; urgency=medium
 
   * fix(vex): decode arm64 MRS of all EL0-visible ID registers (#59)
