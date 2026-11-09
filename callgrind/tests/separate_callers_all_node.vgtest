@@ -1,0 +1,6 @@
+prereq: ../../tests/arch_test amd64 && command -v node >/dev/null
+prog-asis: node
+args: --perf-basic-prof --always-sparkplug --no-opt --no-maglev separate_callers_all_node.js
+vgopts: --compress-strings=no --separate-callers=all --pop-on-jump --callgrind-out-file=callgrind.out.separate_callers_all_node
+post: ./separate_callers_all_node.post
+cleanup: rm -f callgrind.out.separate_callers_all_node isolate-*-v8.log

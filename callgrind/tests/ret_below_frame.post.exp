@@ -1,0 +1,6 @@
+main -> with_prologue_a
+main -> with_prologue_b
+with_prologue_a -> frame_prologue
+with_prologue_a -> leaf_a
+with_prologue_b -> frame_prologue
+with_prologue_b -> leaf_b

@@ -112,6 +112,7 @@ struct _CommandLineOptions {
   Bool separate_threads; /* Separate threads in dump? */
   Int  separate_callers; /* Separate dependent on how many callers? */
   Int  separate_recursions; /* Max level of recursions to separate */
+  Bool separate_callers_all; /* Separate by the whole call chain? */
   Bool skip_plt;         /* Skip functions in PLT section? */
   Bool skip_direct_recursion; /* Increment direct recursions the level? */
 
@@ -526,6 +527,9 @@ struct _exec_state {
   Int   jmps_passed;
   BBCC* bbcc;      /* last BB executed */
   BBCC* nonskipped;
+  /* Function whose frame an SP rise unwound while it kept running (e.g. a
+   * callee popping its return address before a tail jump), 0 otherwise. */
+  fn_node* frameless_fn;
 
   Int call_stack_bottom; /* Index into fn_stack */
 };

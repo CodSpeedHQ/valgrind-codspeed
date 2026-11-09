@@ -4,6 +4,35 @@ This file documents changes made to Valgrind for CodSpeed integration, beyond th
 
 ## Fixes
 
+### Callgrind: end a call when it returns with SP below its frame
+
+Callgrind treated a `ret` as a return only when SP moved back above the
+frame of the call. A function that returns with SP lower than it was called
+with, because it builds a stack frame for its caller, was therefore recorded
+as calling back into its caller, and everything the caller did afterwards
+appeared under it. V8's Sparkplug prologue (`Builtins_BaselineOutOfLinePrologue`)
+works this way, so with the node binary instrumented, every JS function's
+callees were attributed to the shared prologue.
+
+A `ret` to the return address recorded for the innermost call now ends that
+call even when SP is still below its frame.
+
+### Callgrind: `--pop-on-jump` keeps the replaced call's stack frame
+
+With `--pop-on-jump`, a jump to another function replaces the current call
+with a call to the target. The new call took the stack pointer of the frame
+below instead of the replaced one, so its return was often not recognized,
+and the caller was recorded as called again from the jump target. In node,
+OpenSSL's `OPENSSL_LH_doall` showed up 179 times nested in one call chain.
+
+### Callgrind: `--pop-on-jump` keeps the caller of a callee that popped its return address
+
+A callee that pops its return address and then tail-jumps (V8's
+`Builtins_InterpreterPushUndefinedAndArgsThenCall` does this for every JS
+call from Ignition bytecode) has its frame ended by the SP rise. Its jump
+then replaced the caller's frame instead, so the jump target was recorded
+under the caller's caller. The jump target now nests under the caller.
+
 ### Linux: glibc reports the main thread stack size correctly again
 
 `pthread_getattr_np` reports the main thread's stack size as `RLIMIT_STACK`
@@ -36,6 +65,21 @@ was also corrected from `ID_AA64ZFR0_EL1`.
 matching Linux on AArch64.
 
 ## Features
+
+### Callgrind: `--separate-callers=all`
+
+Added `all` as a value for `--separate-callers`. Every function is then
+separated by its whole call chain, which is appended to the name as with
+`--separate-callers=<n>`, e.g. `Builtins_CallFunction'Builtins_Call_Baseline'0x...'main`.
+
+With the node binary instrumented, V8 builtins and trampolines sit between
+most pairs of JS functions. As single nodes, they connect every JS caller to
+every JS callee, which merges unrelated call chains and forms false cycles.
+With whole call chains as contexts, no edge joins two chains that did not run.
+Combine it with `--pop-on-jump`: by default a tail jump to another function
+is recorded as a nested call, so a chain of tail jumps (such as V8's bytecode
+handlers dispatching to each other) keeps growing until the real frame
+returns, and every step becomes a new, deeper context.
 
 ### Fixed Linux startup stack layout
 

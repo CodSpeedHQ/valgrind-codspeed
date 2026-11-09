@@ -1,0 +1,5 @@
+prereq: ../../tests/arch_test amd64 && test -f pop_ra_tail_jump
+prog: pop_ra_tail_jump
+vgopts: --compress-strings=no --pop-on-jump --callgrind-out-file=callgrind.out.pop_ra_tail_jump
+post: ./print_calls callgrind.out.pop_ra_tail_jump | grep -E 'caller|push_arg_then_jump|target|leaf'
+cleanup: rm -f callgrind.out.pop_ra_tail_jump

@@ -1,0 +1,6 @@
+prereq: ../../tests/arch_test amd64 && command -v node >/dev/null
+prog-asis: node
+args: -e 0
+vgopts: --compress-strings=no --separate-callers=all --pop-on-jump --callgrind-out-file=callgrind.out.pop_on_jump_node
+post: awk '/^fn=/ { n = gsub(/OPENSSL_LH_doall/, "&"); if (n > max) max = n } END { print "most OPENSSL_LH_doall frames in one context: " max }' callgrind.out.pop_on_jump_node
+cleanup: rm -f callgrind.out.pop_on_jump_node

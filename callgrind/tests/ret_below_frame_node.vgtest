@@ -1,0 +1,6 @@
+prereq: ../../tests/arch_test amd64 && command -v node >/dev/null
+prog-asis: node
+args: --always-sparkplug --no-opt --no-maglev ret_below_frame_node.js
+vgopts: --compress-strings=no --callgrind-out-file=callgrind.out.ret_below_frame_node
+post: sh -c 'calls=$(./print_calls callgrind.out.ret_below_frame_node); echo "$calls" | grep -q -E " -> Builtins_BaselineOutOfLinePrologue($|'"'"')" && echo "prologue called"; echo "prologue calls into JIT code: $(echo "$calls" | grep -c -E "^Builtins_BaselineOutOfLinePrologue[^ ]* -> 0x")"'
+cleanup: rm -f callgrind.out.ret_below_frame_node

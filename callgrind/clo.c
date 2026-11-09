@@ -497,6 +497,8 @@ Bool CLG_(process_cmd_line_option)(const HChar* arg)
 
    else if VG_XACT_CLO(arg, "--separate-callers=auto", 
                             CLG_(clo).separate_callers, CONFIG_AUTO) {}
+   else if VG_XACT_CLO(arg, "--separate-callers=all",
+                            CLG_(clo).separate_callers_all, True) {}
    else if VG_INT_CLO( arg, "--separate-callers", 
                             CLG_(clo).separate_callers) {}
 
@@ -628,7 +630,7 @@ void CLG_(print_usage)(void)
 
 "\n   cost entity separation options:\n"
 "    --separate-threads=no|yes Separate data per thread [no]\n"
-"    --separate-callers=<n>    Separate functions by call chain length [0]\n"
+"    --separate-callers=<n>|all  Separate functions by call chain length [0]\n"
 "    --separate-callers<n>=<f> Separate <n> callers for function <f>\n"
 "    --separate-recs=<n>       Separate function recursions up to level [2]\n"
 "    --separate-recs<n>=<f>    Separate <n> recursions for function <f>\n"
@@ -696,6 +698,7 @@ void CLG_(set_clo_defaults)(void)
 
   CLG_(clo).skip_plt         = True;
   CLG_(clo).separate_callers = 0;
+  CLG_(clo).separate_callers_all = False;
   CLG_(clo).separate_recursions = 2;
   CLG_(clo).skip_direct_recursion = False;
 

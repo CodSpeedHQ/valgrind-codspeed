@@ -1,0 +1,5 @@
+prereq: ../../tests/arch_test amd64 && test -f ret_below_frame
+prog: ret_below_frame
+vgopts: --compress-strings=no --callgrind-out-file=callgrind.out.ret_below_frame
+post: ./print_calls callgrind.out.ret_below_frame | grep -E 'with_prologue_|frame_prologue|leaf_'
+cleanup: rm -f callgrind.out.ret_below_frame
