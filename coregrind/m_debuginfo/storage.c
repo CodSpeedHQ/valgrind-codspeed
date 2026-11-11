@@ -2058,15 +2058,81 @@ static void canonicaliseSymtab ( struct _DebugInfo* di )
 }
 
 
-static DiLoc* sorting_loctab = NULL;
-static Int compare_DiLoc_via_ix ( const void* va, const void* vb ) 
+/* (address, index) pair used to sort loctab.  Sorting these directly,
+   rather than sorting an array of indexes into loctab, keeps the sort's
+   memory accesses local: the key it compares sits next to the index it
+   moves, instead of being a random access into a multi-megabyte loctab
+   for every one of the O(n log n) comparisons. */
+typedef
+   struct { Addr addr; UInt ix; }
+   DiLocSortKey;
+
+/* Strict order on DiLocSortKey.  Keys are unique (the index breaks ties),
+   so this is a total order and equal elements never occur. */
+static inline Bool loc_key_lt ( const DiLocSortKey* a, const DiLocSortKey* b )
 {
-   const DiLoc* a = &sorting_loctab[*(const UInt*)va];
-   const DiLoc* b = &sorting_loctab[*(const UInt*)vb];
-   if (a->addr < b->addr) return -1;
-   if (a->addr > b->addr) return  1;
-   return 0;
+   if (a->addr != b->addr) return a->addr < b->addr;
+   return a->ix < b->ix;
 }
+
+/* Quicksort specialised for DiLocSortKey: the comparison is inlined and
+   the elements are swapped as whole structs, unlike VG_(ssort), which
+   calls the comparison through a function pointer and (for elements
+   whose size is not a multiple of the word size, such as the 4 byte
+   indexes sorted here) exchanges them one byte at a time.
+   Small partitions are finished off with insertion sort, and the
+   recursion always descends into the smaller partition, so the stack
+   depth stays O(log n). */
+#define DILOC_SORT_INSERTION_MAX 12
+static void sort_loc_keys ( DiLocSortKey* arr, Word n )
+{
+   Word i, j;
+   DiLocSortKey pivot, tmp;
+
+   while (n > DILOC_SORT_INSERTION_MAX) {
+      /* Median of the first, middle and last element, ordering those
+         three on the way.  Afterwards arr[0] < pivot < arr[n-1], so both
+         partitioning loops below have a sentinel and cannot run off the
+         ends of the array. */
+      Word mid = n >> 1;
+      if (loc_key_lt(&arr[mid], &arr[0]))
+         { tmp = arr[mid]; arr[mid] = arr[0]; arr[0] = tmp; }
+      if (loc_key_lt(&arr[n-1], &arr[0]))
+         { tmp = arr[n-1]; arr[n-1] = arr[0]; arr[0] = tmp; }
+      if (loc_key_lt(&arr[n-1], &arr[mid]))
+         { tmp = arr[n-1]; arr[n-1] = arr[mid]; arr[mid] = tmp; }
+      /* Park the pivot in arr[1], out of the way of the partitioning. */
+      tmp = arr[mid]; arr[mid] = arr[1]; arr[1] = tmp;
+      pivot = arr[1];
+
+      i = 1; j = n - 1;
+      for (;;) {
+         do { i++; } while (loc_key_lt(&arr[i], &pivot));
+         do { j--; } while (loc_key_lt(&pivot, &arr[j]));
+         if (i > j) break;
+         tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+      }
+      arr[1] = arr[j]; arr[j] = pivot;
+
+      /* Recurse into the smaller side, iterate on the larger one. */
+      if (j < n - i) {
+         sort_loc_keys(arr, j);
+         arr += i; n -= i;
+      } else {
+         sort_loc_keys(arr + i, n - i);
+         n = j;
+      }
+   }
+
+   for (i = 1; i < n; i++) {
+      pivot = arr[i];
+      for (j = i - 1; j >= 0 && loc_key_lt(&pivot, &arr[j]); j--)
+         arr[j+1] = arr[j];
+      arr[j+1] = pivot;
+   }
+}
+#undef DILOC_SORT_INSERTION_MAX
+
 static void sort_loctab_and_loctab_fndn_ix (struct _DebugInfo* di )
 {
    /* We have to sort the array loctab by addr
@@ -2076,13 +2142,18 @@ static void sort_loctab_and_loctab_fndn_ix (struct _DebugInfo* di )
       arrays according to sort_ix. */
    UInt *sort_ix = ML_(dinfo_zalloc)("di.storage.six",
                                      di->loctab_used*sizeof(UInt));
+   DiLocSortKey *sort_keys = ML_(dinfo_zalloc)("di.storage.sk",
+                                               di->loctab_used
+                                                  * sizeof(DiLocSortKey));
    Word i, j, k;
 
-   for (i = 0; i < di->loctab_used; i++) sort_ix[i] = i;
-   sorting_loctab = di->loctab;
-   VG_(ssort)(sort_ix, di->loctab_used, 
-              sizeof(*sort_ix), compare_DiLoc_via_ix);
-   sorting_loctab = NULL;
+   for (i = 0; i < di->loctab_used; i++) {
+      sort_keys[i].addr = di->loctab[i].addr;
+      sort_keys[i].ix   = (UInt)i;
+   }
+   sort_loc_keys(sort_keys, di->loctab_used);
+   for (i = 0; i < di->loctab_used; i++) sort_ix[i] = sort_keys[i].ix;
+   ML_(dinfo_free)(sort_keys);
 
    // Permute in place, using the sort_ix.
    for (i=0; i < di->loctab_used; i++) {
