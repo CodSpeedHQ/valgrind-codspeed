@@ -158,12 +158,18 @@ typedef
       (v)->rreg = INVALID_HREG;  \
    } while (0)
 
-#define FREE_RREG(r)                      \
-   do {                                   \
-      (r)->disp          = Free;          \
-      (r)->vreg          = INVALID_HREG;  \
-      (r)->eq_spill_slot = False;         \
-   } while (0)
+/* Marks rreg |r_idx| as free.  |rregs_inuse| is the bitmask of the rregs
+   which are not Free (see its definition in doRegisterAllocation_v3); it is
+   kept in sync here so that scans over the occupied rregs do not have to
+   walk the whole (mostly free) |rreg_state| array. */
+static inline void free_rreg ( RRegState* rreg_state, ULong* rregs_inuse,
+                               UInt r_idx )
+{
+   rreg_state[r_idx].disp          = Free;
+   rreg_state[r_idx].vreg          = INVALID_HREG;
+   rreg_state[r_idx].eq_spill_slot = False;
+   *rregs_inuse &= ~(1ULL << r_idx);
+}
 
 
 /* Compute the index of the highest and lowest 1 in a ULong, respectively.
@@ -305,14 +311,14 @@ static inline void emit_instr(HInstr* instr, HInstrArray* instrs_out,
 /* Updates register allocator state after vreg has been spilled. */
 static inline void mark_vreg_spilled(
    UInt v_idx, VRegState* vreg_state, UInt n_vregs,
-   RRegState* rreg_state, UInt n_rregs)
+   RRegState* rreg_state, ULong* rregs_inuse, UInt n_rregs)
 {
    HReg rreg = vreg_state[v_idx].rreg;
    UInt r_idx = hregIndex(rreg);
 
    vreg_state[v_idx].disp = Spilled;
    vreg_state[v_idx].rreg = INVALID_HREG;
-   FREE_RREG(&rreg_state[r_idx]);
+   free_rreg(rreg_state, rregs_inuse, r_idx);
 }
 
 /* Spills a vreg assigned to some rreg.
@@ -320,8 +326,8 @@ static inline void mark_vreg_spilled(
    Returns rreg's index. */
 static inline UInt spill_vreg(
    HReg vreg, UInt v_idx, UInt current_ii, VRegState* vreg_state, UInt n_vregs,
-   RRegState* rreg_state, UInt n_rregs, HInstrArray* instrs_out,
-   const RegAllocControl* con)
+   RRegState* rreg_state, ULong* rregs_inuse, UInt n_rregs,
+   HInstrArray* instrs_out, const RegAllocControl* con)
 {
    /* Check some invariants first. */
    vassert(IS_VALID_VREGNO((v_idx)));
@@ -346,7 +352,8 @@ static inline UInt spill_vreg(
       emit_instr(spill2, instrs_out, con, "spill2");
    }
 
-   mark_vreg_spilled(v_idx, vreg_state, n_vregs, rreg_state, n_rregs);
+   mark_vreg_spilled(v_idx, vreg_state, n_vregs, rreg_state, rregs_inuse,
+                     n_rregs);
    return r_idx;
 }
 
@@ -502,6 +509,15 @@ HInstrArray* doRegisterAllocation_v3(
    /* Redundant rreg -> vreg state. */
    RRegState* rreg_state = LibVEX_Alloc_inline(n_rregs * sizeof(RRegState));
 
+   /* Bitmask of the rregs which are not Free, that is, bit |r_idx| is set
+      iff rreg_state[r_idx].disp != Free.  Only a handful of the (up to 64)
+      allocatable rregs are occupied at any point, so this lets the
+      post-instruction house-keeping below visit just those instead of
+      striding over the whole rreg_state array once per instruction.
+      Maintained by free_rreg() and by the sites which bind or reserve an
+      rreg; checked against rreg_state by the sanity checks. */
+   ULong rregs_inuse = 0;
+
    /* Info on rreg live ranges. */
    RRegLRState* rreg_lr_state
       = LibVEX_Alloc_inline(n_rregs * sizeof(RRegLRState));
@@ -563,7 +579,7 @@ HInstrArray* doRegisterAllocation_v3(
                                      instrs_in->arr_used - 1, con);            \
          _r_free_idx = spill_vreg(vreg_to_spill, hregIndex(vreg_to_spill),     \
                                   (_ii), vreg_state, n_vregs,                  \
-                                  rreg_state, n_rregs,                         \
+                                  rreg_state, &rregs_inuse, n_rregs,           \
                                   instrs_out, con);                            \
       }                                                                        \
                                                                                \
@@ -591,6 +607,7 @@ HInstrArray* doRegisterAllocation_v3(
       rreg_state[r_idx].vreg          = INVALID_HREG;
       rreg_state[r_idx].eq_spill_slot = False;
    }
+   rregs_inuse = 0;
 
    for (UInt r_idx = 0; r_idx < n_rregs; r_idx++) {
       RRegLRState* rreg_lrs    = &rreg_lr_state[r_idx];
@@ -980,6 +997,8 @@ HInstrArray* doRegisterAllocation_v3(
          }
 
          for (UInt r_idx = 0; r_idx < n_rregs; r_idx++) {
+            vassert(((rregs_inuse >> r_idx) & 1)
+                    == (rreg_state[r_idx].disp != Free));
             if (rreg_state[r_idx].disp == Bound) {
                vassert(hregIsVirtual(rreg_state[r_idx].vreg));
 
@@ -1071,7 +1090,7 @@ HInstrArray* doRegisterAllocation_v3(
             if (vreg_state[vd_idx].dead_before <= (Short) ii + 1) {
                if (vreg_state[vd_idx].disp == Assigned) {
                   UInt r_idx = hregIndex(rreg);
-                  FREE_RREG(&rreg_state[r_idx]);
+                  free_rreg(rreg_state, &rregs_inuse, r_idx);
                }
                FREE_VREG(&vreg_state[vd_idx]);
             }
@@ -1132,11 +1151,12 @@ HInstrArray* doRegisterAllocation_v3(
                   if (! HRegUsage__contains(&reg_usage[ii], vreg)) {
                      if (rreg->eq_spill_slot) {
                         mark_vreg_spilled(v_idx, vreg_state, n_vregs,
-                                          rreg_state, n_rregs);
+                                          rreg_state, &rregs_inuse, n_rregs);
                      } else {
                         /* Spill the vreg. It is not used by this instruction.*/
                         spill_vreg(vreg, v_idx, ii, vreg_state, n_vregs,
-                                   rreg_state, n_rregs, instrs_out, con);
+                                   rreg_state, &rregs_inuse, n_rregs,
+                                   instrs_out, con);
                      }
                   } else {
                      /* Find or make a free rreg where to move this vreg to. */
@@ -1155,7 +1175,8 @@ HInstrArray* doRegisterAllocation_v3(
                      rreg_state[r_free_idx].disp          = Bound;
                      rreg_state[r_free_idx].vreg          = vreg;
                      rreg_state[r_free_idx].eq_spill_slot = rreg->eq_spill_slot;
-                     FREE_RREG(rreg);
+                     rregs_inuse |= 1ULL << r_free_idx;
+                     free_rreg(rreg_state, &rregs_inuse, r_idx);
                   }
                   break;
                }
@@ -1167,6 +1188,7 @@ HInstrArray* doRegisterAllocation_v3(
 
                /* Finally claim the rreg as reserved. */
                rreg->disp = Reserved;
+               rregs_inuse |= 1ULL << r_idx;
 
                if (DEBUG_REGALLOC) {
                   vex_printf("rreg has been reserved: ");
@@ -1306,6 +1328,7 @@ HInstrArray* doRegisterAllocation_v3(
             rreg_state[r_idx].disp          = Bound;
             rreg_state[r_idx].vreg          = vreg;
             rreg_state[r_idx].eq_spill_slot = True;
+            rregs_inuse |= 1ULL << r_idx;
             vreg_state[v_idx].disp = Assigned;
             vreg_state[v_idx].rreg = rreg;
             addToHRegRemap(&remap, vreg, rreg);
@@ -1330,7 +1353,10 @@ HInstrArray* doRegisterAllocation_v3(
       /* Free rregs which:
          - Have been reserved and whose hard live range ended.
          - Have been bound to vregs whose live range ended. */
-      for (UInt r_idx = 0; r_idx < n_rregs; r_idx++) {
+      ULong rregs_to_check = rregs_inuse;
+      while (rregs_to_check != 0) {
+         UInt r_idx = ULong__minIndex(rregs_to_check);
+         rregs_to_check &= rregs_to_check - 1; /* clear the lowest set bit */
          RRegState*   rreg     = &rreg_state[r_idx];
          RRegLRState* rreg_lrs = &rreg_lr_state[r_idx];
          switch (rreg->disp) {
@@ -1340,7 +1366,7 @@ HInstrArray* doRegisterAllocation_v3(
             if (rreg_lrs->lrs_used > 0) {
                /* Consider "dead before" the next instruction. */
                if (rreg_lrs->lr_current->dead_before <= (Short) ii + 1) {
-                  FREE_RREG(&rreg_state[r_idx]);
+                  free_rreg(rreg_state, &rregs_inuse, r_idx);
                   if (rreg_lrs->lr_current_idx < rreg_lrs->lrs_used - 1) {
                      rreg_lrs->lr_current_idx += 1;
                      rreg_lrs->lr_current
@@ -1354,7 +1380,7 @@ HInstrArray* doRegisterAllocation_v3(
             /* Consider "dead before" the next instruction. */
             if (vreg_state[v_idx].dead_before <= (Short) ii + 1) {
                FREE_VREG(&vreg_state[v_idx]);
-               FREE_RREG(&rreg_state[r_idx]);
+               free_rreg(rreg_state, &rregs_inuse, r_idx);
             }
             break;
          }
