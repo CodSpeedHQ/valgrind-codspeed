@@ -174,9 +174,14 @@
    hashing, but it's not clear whether or not this would really be any
    faster. */
 
+/* The bindings are kept packed in [0 .. used-1]: deleting a binding
+   moves the last one into the hole rather than leaving a tombstone
+   behind.  That keeps every scan proportional to the number of live
+   bindings, which matters because the environments are wiped wholesale
+   (see the |used = 0| sites below) far more often than they are read. */
+
 typedef
    struct {
-      Bool*  inuse;
       HWord* key;
       HWord* val;
       Int    size;
@@ -189,10 +194,22 @@ static HashHW* newHHW ( void )
    HashHW* h = LibVEX_Alloc_inline(sizeof(HashHW));
    h->size   = 8;
    h->used   = 0;
-   h->inuse  = LibVEX_Alloc_inline(h->size * sizeof(Bool));
    h->key    = LibVEX_Alloc_inline(h->size * sizeof(HWord));
    h->val    = LibVEX_Alloc_inline(h->size * sizeof(HWord));
    return h;
+}
+
+
+/* Delete the binding at index i.  The map is unordered, so the hole is
+   filled with the last binding.  Callers iterating over the map must
+   therefore re-examine index i afterwards. */
+
+static inline void deleteHHW ( HashHW* h, Int i )
+{
+   vassert(i >= 0 && i < h->used);
+   h->used--;
+   h->key[i] = h->key[h->used];
+   h->val[i] = h->val[h->used];
 }
 
 
@@ -203,7 +220,7 @@ static Bool lookupHHW ( const HashHW* h, /*OUT*/HWord* val, HWord key )
    Int i;
    /* vex_printf("lookupHHW(%llx)\n", key ); */
    for (i = 0; i < h->used; i++) {
-      if (h->inuse[i] && h->key[i] == key) {
+      if (h->key[i] == key) {
          if (val)
             *val = h->val[i];
          return True;
@@ -217,12 +234,12 @@ static Bool lookupHHW ( const HashHW* h, /*OUT*/HWord* val, HWord key )
 
 static void addToHHW ( HashHW* h, HWord key, HWord val )
 {
-   Int i, j;
+   Int i;
    /* vex_printf("addToHHW(%llx, %llx)\n", key, val); */
 
    /* Find and replace existing binding, if any. */
    for (i = 0; i < h->used; i++) {
-      if (h->inuse[i] && h->key[i] == key) {
+      if (h->key[i] == key) {
          h->val[i] = val;
          return;
       }
@@ -231,26 +248,19 @@ static void addToHHW ( HashHW* h, HWord key, HWord val )
    /* Ensure a space is available. */
    if (h->used == h->size) {
       /* Copy into arrays twice the size. */
-      Bool*  inuse2 = LibVEX_Alloc_inline(2 * h->size * sizeof(Bool));
       HWord* key2   = LibVEX_Alloc_inline(2 * h->size * sizeof(HWord));
       HWord* val2   = LibVEX_Alloc_inline(2 * h->size * sizeof(HWord));
-      for (i = j = 0; i < h->size; i++) {
-         if (!h->inuse[i]) continue;
-         inuse2[j] = True;
-         key2[j] = h->key[i];
-         val2[j] = h->val[i];
-         j++;
+      for (i = 0; i < h->used; i++) {
+         key2[i] = h->key[i];
+         val2[i] = h->val[i];
       }
-      h->used = j;
       h->size *= 2;
-      h->inuse = inuse2;
       h->key = key2;
       h->val = val2;
    }
 
    /* Finally, add it. */
    vassert(h->used < h->size);
-   h->inuse[h->used] = True;
    h->key[h->used] = key;
    h->val[h->used] = val;
    h->used++;
@@ -594,17 +604,16 @@ static void invalidateOverlaps ( HashHW* h, UInt k_lo, UInt k_hi )
       .. k_hi) */
    /* vex_printf("invalidate %d .. %d\n", k_lo, k_hi ); */
 
-   for (j = 0; j < h->used; j++) {
-      if (!h->inuse[j]) 
-         continue;
+   for (j = 0; j < h->used; /* see below */) {
       e_lo = (((UInt)h->key[j]) >> 16) & 0xFFFF;
       e_hi = ((UInt)h->key[j]) & 0xFFFF;
       vassert(e_lo <= e_hi);
       if (e_hi < k_lo || k_hi < e_lo)
-         continue; /* no overlap possible */
+         j++; /* no overlap possible */
       else
-         /* overlap; invalidate */
-         h->inuse[j] = False;
+         /* overlap; invalidate.  The last binding is moved into slot j,
+            so re-examine j rather than advancing. */
+         deleteHHW(h, j);
    }
 }
 
@@ -686,8 +695,7 @@ static void redundant_get_removal_BB ( IRSB* bb )
          }
          if (writes) {
             /* dump the entire env (not clever, but correct ...) */
-            for (j = 0; j < env->used; j++)
-               env->inuse[j] = False;
+            env->used = 0;
             if (0) vex_printf("rGET: trash env due to dirty helper\n");
          }
       }
@@ -772,8 +780,7 @@ static void handle_gets_Stmt (
       case Ist_Dirty:
       case Ist_CAS:
       case Ist_LLSC:
-         for (j = 0; j < env->used; j++)
-            env->inuse[j] = False;
+         env->used = 0;
          break;
 
       /* all other cases are boring. */
@@ -831,8 +838,7 @@ static void handle_gets_Stmt (
          case VexRegUpdAllregsAtMemAccess:
             /* Precise exceptions required at mem access.
                Flush all guest state. */
-            for (j = 0; j < env->used; j++)
-               env->inuse[j] = False;
+            env->used = 0;
             break;
          case VexRegUpdSpAtMemAccess:
             /* We need to dump the stack pointer
@@ -841,15 +847,15 @@ static void handle_gets_Stmt (
                to verify only the sp is to be checked. */
             /* fallthrough */
          case VexRegUpdUnwindregsAtMemAccess:
-            for (j = 0; j < env->used; j++) {
-               if (!env->inuse[j])
-                  continue;
+            for (j = 0; j < env->used; /* see below */) {
                /* Just flush the minimal amount required, as computed by
                   preciseMemExnsFn. */
                HWord k_lo = (env->key[j] >> 16) & 0xFFFF;
                HWord k_hi = env->key[j] & 0xFFFF;
                if (preciseMemExnsFn( k_lo, k_hi, pxControl ))
-                  env->inuse[j] = False;
+                  deleteHHW(env, j); /* re-examine slot j */
+               else
+                  j++;
             }
             break;
          case VexRegUpdAllregsAtEachInsn:
@@ -886,7 +892,7 @@ static void redundant_put_removal_BB (
                VexRegisterUpdates pxControl
             )
 {
-   Int     i, j;
+   Int     i;
    Bool    isPut;
    IRStmt* st;
    UInt    key = 0; /* keep gcc -O happy */
@@ -931,8 +937,7 @@ static void redundant_put_removal_BB (
          //                    typeOfIRConst(st->Ist.Exit.dst));
          //re_add = lookupHHW(env, NULL, key);
          /* (2) */
-         for (j = 0; j < env->used; j++)
-            env->inuse[j] = False;
+         env->used = 0;
          /* (3) */
          //if (0 && re_add) 
          //   addToHHW(env, (HWord)key, 0);
@@ -4578,12 +4583,12 @@ static Bool do_cse_BB ( IRSB* bb, Bool allowLoadsToBeCSEd )
       }
 
       if (paranoia > 0) {
-         for (j = 0; j < aenv->used; j++) {
-            if (!aenv->inuse[j])
-               continue;
+         for (j = 0; j < aenv->used; /* see below */) {
             ae = (AvailExpr*)aenv->key[j];
-            if (ae->tag != GetIt && ae->tag != Load) 
+            if (ae->tag != GetIt && ae->tag != Load) {
+               j++;
                continue;
+            }
             invalidate = False;
             if (paranoia >= 2) {
                invalidate = True;
@@ -4623,10 +4628,10 @@ static Bool do_cse_BB ( IRSB* bb, Bool allowLoadsToBeCSEd )
                   vpanic("do_cse_BB(2)");
             }
 
-            if (invalidate) {
-               aenv->inuse[j] = False;
-               aenv->key[j]   = (HWord)NULL;  /* be sure */
-            }
+            if (invalidate)
+               deleteHHW(aenv, j); /* re-examine slot j */
+            else
+               j++;
          } /* for j */
       } /* paranoia > 0 */
 
@@ -4649,7 +4654,7 @@ static Bool do_cse_BB ( IRSB* bb, Bool allowLoadsToBeCSEd )
 
       /* search aenv for eprime, unfortunately the hard way */
       for (j = 0; j < aenv->used; j++)
-         if (aenv->inuse[j] && eq_AvailExpr(eprime, (AvailExpr*)aenv->key[j]))
+         if (eq_AvailExpr(eprime, (AvailExpr*)aenv->key[j]))
             break;
 
       if (j < aenv->used) {
