@@ -427,6 +427,7 @@ struct _BBCC {
 
 struct _fn_node {
   HChar*     name;
+  UInt       name_hash; /* full 32-bit hash for fast lookup */
   UInt       number;
   Context*   last_cxt; /* LRU info */
   Context*   pure_cxt; /* the context with only the function itself */
@@ -461,6 +462,7 @@ struct _fn_node {
 
 struct _file_node {
    HChar*     name;
+   UInt       name_hash; /* full 32-bit hash for fast lookup */
    fn_node*   fns[N_FN_ENTRIES];
    UInt       number;
    obj_node*  obj;
@@ -473,6 +475,7 @@ struct _file_node {
  */
 struct _obj_node {
    const HChar* name;
+   UInt       name_hash; /* full 32-bit hash for fast lookup */
    UInt       last_slash_pos;
 
    Addr       start;  /* Start address of text segment mapping */
